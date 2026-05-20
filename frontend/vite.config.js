@@ -19,4 +19,9 @@ export default defineConfig({
     outDir: '../static/frontend',
     emptyOutDir: true,
   },
+  test: {
+    environment: 'happy-dom',
+    globals: true,
+    setupFiles: ['./src/test/setup.js'],
+  },
 })

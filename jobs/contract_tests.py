@@ -21,14 +21,16 @@ class JobSubmissionJSONContractTest(APITestCase):
         self.user = User.objects.create_user(
             username='testuser', 
             email='test@example.com', 
-            password='testpass123'
+            password='Testpass123',
+            full_name='Test User'
         )
         self.admin = User.objects.create_user(
             username='admin',
             email='admin@example.com', 
-            password='admin123',
-            is_admin=True
+            password='Admin123',
+            full_name='Admin User'
         )
+        self.admin.make_admin()
         
         # Create test workflow
         self.workflow = Workflow.objects.create(
@@ -155,7 +157,8 @@ class JobSubmissionFormDataContractTest(APITestCase):
         self.user = User.objects.create_user(
             username='testuser',
             email='test@example.com', 
-            password='testpass123'
+            password='Testpass123',
+            full_name='Test User'
         )
         
         self.workflow = Workflow.objects.create(
@@ -221,12 +224,14 @@ class JobActionContractTest(APITestCase):
         self.user = User.objects.create_user(
             username='testuser',
             email='test@example.com',
-            password='testpass123'
+            password='TestPass123!',
+            full_name='Test User'
         )
         self.other_user = User.objects.create_user(
             username='otheruser',
             email='other@example.com',
-            password='testpass123'
+            password='Testpass123',
+            full_name='Other User'
         )
         
         self.workflow = Workflow.objects.create(
@@ -270,7 +275,8 @@ class JobResponseShapeTest(APITestCase):
         self.user = User.objects.create_user(
             username='testuser',
             email='test@example.com',
-            password='testpass123'
+            password='TestPass123!',
+            full_name='Test User'
         )
         
         self.workflow = Workflow.objects.create(
