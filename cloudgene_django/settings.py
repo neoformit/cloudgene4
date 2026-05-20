@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework.authtoken',
+    'drf_spectacular',
     'corsheaders',
     'channels',
     'django_celery_results',
@@ -152,6 +153,14 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 20,
     'UNAUTHENTICATED_USER': None,
     'UNAUTHENTICATED_TOKEN': None,
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+# DRF Spectacular settings
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Cloudgene API',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
 }
 
 # CORS settings

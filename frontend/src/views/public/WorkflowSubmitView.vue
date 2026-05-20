@@ -28,8 +28,7 @@ onMounted(async () => {
   }
 })
 
-const inputParams = () =>
-  (workflow.value?.parameters ?? []).filter((p) => p.is_input || p.direction === 'input' || !p.direction)
+const inputParams = () => workflow.value?.inputs ?? []
 
 async function handleSubmit(formData) {
   error.value = ''
@@ -40,7 +39,15 @@ async function handleSubmit(formData) {
     const { data } = await submitJob(formData)
     router.push(`/jobs/${data.id}`)
   } catch (e) {
-    error.value = e.response?.data?.message || 'Job submission failed.'
+    const data = e.response?.data
+    if (data?.error) {
+      error.value = data.error
+    } else if (data && typeof data === 'object') {
+      const firstKey = Object.keys(data)[0]
+      error.value = firstKey ? `${firstKey}: ${data[firstKey]}` : 'Job submission failed.'
+    } else {
+      error.value = 'Job submission failed.'
+    }
   } finally {
     submitting.value = false
   }
