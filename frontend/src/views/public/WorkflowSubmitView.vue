@@ -33,8 +33,7 @@ const inputParams = () => workflow.value?.inputs ?? []
 async function handleSubmit(formData) {
   error.value = ''
   submitting.value = true
-  formData.append('workflow_id', route.params.workflowId)
-  formData.set('job_name', jobName.value)
+  
   try {
     const { data } = await submitJob(formData)
     router.push(`/jobs/${data.id}`)
@@ -76,7 +75,7 @@ async function handleSubmit(formData) {
 
         <AlertMessage :message="error" />
 
-        <form @submit.prevent="$refs.dynForm.onSubmit(jobName)">
+        <form @submit.prevent="$refs.dynForm.onSubmit()">
           <div class="mb-4">
             <label for="job-name" class="form-label fw-semibold">Job Name:</label>
             <input
@@ -91,6 +90,8 @@ async function handleSubmit(formData) {
           <DynamicForm
             ref="dynForm"
             :params="inputParams()"
+            :workflow-id="route.params.workflowId"
+            :job-name="jobName"
             @submit="handleSubmit"
           />
 

@@ -157,14 +157,7 @@ class JobSubmissionSerializer(serializers.ModelSerializer):
         return value
     
     def validate_parameters(self, value):
-        # Ensure value is a dictionary for validation
-        if isinstance(value, str):
-            try:
-                import json
-                value = json.loads(value)
-            except (json.JSONDecodeError, ValueError):
-                raise serializers.ValidationError("Value must be valid JSON.")
-        
+        # Parameters should always be a dictionary from FormData processing
         if not isinstance(value, dict):
             raise serializers.ValidationError("Parameters must be a dictionary.")
         

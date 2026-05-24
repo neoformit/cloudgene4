@@ -10,6 +10,8 @@ import FileInput from './FileInput.vue'
 
 const props = defineProps({
   params: { type: Array, required: true },
+  workflowId: { type: String, required: true },
+  jobName: { type: String, required: true },
 })
 const emit = defineEmits(['submit'])
 
@@ -27,9 +29,14 @@ for (const p of props.params) {
   }
 }
 
-function onSubmit(name) {
+function onSubmit() {
   const formData = new FormData()
-  formData.append('job_name', name)
+  
+  // Add workflow and job metadata
+  formData.append('workflow_id', props.workflowId)
+  formData.append('job_name', props.jobName)
+  
+  // Add all parameter values
   for (const p of props.params) {
     const v = values[p.id]
     if (Array.isArray(v)) {
@@ -40,6 +47,7 @@ function onSubmit(name) {
       formData.append(p.id, v)
     }
   }
+  
   emit('submit', formData)
 }
 
