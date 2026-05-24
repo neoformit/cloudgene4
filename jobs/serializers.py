@@ -157,6 +157,17 @@ class JobSubmissionSerializer(serializers.ModelSerializer):
         return value
     
     def validate_parameters(self, value):
+        # Ensure value is a dictionary for validation
+        if isinstance(value, str):
+            try:
+                import json
+                value = json.loads(value)
+            except (json.JSONDecodeError, ValueError):
+                raise serializers.ValidationError("Value must be valid JSON.")
+        
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("Parameters must be a dictionary.")
+        
         # Validate parameters against workflow inputs
         workflow_id = self.initial_data.get('workflow_id')
         if workflow_id:
