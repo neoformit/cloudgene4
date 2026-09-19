@@ -1,31 +1,38 @@
 import client from './client'
 
-export const listJobs = (page = 1) =>
-  client.get('/jobs/', { params: { page } })
+/** Job states (SPEC §3.3). */
+export const JOB_STATES = ['waiting', 'running', 'success', 'failed', 'cancelled']
+export const ACTIVE_STATES = ['waiting', 'running']
+export const isActiveState = (state) => ACTIVE_STATES.includes(state)
 
-export const getJob = (id) =>
-  client.get(`/jobs/${id}/`)
+/** GET /api/jobs/?state=&page= — own jobs. Accepts a page number (legacy) or a params object. */
+export const listJobs = (params = {}) =>
+  client.get('/jobs/', { params: typeof params === 'number' ? { page: params } : params })
 
-export const submitJob = (data) =>
-  client.post('/jobs/', data)
+export const getJob = (id) => client.get(`/jobs/${id}/`)
 
-export const cancelJob = (id) =>
-  client.post(`/jobs/${id}/cancel/`)
+/** Light payload for polling (state, steps, messages, queue position). */
+export const getJobStatus = (id) => client.get(`/jobs/${id}/status/`)
 
-export const restartJob = (id) =>
-  client.post(`/jobs/${id}/restart/`)
+/** POST /api/jobs/ multipart: workflow, job_name, one field per input id. */
+export const submitJob = (formData) => client.post('/jobs/', formData)
 
-export const getJobLogs = (id) =>
-  client.get(`/jobs/${id}/logs/`)
+export const cancelJob = (id) => client.post(`/jobs/${id}/cancel/`)
 
-export const listDownloads = (id) =>
-  client.get(`/jobs/${id}/download/`)
+export const deleteJob = (id) => client.delete(`/jobs/${id}/`)
 
-export const getQueueStatus = () =>
-  client.get('/jobs/queue_status/')
+/** Plain-text log. */
+export const getJobLog = (id) =>
+  client.get(`/jobs/${id}/log/`, { responseType: 'text', transformResponse: [(d) => d] })
 
-export const pauseQueue = () =>
-  client.post('/jobs/pause_queue/')
+/** Same-origin URLs usable in <a href> (session cookie auth). */
+export const jobLogUrl = (id) => `/api/jobs/${id}/log/`
+export const jobOutputUrl = (jobId, fileId) => `/api/jobs/${jobId}/outputs/${fileId}/`
 
-export const resumeQueue = () =>
-  client.post('/jobs/resume_queue/')
+// -- Admin (SPEC §3.6) ---------------------------------------------------------------------
+/** GET /api/admin/jobs/?state=&user=&workflow=&search=&page= */
+export const adminListJobs = (params = {}) => client.get('/admin/jobs/', { params })
+export const adminCancelJob = (id) => client.post(`/admin/jobs/${id}/cancel/`)
+export const adminRestartJob = (id) => client.post(`/admin/jobs/${id}/restart/`)
+/** @deprecated use adminRestartJob */
+export const restartJob = adminRestartJob

@@ -20,8 +20,8 @@ const emit = defineEmits(['confirm', 'cancel'])
         </div>
         <div class="modal-body" v-html="message"></div>
         <div class="modal-footer">
-          <button class="btn btn-secondary" :disabled="loading" @click="$emit('cancel')">Cancel</button>
-          <button :class="`btn ${confirmClass}`" :disabled="loading" @click="$emit('confirm')">
+          <button class="btn btn-secondary" data-testid="confirm-dismiss" :disabled="loading" @click="$emit('cancel')">Cancel</button>
+          <button :class="`btn ${confirmClass}`" data-testid="confirm-ok" :disabled="loading" @click="$emit('confirm')">
             <span v-if="loading" class="spinner-border spinner-border-sm me-1"></span>
             {{ loading ? 'Please wait...' : confirmText }}
           </button>

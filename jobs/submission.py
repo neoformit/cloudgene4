@@ -200,10 +200,12 @@ def validate_inputs(definition: WorkflowDefinition, data, files):
             params[pid] = _checkbox_param(p, checked)
             continue
         if p.is_terms:
-            if raw is None or not _is_true(raw):
+            if raw is not None and _is_true(raw):
+                params[pid] = True
+            elif p.required:
                 err(pid, 'You must accept this to submit the job.')
             else:
-                params[pid] = True
+                params[pid] = False
             continue
 
         text = '' if raw is None else str(raw)
@@ -302,8 +304,8 @@ def submit_job(user, data, files=None) -> Job:
                               status=409) from exc
 
     raw_name = _get(data, 'job_name')
-    if raw_name is None:
-        raw_name = _get(data, 'name')  # legacy alias
+    if raw_name is None and definition.input('name') is None:
+        raw_name = _get(data, 'name')  # alias, unless the workflow has an input called "name"
     name = clean_job_name(raw_name, definition.name or workflow.name)
 
     params, plan, text_files, errors = validate_inputs(definition, data, files)

@@ -392,7 +392,7 @@ Rules enforced by the parser (`workflows/definition.py`, owned by T03):
   `{key,label}`); a default not among the keys is ignored with a warning. `number`: `value`/`min`/`max`
   numeric, `min <= max`. `checkbox`: `values` optional but, if given, needs both `true` and `false`
   keys; default = `value` (bool, or the mapped true value); never "required". `terms_checkbox` /
-  `agb_checkbox` must be checked to submit. `writeFile` only on `textarea`, plain file name.
+  `agb_checkbox` must be checked to submit (unless `required: false`). `writeFile` only on `textarea`, plain file name.
   `separator`/`info`/`label` are display-only (never submitted, never in params). `local-file` /
   `local-folder` behave like `file` / `folder` (browser upload). Output `download` and `serialize`
   default to `true`; output `type` defaults to `folder`.

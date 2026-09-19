@@ -1,86 +1,88 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
-import { listJobs, cancelJob } from '@/api/jobs'
+import { ref, computed, onMounted } from 'vue'
+import { listJobs, cancelJob, deleteJob, isActiveState, JOB_STATES } from '@/api/jobs'
+import { apiErrorMessage } from '@/api/client'
+import { usePolling } from '@/components/jobs/usePolling'
 import JobStatusBadge from '@/components/jobs/JobStatusBadge.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import AlertMessage from '@/components/common/AlertMessage.vue'
 
 const jobs = ref([])
 const total = ref(0)
 const currentPage = ref(1)
 const pageSize = 20
+const stateFilter = ref('')
 const loading = ref(true)
+const error = ref('')
 
-const confirmJob = ref(null)
+const confirm = ref(null) // {action: 'cancel'|'delete', job}
 const confirmLoading = ref(false)
 
-let pollTimer = null
+const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
+const hasActive = computed(() => jobs.value.some((j) => isActiveState(j.state)))
 
-const totalPages = () => Math.ceil(total.value / pageSize)
-
-function prettyDate(ts) {
-  if (!ts) return ''
-  return new Date(ts).toLocaleString()
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
 }
 
-function prettyDuration(start, end) {
-  if (!start || !end) return '-'
-  const ms = new Date(end) - new Date(start)
-  const s = Math.floor(ms / 1000)
+function prettyDate(ts) {
+  return ts ? new Date(ts).toLocaleString() : ''
+}
+
+function prettyDuration(seconds) {
+  if (seconds === null || seconds === undefined) return '-'
+  const s = Math.floor(seconds)
   if (s < 60) return `${s}s`
   const m = Math.floor(s / 60)
   if (m < 60) return `${m}m ${s % 60}s`
   return `${Math.floor(m / 60)}h ${m % 60}m`
 }
 
-const activeStates = new Set(['pending', 'waiting', 'running'])
-
-async function fetchJobs(page = 1) {
-  const { data } = await listJobs(page)
+async function fetchJobs(page = currentPage.value) {
+  const params = { page, page_size: pageSize }
+  if (stateFilter.value) params.state = stateFilter.value
+  const before = JSON.stringify(jobs.value.map((j) => [j.id, j.state, j.queue_position]))
+  const { data } = await listJobs(params)
   jobs.value = data.results ?? data
   total.value = data.count ?? jobs.value.length
   currentPage.value = page
+  if (hasActive.value) poller.start()
+  return JSON.stringify(jobs.value.map((j) => [j.id, j.state, j.queue_position])) !== before
 }
 
-function scheduleRefresh() {
-  const hasActive = jobs.value.some((j) => activeStates.has(j.status))
-  if (hasActive) {
-    pollTimer = setTimeout(async () => {
-      await fetchJobs(currentPage.value)
-      scheduleRefresh()
-    }, 20000)
-  }
-}
-
-onMounted(async () => {
-  try {
-    await fetchJobs(1)
-    scheduleRefresh()
-  } finally {
-    loading.value = false
-  }
+const poller = usePolling(() => fetchJobs(), {
+  interval: 3000,
+  maxInterval: 10000,
+  shouldContinue: () => hasActive.value,
 })
 
-onUnmounted(() => clearTimeout(pollTimer))
-
-async function onPageChange(page) {
-  loading.value = true
+async function reload(page = 1) {
+  error.value = ''
   try {
     await fetchJobs(page)
+  } catch (e) {
+    error.value = apiErrorMessage(e, 'Could not load jobs.')
   } finally {
     loading.value = false
   }
 }
 
-async function doCancel() {
+onMounted(() => reload(1))
+
+async function performAction() {
+  const { action, job } = confirm.value
   confirmLoading.value = true
   try {
-    await cancelJob(confirmJob.value.id)
+    if (action === 'cancel') await cancelJob(job.id)
+    else await deleteJob(job.id)
     await fetchJobs(currentPage.value)
+  } catch (e) {
+    error.value = apiErrorMessage(e)
   } finally {
     confirmLoading.value = false
-    confirmJob.value = null
+    confirm.value = null
   }
 }
 </script>
@@ -88,66 +90,82 @@ async function doCancel() {
 <template>
   <div>
     <div class="page-header">
-      <div class="py-1 container">
-        <h2>Jobs</h2>
-        <span><b>{{ total }}</b> jobs submitted.</span>
+      <div class="py-1 container d-flex align-items-center">
+        <h2 class="mb-0 me-auto">Jobs</h2>
+        <label class="me-2 text-muted small" for="job-state-filter">State</label>
+        <select id="job-state-filter" v-model="stateFilter" class="form-select form-select-sm w-auto"
+                data-testid="job-filter-state" @change="reload(1)">
+          <option value="">All</option>
+          <option value="waiting,running">Active</option>
+          <option v-for="s in JOB_STATES" :key="s" :value="s">{{ s.charAt(0).toUpperCase() + s.slice(1) }}</option>
+        </select>
       </div>
     </div>
 
-    <div class="container">
+    <div class="container my-4">
+      <AlertMessage :message="error" data-testid="jobs-error" />
       <LoadingSpinner v-if="loading" />
 
       <template v-else>
-        <div
-          v-for="job in jobs"
-          :key="job.id"
-          class="card card-shadow mb-3 mt-2"
-          :class="`job-${job.status}`"
-        >
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center">
-              <JobStatusBadge :status="job.status" />
-              <div class="flex-grow-1">
-                <b><RouterLink :to="`/jobs/${job.id}`">{{ job.name }}</RouterLink></b><br>
-                <small class="text-muted">
-                  <i class="far fa-clock"></i> {{ prettyDate(job.submitted_at) }}&nbsp;&nbsp;
-                  <i class="far fa-hourglass"></i> {{ prettyDuration(job.started_at, job.completed_at) }}&nbsp;&nbsp;
-                  <i class="fas fa-tag"></i> {{ job.workflow_id }}
-                </small>
-              </div>
-              <button
-                v-if="job.status === 'running' || job.status === 'pending' || job.status === 'waiting'"
-                class="btn btn-light btn-sm"
-                title="Cancel job"
-                @click="confirmJob = job"
-              >
-                <i class="fas fa-times"></i>
-              </button>
-            </div>
-          </div>
+        <div v-if="!jobs.length" class="text-center text-muted py-5" data-testid="jobs-empty">
+          <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
+          <p v-if="stateFilter">No jobs in this state.</p>
+          <p v-else>No jobs yet. <router-link to="/">Run a workflow</router-link> to get started.</p>
         </div>
 
-        <p v-if="!jobs.length" class="text-muted mt-4">No jobs found.</p>
+        <table v-else class="table table-hover align-middle" data-testid="jobs-table">
+          <thead>
+            <tr>
+              <th style="width: 3rem"></th>
+              <th>Name</th>
+              <th>Workflow</th>
+              <th>Submitted</th>
+              <th>Duration</th>
+              <th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="job in jobs" :key="job.id" data-testid="job-row" :data-job-id="job.id" :data-state="job.state">
+              <td><JobStatusBadge :state="job.state" testid="job-row-state" /></td>
+              <td>
+                <router-link :to="`/jobs/${job.id}`" data-testid="job-row-link">{{ job.name }}</router-link>
+                <div v-if="job.state === 'waiting' && job.queue_position" class="small text-muted" data-testid="job-row-queue">
+                  Queue position {{ job.queue_position }}
+                </div>
+                <div v-if="job.cancel_requested && job.state === 'running'" class="small text-warning">Cancelling…</div>
+              </td>
+              <td>{{ job.workflow_name }} <small class="text-muted">{{ job.workflow_version }}</small></td>
+              <td>{{ prettyDate(job.submitted_at) }}</td>
+              <td>{{ prettyDuration(job.duration_seconds) }}</td>
+              <td class="text-end">
+                <button v-if="job.can_cancel" class="btn btn-sm btn-outline-warning me-1" title="Cancel"
+                        data-testid="job-row-cancel" @click="confirm = { action: 'cancel', job }">
+                  <i class="fas fa-times"></i>
+                </button>
+                <button v-if="job.can_delete" class="btn btn-sm btn-outline-danger" title="Delete"
+                        data-testid="job-row-delete" @click="confirm = { action: 'delete', job }">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
 
-        <div class="mt-4">
-          <Pagination
-            :current-page="currentPage"
-            :total-pages="totalPages()"
-            @change="onPageChange"
-          />
-        </div>
+        <Pagination :current-page="currentPage" :total-pages="totalPages" @change="reload" />
       </template>
     </div>
 
     <ConfirmDialog
-      v-if="confirmJob"
-      title="Cancel Job"
-      :message="`Are you sure you want to cancel <b>${confirmJob.name}</b>?`"
-      confirm-text="Cancel Job"
-      confirm-class="btn-warning"
+      v-if="confirm"
+      :title="confirm.action === 'cancel' ? 'Cancel Job' : 'Delete Job'"
+      :message="confirm.action === 'cancel'
+        ? `Are you sure you want to cancel <b>${escapeHtml(confirm.job.name)}</b>?`
+        : `Delete <b>${escapeHtml(confirm.job.name)}</b> and all its results? This cannot be undone.`"
+      :confirm-text="confirm.action === 'cancel' ? 'Cancel Job' : 'Delete Job'"
+      :confirm-class="confirm.action === 'cancel' ? 'btn-warning' : 'btn-danger'"
       :loading="confirmLoading"
-      @confirm="doCancel"
-      @cancel="confirmJob = null"
+      @confirm="performAction"
+      @cancel="confirm = null"
     />
   </div>
 </template>

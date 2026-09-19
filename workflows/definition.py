@@ -382,8 +382,7 @@ def _parse_input(raw, where, errors, warnings) -> InputParam | None:
         param.value = _checkbox_default(value, param.checkbox_values)
         param.required = False   # an unchecked checkbox is a valid value
     elif ptype in TERMS_TYPES:
-        param.value = False
-        param.required = True
+        param.value = False   # must be checked unless `required: false`
     elif ptype in FILE_TYPES:
         param.value = None
     else:  # display types
