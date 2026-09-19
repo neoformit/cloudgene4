@@ -1,5 +1,9 @@
 """
-Job queue management system
+Job queue management system.
+
+TRANSITIONAL (T01): Celery was removed. Jobs are only queued here (status stays
+``pending``); nothing executes them until T03 lands the ``run_worker`` command,
+which owns scheduling (plans/SPEC.md §3.3). Limits/pause come from core.config.
 """
 import logging
 from collections import deque
@@ -7,10 +11,9 @@ from django.conf import settings
 from django.utils import timezone
 from django.db import transaction
 from django.db.models import Max
-from celery import current_app
 
 from .models import Job
-from workflows.config_loader import CloudgeneConfigLoader
+from core import config
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +24,6 @@ class JobQueue:
     """
     
     def __init__(self):
-        self.config_loader = CloudgeneConfigLoader()
-        self.config_loader.load_config()  # Initialize config
         self._queue = deque()
         self._running_jobs = set()
     
@@ -38,8 +39,7 @@ class JobQueue:
                 job.save()
             
             # Check queue limits
-            queue_config = self.config_loader.config.get('queue', {})
-            max_queue_size = queue_config.get('max_queue_size', 50)
+            max_queue_size = config.get('server.max_queue_size')
             
             pending_count = Job.objects.filter(status='pending').count()
             
@@ -68,34 +68,11 @@ class JobQueue:
     
     def process_queue(self):
         """
-        Process pending jobs in the queue
+        No-op until the T03 worker exists: execution is owned by ``run_worker``.
+        Jobs remain ``pending``.
         """
-        queue_config = self.config_loader.config.get('queue', {})
-        max_concurrent_jobs = queue_config.get('max_concurrent_jobs', 10)
-        
-        # Count currently running jobs
-        running_count = Job.objects.filter(status='running').count()
-        
-        if running_count >= max_concurrent_jobs:
-            logger.debug(f"Maximum concurrent jobs reached ({running_count}/{max_concurrent_jobs})")
-            return
-        
-        # Get pending jobs ordered by priority and submission time
-        pending_jobs = Job.objects.filter(
-            status='pending'
-        ).order_by('-priority', 'submitted_at')
-        
-        jobs_to_start = max_concurrent_jobs - running_count
-        
-        for job in pending_jobs[:jobs_to_start]:
-            try:
-                self.start_job(job)
-            except Exception as e:
-                logger.error(f"Failed to start job {job.id}: {e}")
-                job.status = 'failed'
-                job.error_message = f"Failed to start job: {str(e)}"
-                job.save()
-    
+        logger.debug('process_queue: no worker-side execution in this build (T03)')
+
     def start_job(self, job):
         """
         Start a specific job
@@ -110,17 +87,8 @@ class JobQueue:
             job.started_at = timezone.now()
             job.save()
         
-        # Import here to avoid circular imports
-        from .tasks import execute_workflow_job
-        
-        # Start the job execution task
-        task = execute_workflow_job.delay(str(job.id))
-        
-        logger.info(f"Started job {job.id} with task {task.id}")
-        
-        # Store task ID for potential cancellation
-        job.nextflow_process_id = task.id
-        job.save()
+        # Execution is handed to the worker (T03); nothing is dispatched here.
+        logger.info(f"Job {job.id} marked running (no executor in this build)")
     
     def cancel_job(self, job_id):
         """
@@ -139,10 +107,6 @@ class JobQueue:
                 self.process_queue()
                 
             elif job.status == 'running':
-                # Cancel the running task
-                if job.nextflow_process_id:
-                    current_app.control.revoke(job.nextflow_process_id, terminate=True)
-                
                 job.status = 'cancelled'
                 job.completed_at = timezone.now()
                 job.save()
@@ -234,12 +198,10 @@ class JobQueue:
             cancelled=Count('id', filter=Q(status='cancelled')),
         )
         
-        queue_config = self.config_loader.config.get('queue', {})
-        
         return {
             'status_counts': status_counts,
-            'max_concurrent_jobs': queue_config.get('max_concurrent_jobs', 10),
-            'max_queue_size': queue_config.get('max_queue_size', 50),
+            'max_concurrent_jobs': config.get('server.max_running_jobs'),
+            'max_queue_size': config.get('server.max_queue_size'),
             'queue_active': not self.is_maintenance_mode(),
         }
     
@@ -247,24 +209,20 @@ class JobQueue:
         """
         Check if server is in maintenance mode
         """
-        server_config = self.config_loader.get_server_settings()
-        return server_config.get('maintenance', False)
+        return config.get('server.maintenance')
     
     def pause_queue(self):
         """
         Pause job processing
         """
-        # This could update a database flag or configuration
-        self.config_loader.config.setdefault('queue', {})['paused'] = True
-        self.config_loader.save_config()
+        config.set_value('queue.paused', True)
         logger.info("Job queue paused")
     
     def resume_queue(self):
         """
         Resume job processing
         """
-        self.config_loader.config.setdefault('queue', {})['paused'] = False
-        self.config_loader.save_config()
+        config.set_value('queue.paused', False)
         logger.info("Job queue resumed")
         
         # Process pending jobs
@@ -274,8 +232,7 @@ class JobQueue:
         """
         Check if queue is paused
         """
-        queue_config = self.config_loader.config.get('queue', {})
-        return queue_config.get('paused', False)
+        return config.get('queue.paused')
 
 
 # Global queue instance

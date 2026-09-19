@@ -1,7 +1,9 @@
 """
 Admin panel views
 """
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets
+
+from core.permissions import IsAdmin, IsAdminOrReadOnly
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.db.models import Count, Q
@@ -18,35 +20,10 @@ from workflows.models import Workflow
 User = get_user_model()
 
 
-class IsAdminUser(permissions.BasePermission):
-    """
-    Only admin users are allowed.
-    Guards against None user when UNAUTHENTICATED_USER = None in DRF settings.
-    """
-    def has_permission(self, request, view):
-        return (
-            request.user is not None
-            and request.user.is_authenticated
-            and request.user.is_admin_user()
-        )
-
-
-class IsAdminOrReadOnly(permissions.BasePermission):
-    """Read-only access for everyone; write access for admins only."""
-    def has_permission(self, request, view):
-        if request.method in permissions.SAFE_METHODS:
-            return True
-        return (
-            request.user is not None
-            and request.user.is_authenticated
-            and request.user.is_admin_user()
-        )
-
-
 class ServerSettingsViewSet(viewsets.ModelViewSet):
     queryset = ServerSettings.objects.all()
     serializer_class = ServerSettingsSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdmin]
 
 
 class TemplateViewSet(viewsets.ModelViewSet):
@@ -66,7 +43,7 @@ class NavbarItemViewSet(viewsets.ModelViewSet):
 class SystemLogViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = SystemLog.objects.all()
     serializer_class = SystemLogSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdmin]
 
     def get_queryset(self):
         queryset = SystemLog.objects.all()
@@ -82,11 +59,11 @@ class SystemLogViewSet(viewsets.ReadOnlyModelViewSet):
 class CounterViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Counter.objects.all()
     serializer_class = CounterSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdmin]
 
 
 class AdminDashboardView(APIView):
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdmin]
 
     def get(self, request):
         job_stats = Job.objects.aggregate(

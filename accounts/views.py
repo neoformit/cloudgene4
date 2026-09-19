@@ -1,18 +1,24 @@
 """
 Authentication and user management views
 """
-from rest_framework import viewsets, status
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers, status, viewsets
+from rest_framework.authentication import SessionAuthentication
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework.authtoken.models import Token
 from django.conf import settings
 from django.contrib.auth import login, logout
 from django.contrib.auth.models import Group
 from django.contrib.auth import get_user_model
 from django.core.mail import send_mail
 from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import ensure_csrf_cookie
 
+from core.exceptions import error_response
+from core.serializers import MessageSerializer
+from core.permissions import IsAdmin
 from .serializers import (
     UserSerializer, UserRegistrationSerializer, GroupSerializer,
     LoginSerializer, PasswordResetSerializer
@@ -41,7 +47,7 @@ class GroupViewSet(viewsets.ModelViewSet):
     """
     queryset = Group.objects.all()
     serializer_class = GroupSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdmin]
 
     def get_queryset(self):
         if self.request.user.is_admin_user():
@@ -50,39 +56,53 @@ class GroupViewSet(viewsets.ModelViewSet):
 
 
 class LoginView(APIView):
-    """
-    User login — returns a DRF token and the serialized user.
+    """Session login for the SPA (CSRF enforced). Returns the serialized user.
+
+    API clients should use a token (``Authorization: Token <key>``) instead.
     """
     permission_classes = [AllowAny]
 
+    @extend_schema(request=LoginSerializer,
+                   responses={200: inline_serializer('LoginResponse', {'user': UserSerializer()})})
     def post(self, request):
+        # Anonymous requests are not CSRF-checked by SessionAuthentication; a login
+        # form must be (login CSRF), so enforce it explicitly.
+        SessionAuthentication().enforce_csrf(request)
         serializer = LoginSerializer(data=request.data)
-        if serializer.is_valid():
-            user = serializer.validated_data['user']
-            login(request, user)
-            token, _ = Token.objects.get_or_create(user=user)
-            return Response({
-                'token': token.key,
-                'user': UserSerializer(user).data,
-                'message': 'Login successful',
-            })
-        errors = serializer.errors.get(
-            'non_field_errors', ['Invalid credentials']
-        )
-        return Response(
-            {'message': errors[0]}, status=status.HTTP_400_BAD_REQUEST
-        )
+        serializer.is_valid(raise_exception=True)
+        user = serializer.validated_data['user']
+        login(request, user)
+        return Response({'user': UserSerializer(user).data})
 
 
 class LogoutView(APIView):
-    """
-    User logout view
-    """
-    permission_classes = [IsAuthenticated]
+    """End the session. Always 200 (also when not logged in)."""
+    permission_classes = [AllowAny]
 
+    @extend_schema(request=None,
+                   responses={200: MessageSerializer})
     def post(self, request):
         logout(request)
-        return Response({'message': 'Logout successful'})
+        return Response({'message': 'Logged out.'})
+
+
+@method_decorator(ensure_csrf_cookie, name='dispatch')
+class MeView(APIView):
+    """Current user. Always 200: ``{"authenticated": false, "user": null}`` for anonymous.
+
+    Also sets the ``csrftoken`` cookie (needed when the SPA is served by the Vite dev server).
+    """
+    permission_classes = [AllowAny]
+
+    @extend_schema(responses={200: inline_serializer('Me', {
+        'authenticated': serializers.BooleanField(),
+        'user': UserSerializer(allow_null=True),
+    })})
+    def get(self, request):
+        user = request.user
+        if user is not None and user.is_authenticated:
+            return Response({'authenticated': True, 'user': UserSerializer(user).data})
+        return Response({'authenticated': False, 'user': None})
 
 
 class RegisterView(APIView):
@@ -91,6 +111,9 @@ class RegisterView(APIView):
     """
     permission_classes = [AllowAny]
 
+    @extend_schema(request=UserRegistrationSerializer,
+                   responses={201: inline_serializer('RegisterResponse', {
+                       'user': UserSerializer(), 'message': serializers.CharField()})})
     def post(self, request):
         serializer = UserRegistrationSerializer(data=request.data)
         if serializer.is_valid():
@@ -118,10 +141,7 @@ class RegisterView(APIView):
                     'Please check your email for activation instructions.'
                 ),
             }, status=status.HTTP_201_CREATED)
-        return Response(
-            {'message': str(next(iter(serializer.errors.values()))[0])},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+        raise serializers.ValidationError(serializer.errors)
 
 
 class ActivateAccountView(APIView):
@@ -130,6 +150,7 @@ class ActivateAccountView(APIView):
     """
     permission_classes = [AllowAny]
 
+    @extend_schema(responses={200: MessageSerializer})
     def get(self, request, activation_key):
         try:
             user = User.objects.get(
@@ -140,21 +161,17 @@ class ActivateAccountView(APIView):
             user.save()
             return Response({'message': 'Account activated successfully'})
         except User.DoesNotExist:
-            return Response(
-                {'message': 'Invalid activation key'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return error_response('Invalid activation key.', 'invalid_activation_key')
 
 
 class PasswordResetView(APIView):
     permission_classes = [AllowAny]
 
+    @extend_schema(request=PasswordResetSerializer, responses={200: MessageSerializer})
     def post(self, request):
         serializer = PasswordResetSerializer(data=request.data)
         if not serializer.is_valid():
-            return Response(
-                serializer.errors, status=status.HTTP_400_BAD_REQUEST
-            )
+            raise serializers.ValidationError(serializer.errors)
 
         import uuid
         user = User.objects.get(email=serializer.validated_data['email'])
@@ -188,30 +205,24 @@ class PasswordResetView(APIView):
 class PasswordResetConfirmView(APIView):
     permission_classes = [AllowAny]
 
+    @extend_schema(request=inline_serializer('PasswordResetConfirm', {
+        'password': serializers.CharField()}), responses={200: MessageSerializer})
     def post(self, request, token):
         try:
             user = User.objects.get(password_reset_token=token)
         except User.DoesNotExist:
-            return Response(
-                {'message': 'Invalid or expired reset link.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return error_response('Invalid or expired reset link.', 'invalid_token')
 
         if (
             user.password_reset_expires is None
             or timezone.now() > user.password_reset_expires
         ):
-            return Response(
-                {'message': 'This reset link has expired.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return error_response('This reset link has expired.', 'expired_token')
 
         password = request.data.get('password', '')
         error = User.validate_password(password)
         if error:
-            return Response(
-                {'message': error}, status=status.HTTP_400_BAD_REQUEST
-            )
+            raise serializers.ValidationError({'password': [error]})
 
         user.set_password(password)
         user.password_reset_token = None

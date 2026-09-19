@@ -1,0 +1,48 @@
+# Cloudgene settings — the single source of truth for application settings.
+# Schema, defaults and validation: core/config.py; key table: plans/SPEC.md §3.2.
+# Edited by the admin panel (atomic rewrite; comments are not preserved).
+# Changes are picked up by web and worker without a restart.
+
+server:
+  name: Cloudgene
+  url: ''                     # public base URL for e-mail links; empty = request host
+  max_running_jobs: 2         # jobs executed concurrently by the worker
+  max_queue_size: 50          # max waiting jobs; further submissions are rejected
+  maintenance: false          # block submissions by non-admins + show banner
+  maintenance_message: The service is in maintenance mode. Job submission is temporarily disabled.
+  job_retention_days: 7       # job workspaces older than this are removed (0 = keep)
+  max_upload_mb: 1024         # max total upload size per job submission
+
+queue:
+  paused: false               # worker does not start new jobs while paused
+
+security:
+  max_login_attempts: 5       # failed logins before lockout (0 = disabled)
+  lockout_duration: 300       # seconds
+  require_activation: true    # new accounts must be activated via e-mail link
+
+mail:
+  backend: file               # smtp | file | console
+  file_path: mail             # outbox for backend=file (relative to CLOUDGENE_HOME)
+  host: localhost
+  port: 587
+  user: ''
+  password: ''
+  use_tls: true
+  use_ssl: false
+  from_email: noreply@localhost
+
+nextflow:
+  binary: nextflow
+  profile: ''                 # default -profile for all workflows
+  work_dir: ''                # empty = <job workspace>/work
+
+# Extra navbar entries, in this order.
+navbar:
+  - title: About
+    url: /pages/about
+    icon: info-circle
+
+# Installed workflows. path: app dir (or its cloudgene.yaml), relative to
+# $CLOUDGENE_HOME/apps or absolute. groups: groups allowed to run it.
+apps: []

@@ -2,17 +2,19 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { fileURLToPath, URL } from 'node:url'
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [vue()],
+  // The production bundle is served by Django from static/frontend/ at /static/frontend/.
+  base: command === 'build' ? '/static/frontend/' : '/',
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
   server: {
+    // Dev: `npm run dev` on :5173 proxies the API to `manage.py runserver` on :8000.
     proxy: {
       '/api': { target: 'http://localhost:8000', changeOrigin: true },
-      '/ws': { target: 'ws://localhost:8000', ws: true, changeOrigin: true },
     },
   },
   build: {
@@ -24,4 +26,4 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./src/test/setup.js'],
   },
-})
+}))

@@ -4,7 +4,7 @@
 > When you change behaviour, contracts, or architecture, update this file in the same commit.
 > Status of work items lives in `plans/TASKS.md`; the E2E strategy lives in `plans/E2E_TEST_PLAN.md`.
 
-Last reviewed: 2026-09-19 (initial audit).
+Last reviewed: 2026-09-19 (initial audit; T01 platform foundations).
 
 ---
 
@@ -60,6 +60,15 @@ Test reality (the "tests pass" claim is false):
 - `qa/` contains ad-hoc Selenium/debug scripts and stale reports; none run in CI.
 - Infra not present on the host: Redis, Docker. Java 17 + Nextflow are being installed at `/usr/local/bin/nextflow`.
 
+**After T01 (platform foundations):** Celery/Channels/Redis/CORS removed; settings from env; config
+service + default `CLOUDGENE_HOME` in `home/`; session+CSRF auth, error envelope, `/api/auth/me`,
+`/api/health`. `scripts/test.sh unit` = `manage.py check` + `makemigrations --check` +
+`manage.py test` (171 tests incl. the former contract tests and the schema-staleness test) +
+`npx vitest run` (56 tests, vitest 3.2 on vite 5) — all green. Jobs are accepted but stay `pending`
+until T03's worker exists.
+
+Status markers in the register: ✅ fixed · ◐ partially fixed (remaining work named).
+
 ### 2.1 Issue register
 
 IDs are referenced from `TASKS.md`. Sev: **B**locker / **H**igh / **M**edium / **L**ow.
@@ -83,14 +92,14 @@ IDs are referenced from `TASKS.md`. Sev: **B**locker / **H**igh / **M**edium / *
 | ID | Sev | Issue |
 |----|-----|-------|
 | A1 | H | K1 duplicate users: case-sensitive uniqueness; group membership not writable via API (`groups` read-only) → admin UI changes silently ignored. |
-| A2 | H | Auth is DRF token in `localStorage`; plain `<a href>` links to logs/downloads carry no token → 401 → interceptor redirects to login. |
+| A2 ✅ T01 | H | Auth is DRF token in `localStorage`; plain `<a href>` links to logs/downloads carry no token → 401 → interceptor redirects to login. |
 | A3 | H | Profile page: password change/email change payload fields ignored by serializer; `api_token` field doesn't exist on serializer; "Create API token" calls `GET /api/auth/token/` which is a POST-only obtain-token view. |
 | A4 | M | Frontend and backend validation rules disagree (username: FE allows `_ -` and 3 chars, BE requires `[A-Za-z0-9]{4,}`; password lowercase rule missing in FE). |
 | A5 | M | Password reset endpoint reveals whether an e-mail exists (FE text implies it doesn't). Reset link `/recover/<token>` fine; activation link fine. |
 | A6 | M | Login lockout (`max_login_attempts`, `lockout_duration`) configured but not implemented. |
 | A7 | M | Non-admin users can `PUT/PATCH/DELETE` themselves with arbitrary fields incl. `is_staff`, `is_active` (UserSerializer only protects id/dates). Privilege escalation. |
-| A8 | M | Groups endpoint: any authenticated user can POST (create) groups; group member counts unavailable. |
-| A9 | L | Unused models `UserGroup`, `UserToken`; mixed `is_staff` / `admin` group / `is_superuser` admin semantics. `IsAdminUser` (DRF, checks `is_staff`) vs custom `IsAdminUser` (admin group) used inconsistently. |
+| A8 ◐ T01: groups endpoint admin-only; counts → T04 | M | Groups endpoint: any authenticated user can POST (create) groups; group member counts unavailable. |
+| A9 ◐ T01: one `is_admin()`/`IsAdmin`; unused models → T04 | L | Unused models `UserGroup`, `UserToken`; mixed `is_staff` / `admin` group / `is_superuser` admin semantics. `IsAdminUser` (DRF, checks `is_staff`) vs custom `IsAdminUser` (admin group) used inconsistently. |
 
 **Workflows (workflows/)**
 | ID | Sev | Issue |
@@ -105,7 +114,7 @@ IDs are referenced from `TASKS.md`. Sev: **B**locker / **H**igh / **M**edium / *
 | ID | Sev | Issue |
 |----|-----|-------|
 | C1 | B | Settings pages are wired to `/api/admin/server-settings/` (a CRUD list of key/value rows) but read/write shaped objects (`data.mail`, `data.nextflow`, `{mail:{...}}` via POST = create row). Every settings page is broken. |
-| C2 | H | Three competing sources of truth: `cloudgene_config.yaml`, `ServerSettings` DB rows, Django `settings`. Mail settings in admin do not affect Django e-mail. |
+| C2 ◐ T01: `settings.yaml` via `core.config` is the store, Django settings infra-only, `core.mail` reads mail config; `ServerSettings` removal & admin wiring → T05 | H | Three competing sources of truth: `cloudgene_config.yaml`, `ServerSettings` DB rows, Django `settings`. Mail settings in admin do not affect Django e-mail. |
 | C3 | H | Templates: brief wants HTML template files in the codebase; implemented as DB rows seeded by a command. Static page route `/pages/:slug` only works for DB rows. |
 | C4 | M | Navbar: YAML navbar is never loaded; frontend hard-codes Home/Jobs and appends DB items. |
 | C5 | M | Dashboard fields mismatch (`stats` shape vs template); logs page reads `created_at` but API returns `timestamp`; level filter uppercase vs lowercase choices. Nothing writes `SystemLog`. |
@@ -119,18 +128,18 @@ IDs are referenced from `TASKS.md`. Sev: **B**locker / **H**igh / **M**edium / *
 | F2 | H | Steps tab uses `step.state`, `step.messages[].type/text`; API has `status`, messages are job-level. |
 | F3 | H | Results tab reads `item.count`, `item.name`; API: `download_count`, `filename`. Download/log links unauthenticated (A2). |
 | F4 | M | Checkbox inputs default to `false` ignoring YAML default; unchecked checkbox not sent at all → backend "required" error. `number` sent as string. |
-| F5 | M | Error envelope inconsistent: backend returns `{message}`, `{error}`, `{detail}`, or field dicts; frontend guesses. |
-| F6 | M | 401 interceptor hard-redirects to `/login` even for anonymous-allowed calls; `requiresAdmin` guard uses stale `localStorage` user. |
+| F5 ✅ T01 (backend handler + `apiErrorMessage`; views migrate as slices touch them) | M | Error envelope inconsistent: backend returns `{message}`, `{error}`, `{detail}`, or field dicts; frontend guesses. |
+| F6 ✅ T01 | M | 401 interceptor hard-redirects to `/login` even for anonymous-allowed calls; `requiresAdmin` guard uses stale `localStorage` user. |
 | F7 | L | Admin sidebar/navbar link to routes that don't exist; admin layout hides public navbar entirely. |
 
 **Platform / production readiness**
 | ID | Sev | Issue |
 |----|-----|-------|
-| P1 | H | `DEBUG=True`, hard-coded `SECRET_KEY`, `ALLOWED_HOSTS=['*']`, `CORS_ALLOW_ALL_ORIGINS=True` defaults; `print()` in settings. |
-| P2 | H | Test suites broken (see §2). No single command runs all tests. |
-| P3 | M | Hard dependency on Redis (channels) and a Celery worker that isn't documented/started. |
-| P4 | M | No structured logging, no health endpoint, no deployment docs (gunicorn/static/Postgres). |
-| P5 | L | Repo cruft: `qa/` debug scripts & reports, `IMPLEMENTATION_SUMMARY.md`, `TEST_SUMMARY.md`, `ui-plan.md`, `start-celery.sh`, `schema.yaml` (stale). |
+| P1 ✅ T01 | H | `DEBUG=True`, hard-coded `SECRET_KEY`, `ALLOWED_HOSTS=['*']`, `CORS_ALLOW_ALL_ORIGINS=True` defaults; `print()` in settings. |
+| P2 ✅ T01 | H | Test suites broken (see §2). No single command runs all tests. |
+| P3 ✅ T01 (worker itself → T03) | M | Hard dependency on Redis (channels) and a Celery worker that isn't documented/started. |
+| P4 ◐ T01: logging config + `/api/health`; deployment docs/structured logs → T09 | M | No structured logging, no health endpoint, no deployment docs (gunicorn/static/Postgres). |
+| P5 ✅ T01 | L | Repo cruft: `qa/` debug scripts & reports, `IMPLEMENTATION_SUMMARY.md`, `TEST_SUMMARY.md`, `ui-plan.md`, `start-celery.sh`, `schema.yaml` (stale). |
 
 ---
 
@@ -143,6 +152,8 @@ by updating this section.
 - **web**: Django (WSGI; `runserver` in dev, gunicorn in prod). Serves `/api/*` and the built SPA.
 - **worker**: `python manage.py run_worker` — a long-running DB-backed scheduler/executor. **[D]**
   Replaces Celery + Channels + Redis. Single worker per deployment (enforced by a DB lock row / pid file).
+  Liveness: the worker calls `core.models.WorkerHeartbeat.beat(pid=..., hostname=..., started_at=...)`
+  every tick (row `name="default"`); `/api/health` reports it (stale after 30 s).
 - **DB**: SQLite for dev/test, PostgreSQL supported for prod (`DATABASE_URL`).
 - No Redis. No WebSockets. **[D]** Live status = client polling (2 s while job active, backoff to 10 s)
   of a cheap status endpoint. This mirrors Cloudgene 3 and is robust behind any proxy.
@@ -156,11 +167,59 @@ by updating this section.
   - `apps/<id>/cloudgene.yaml` (+ `main.nf` etc.) — installed workflows.
   - `apps/<id>/nextflow.config`, `nextflow.env` — per-workflow overrides (admin-editable).
   - `jobs/<job-uuid>/` — job workspaces (`input/`, `output/`, `logs/`, `work/`).
-- A `config` service module (`cloudgene/config.py` or similar) loads & validates `settings.yaml`
-  (schema + defaults), caches by mtime, and writes atomically (temp file + rename) with a lock.
-  Web and worker both read through it, so admin changes reach the worker without restart.
-- Django `settings.py` only holds infra settings from env (`SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS`,
-  `DATABASE_URL`, `CLOUDGENE_HOME`). Mail backend settings come from `settings.yaml` at send time.
+- The config service `core/config.py` loads & validates `settings.yaml` (schema + defaults),
+  caches by mtime/size/inode, and writes atomically (temp file + `os.replace`) under an exclusive
+  `fcntl` lock on `config/.settings.lock`. Web and worker both read through it, so admin changes
+  reach the worker without restart. API (module-level functions):
+  - read: `load_settings(force=False) -> dict` (validated deep copy, defaults filled; missing file
+    = defaults; an invalid file raises `ConfigError` unless a valid version is cached, then that is
+    kept and an error logged), `get('server.max_running_jobs', default=None)`.
+  - write: `set_value('queue.paused', True)`, `update_settings(dict_to_deep_merge | fn(doc))`,
+    `save_settings(doc)`; all validate and return the new settings; `ConfigError.errors` maps dotted
+    key paths (`server.max_running_jobs`, `navbar[0].url`) to message lists (use as API `fields`).
+  - paths: `cloudgene_home()`, `config_dir()`, `settings_path()`, `nextflow_config_path()`,
+    `nextflow_env_path()`, `pages_dir()`, `apps_dir()`, `jobs_dir()`, `app_dir(id)`, `job_dir(uuid)`,
+    `page_path(slug)` (slugs `^[a-z0-9][a-z0-9_-]{0,63}$`, else `ValueError` — traversal-safe).
+  - files: `read_page(slug) -> str|None`, `write_page`, `delete_page`, `list_pages()`,
+    `read_text(path)`, `write_text_atomic(path, text)`, `parse_env(text) -> dict`, `ensure_home()`.
+  - Unknown keys are preserved (not validated), so slices can add keys; add them to the schema and
+    the table below when they become official.
+- Django `settings.py` only holds infra settings from env (`DJANGO_SECRET_KEY` — else generated once
+  into `$CLOUDGENE_HOME/config/secret_key`; `DEBUG` default off; `ALLOWED_HOSTS`;
+  `CSRF_TRUSTED_ORIGINS`; `DATABASE_URL`; `CLOUDGENE_HOME` default `./home`; `LOG_LEVEL`;
+  `DJANGO_SECURE_COOKIES`, `DJANGO_SECURE_SSL_REDIRECT`, `DJANGO_HSTS_SECONDS`,
+  `DJANGO_BEHIND_TLS_PROXY`). Mail settings come from `settings.yaml` at send time via
+  `core.mail.send_mail()` / `get_connection()` (the Django test runner's locmem outbox is honoured).
+- The default `CLOUDGENE_HOME` is committed as `./home/` (runtime dirs `jobs/`, `mail/` and the
+  generated `secret_key` are git-ignored). The Django test runner copies it to a temp dir per run.
+
+`settings.yaml` keys (schema, defaults and validation: `core.config.SCHEMA`):
+
+| Key | Type | Default | Meaning |
+|-----|------|---------|---------|
+| `server.name` | str | `Cloudgene` | Service name (navbar, e-mails) |
+| `server.url` | str | `''` | Public base URL for e-mail links (empty = request host) |
+| `server.max_running_jobs` | int ≥1 | 2 | Jobs the worker runs concurrently |
+| `server.max_queue_size` | int ≥0 | 50 | Max `waiting` jobs; further submissions rejected |
+| `server.maintenance` | bool | false | Non-admin submissions blocked, banner shown |
+| `server.maintenance_message` | str | *(text)* | Banner / rejection message |
+| `server.job_retention_days` | int ≥0 | 7 | Workspace retention for `cleanup_jobs` (0 = keep) |
+| `server.max_upload_mb` | int ≥1 | 1024 | Max total upload size per submission |
+| `queue.paused` | bool | false | Worker starts no new jobs while true |
+| `security.max_login_attempts` | int ≥0 | 5 | Failed logins before lockout (0 = off) |
+| `security.lockout_duration` | int ≥0 | 300 | Lockout seconds |
+| `security.require_activation` | bool | true | New accounts need e-mail activation |
+| `mail.backend` | `smtp`/`file`/`console` | `file` | Delivery backend |
+| `mail.file_path` | str | `mail` | Outbox dir for `file` (relative to `CLOUDGENE_HOME`) |
+| `mail.host` / `mail.port` | str / int | `localhost` / 587 | SMTP server |
+| `mail.user` / `mail.password` | str | `''` | SMTP auth (password write-only in APIs) |
+| `mail.use_tls` / `mail.use_ssl` | bool | true / false | SMTP transport security |
+| `mail.from_email` | str | `noreply@localhost` | Sender address |
+| `nextflow.binary` | str | `nextflow` | Nextflow executable |
+| `nextflow.profile` | str | `''` | Default `-profile` |
+| `nextflow.work_dir` | str | `''` | Work dir (empty = `<job>/work`) |
+| `navbar[]` | list | `[]` | `{title*, url*, icon, admin_only: false, auth_only: false}` |
+| `apps[]` | list | `[]` | `{path*, enabled: true, public: false, groups: []}`; `path` = app dir or its `cloudgene.yaml`, relative to `$CLOUDGENE_HOME/apps` or absolute |
 - DB holds only runtime state: users, groups, jobs (+steps/messages/outputs), and a `Workflow` cache
   row per installed app (synced from YAML on start-up and on admin "reload").
 - Remove `ServerSettings`, `Template`, `NavbarItem`, `Counter*`, `UserGroup`, `UserToken`,
@@ -199,16 +258,39 @@ flag: `deleted` (soft) for user-deleted jobs.
 - SPA uses **Django session auth + CSRF** (cookie `csrftoken`, header `X-CSRFToken`). This makes
   `<a href>` downloads/log links work and removes tokens from `localStorage`.
 - **API tokens** (DRF `Token`) for programmatic access: user creates/revokes one token from profile.
-- `GET /api/auth/me` returns current user or 401-free `{"authenticated": false}`; router guards use it.
-- Admin = `is_staff` **or** member of group `admin` — one helper `is_admin(user)` + one permission class.
+- `GET /api/auth/me` always 200: `{"authenticated": bool, "user": User|null}`; it also sets the
+  `csrftoken` cookie (as does every SPA page via `ensure_csrf_cookie`). Router guards await it.
+- `POST /api/auth/login {username, password}` → 200 `{"user": User}` plus a session cookie (no token
+  in the response); CSRF is enforced on login too (login CSRF). `POST /api/auth/logout` → 200 always.
+  Login rotates the CSRF token: clients re-read the cookie (the axios client does so per request).
+- Authentication order: `TokenAuthentication`, then `SessionAuthentication` → unauthenticated
+  requests to protected endpoints get **401** (`WWW-Authenticate: Token`), not 403. Session requests
+  with unsafe methods need `X-CSRFToken`; token requests don't.
+- Admin = `is_superuser` **or** `is_staff` **or** member of group `admin` — one helper
+  `core.permissions.is_admin(user)` + `IsAdmin` / `IsAdminOrReadOnly` permission classes
+  (`User.is_admin_user()` delegates to it).
+- Frontend: one 401 hook (`onUnauthorized` in `api/client.js`) resets the store and leaves only
+  protected pages; there is no hard redirect.
 - Lockout after `max_login_attempts` for `lockout_duration` seconds.
 
 ### 3.5 API conventions (the contract) **[D]**
 - All endpoints under `/api/`. JSON in/out except job submission (`multipart/form-data`) and file
   downloads.
 - Error envelope everywhere: `{"error": {"message": str, "code": str, "fields": {field: [str]}}}`
-  via a DRF exception handler. Frontend has one `apiErrorMessage(err)` helper.
-- Lists are paginated `{count, next, previous, results}` with `?page=&page_size=`.
+  via `core.exceptions.api_exception_handler` (`fields` always present; nested fields dotted, e.g.
+  `nested.a`; non-field errors only in `message`; for field errors `message` = `"<field>: <msg>"`).
+  Codes: DRF defaults (`invalid`, `not_authenticated`, `authentication_failed`,
+  `permission_denied`, `not_found`, `method_not_allowed`, `throttled`, …) plus `csrf_failed`,
+  `server_error` (unhandled exception: logged, generic message) and view-specific codes. Views
+  return non-exception errors with `core.exceptions.error_response(message, code, status)`.
+  Unknown `/api/...` paths → 404 envelope. Schema: component `Error`, added as `default` response
+  on every operation. Frontend: `apiErrorMessage(err)`, `apiFieldErrors(err)`, `apiErrorCode(err)`
+  from `src/api/client.js` (a transitional interceptor also copies `error.message` to
+  `data.message` for views not yet migrated — remove at T06).
+- Paths are canonical **with** a trailing slash (as in `schema.yaml`); `core.middleware` also
+  routes the slash-less form (e.g. `POST /api/auth/login`) without a redirect.
+- Lists are paginated `{count, next, previous, results}` with `?page=&page_size=` (default 20,
+  max 200; `core.pagination.StandardPagination`).
 - Timestamps ISO-8601 UTC. IDs: job UUID strings, workflow slug strings, user/group integers.
 - The OpenAPI document generated by drf-spectacular (`python manage.py spectacular --file
   schema.yaml`) is committed; a test fails if it is stale. Every view has explicit serializers so
@@ -245,7 +327,8 @@ Admin     GET /api/admin/dashboard  (queue: {paused, maintenance, running, waiti
           GET/PUT /api/admin/settings/general|mail|nextflow   POST /api/admin/settings/mail/test
           GET /api/admin/pages  GET/PUT /api/admin/pages/{slug}
           GET /api/admin/logs?level=  (from Python logging → DB handler or log file tail)
-Health    GET /api/health (db + worker heartbeat)
+Health    GET /api/health → {status: ok|degraded|error, db: {ok}, worker: {ok, last_seen,
+          age_seconds, pid}}; 200 unless the DB is down (503); no/stale worker = "degraded"
 ```
 Exact request/response shapes are defined by the serializers and `schema.yaml`; this list is the
 scope. Slice owners may refine paths but must update this section.
@@ -314,6 +397,10 @@ Unknown `type` → validation error at install/reload. `classname:` steps (Java)
 - Works with SQLite (dev/test) and Postgres (prod).
 
 ## 6. Changelog of spec decisions
+- 2026-09-19 (T01): config service API + `settings.yaml` key table (§3.2); auth details (login
+  returns `{user}`, CSRF on login, 401 for unauthenticated, admin incl. superuser) (§3.4); error
+  codes, optional trailing slash, pagination limits (§3.5); health payload (§3.6); worker
+  heartbeat (§3.1).
 - 2026-09-19: Initial audit. Decisions [D] in §3: drop Celery/Channels/Redis for DB worker + polling;
   YAML+files as single config source; session+CSRF auth for SPA; unified error envelope; state names
   `waiting/running/success/failed/cancelled`.

@@ -14,12 +14,23 @@ export const userSchema = {
   }
 }
 
+// POST /api/auth/login → {user}   (session cookie; no token — SPEC §3.4)
 export const authResponseSchema = {
   type: 'object',
-  required: ['token', 'user'],
+  required: ['user'],
+  additionalProperties: false,
   properties: {
-    token: { type: 'string' },
     user: userSchema
+  }
+}
+
+// GET /api/auth/me → {authenticated, user|null}
+export const meResponseSchema = {
+  type: 'object',
+  required: ['authenticated', 'user'],
+  properties: {
+    authenticated: { type: 'boolean' },
+    user: { oneOf: [{ type: 'null' }, userSchema] }
   }
 }
 
@@ -77,20 +88,26 @@ export const jobCreateResponseSchema = {
   }
 }
 
+// Error envelope for every API error (SPEC §3.5)
 export const errorSchema = {
   type: 'object',
+  required: ['error'],
+  additionalProperties: false,
   properties: {
-    detail: { type: 'string' },
-    error: { type: 'string' }
+    error: {
+      type: 'object',
+      required: ['message', 'code', 'fields'],
+      properties: {
+        message: { type: 'string', minLength: 1 },
+        code: { type: 'string' },
+        fields: {
+          type: 'object',
+          additionalProperties: { type: 'array', items: { type: 'string' } }
+        }
+      }
+    }
   }
 }
 
-export const validationErrorSchema = {
-  type: 'object',
-  additionalProperties: {
-    oneOf: [
-      { type: 'string' },
-      { type: 'array', items: { type: 'string' } }
-    ]
-  }
-}
+// Validation errors use the same envelope; field messages are in error.fields
+export const validationErrorSchema = errorSchema

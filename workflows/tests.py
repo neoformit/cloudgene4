@@ -419,8 +419,11 @@ class WorkflowAPITest(APITestCase):
         url = reverse('workflow-list')
         response = self.client.get(url)
         
-        # May return 401 or 403 depending on authentication backend
-        self.assertIn(response.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+        # Anonymous users may browse, but only public + enabled workflows
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        ids = [w['id'] for w in response.data['results']]
+        self.assertNotIn(self.restricted_workflow.id, ids)
+        self.assertNotIn(self.disabled_workflow.id, ids)
     
     def test_workflow_list_authenticated(self):
         """Test workflow list with authentication"""

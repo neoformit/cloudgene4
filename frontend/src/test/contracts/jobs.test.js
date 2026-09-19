@@ -87,8 +87,14 @@ describe('Jobs API Contracts', () => {
         response: {
           status: 400,
           data: {
-            workflow_id: ['This field is required.'],
-            parameters: ['Required parameter "input_param" is missing.']
+            error: {
+              message: 'Invalid input.',
+              code: 'invalid',
+              fields: {
+                workflow_id: ['This field is required.'],
+                parameters: ['Required parameter "input_param" is missing.']
+              }
+            }
           }
         }
       }
@@ -102,8 +108,8 @@ describe('Jobs API Contracts', () => {
       } catch (error) {
         expect(error.response.status).toBe(400)
         expect(error.response.data).toMatchApiSchema(validationErrorSchema)
-        expect(error.response.data).toHaveApiField('workflow_id')
-        expect(error.response.data).toHaveApiField('parameters')
+        expect(error.response.data.error.fields).toHaveApiField('workflow_id')
+        expect(error.response.data.error.fields).toHaveApiField('parameters')
       }
     })
 
@@ -112,7 +118,13 @@ describe('Jobs API Contracts', () => {
         response: {
           status: 400,
           data: {
-            workflow_id: ['Workflow does not exist or you do not have permission to access it.']
+            error: {
+              message: 'Invalid input.',
+              code: 'invalid',
+              fields: {
+                workflow_id: ['Workflow does not exist or you do not have permission to access it.']
+              }
+            }
           }
         }
       }
@@ -129,7 +141,7 @@ describe('Jobs API Contracts', () => {
         expect.fail('Expected job submission to throw error')
       } catch (error) {
         expect(error.response.status).toBe(400)
-        expect(error.response.data).toHaveApiField('workflow_id')
+        expect(error.response.data.error.fields).toHaveApiField('workflow_id')
       }
     })
   })
@@ -175,7 +187,7 @@ describe('Jobs API Contracts', () => {
         response: {
           status: 404,
           data: {
-            detail: 'Not found.'
+            error: { message: 'Not found.', code: 'error', fields: {} }
           }
         }
       }
@@ -188,7 +200,7 @@ describe('Jobs API Contracts', () => {
         expect.fail('Expected job retrieval to throw error')
       } catch (error) {
         expect(error.response.status).toBe(404)
-        expect(error.response.data).toHaveApiField('detail')
+        expect(error.response.data.error).toHaveApiField('message')
       }
     })
 
@@ -252,7 +264,7 @@ describe('Jobs API Contracts', () => {
         response: {
           status: 403,
           data: {
-            detail: 'You do not have permission to perform this action.'
+            error: { message: 'You do not have permission to perform this action.', code: 'error', fields: {} }
           }
         }
       }
@@ -265,7 +277,7 @@ describe('Jobs API Contracts', () => {
         expect.fail('Expected job cancellation to throw error')
       } catch (error) {
         expect(error.response.status).toBe(403)
-        expect(error.response.data).toHaveApiField('detail')
+        expect(error.response.data.error).toHaveApiField('message')
       }
     })
 

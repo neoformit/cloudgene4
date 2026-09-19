@@ -14,7 +14,9 @@ class CloudgeneConfigLoader:
     """
     
     def __init__(self, config_path=None):
-        self.config_path = config_path or settings.CLOUDGENE_CONFIG_FILE
+        # settings.yaml is owned by core.config; this legacy loader only reads it.
+        from core import config as cloudgene_config
+        self.config_path = config_path or cloudgene_config.settings_path()
         self.config = None
     
     def load_config(self):

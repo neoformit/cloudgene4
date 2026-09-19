@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { onUnauthorized } from '@/api/client'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -91,14 +92,29 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach((to) => {
+// --- Guards (T01): wait for the session to be known, then check meta flags.
+router.beforeEach(async (to) => {
   const auth = useAuthStore()
+  await auth.boot()
 
+  const login = { path: '/login', query: { next: to.fullPath } }
   if (to.meta.requiresAdmin && !auth.isAdmin) {
-    return auth.isLoggedIn ? '/' : '/login'
+    return auth.isLoggedIn ? '/' : login
   }
   if (to.meta.requiresAuth && !auth.isLoggedIn) {
-    return { path: '/login', query: { next: to.fullPath } }
+    return login
+  }
+})
+
+// A 401 means the session is gone (expired / logged out elsewhere). Reset the store and
+// leave protected pages; anonymous-allowed pages just see the rejected request.
+onUnauthorized(() => {
+  const auth = useAuthStore()
+  if (!auth.user) return
+  auth._clear()
+  const current = router.currentRoute.value
+  if (current.meta.requiresAuth || current.meta.requiresAdmin) {
+    router.push({ path: '/login', query: { next: current.fullPath } })
   }
 })
 

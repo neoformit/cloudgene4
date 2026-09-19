@@ -256,8 +256,7 @@ class AuthenticationAPITest(APITestCase):
         response = self.client.post(url, data, format='json')
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn('user', response.data)
-        self.assertIn('message', response.data)
+        self.assertEqual(set(response.data), {'user'})
         self.assertEqual(response.data['user']['username'], 'testuser')
     
     def test_user_login_invalid_credentials(self):

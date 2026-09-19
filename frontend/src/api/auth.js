@@ -1,11 +1,16 @@
 import client from './client'
 
+// --- Session (T01): GET me → {authenticated, user|null}; login → {user}; logout → {message}
+export const me = () =>
+  client.get('/auth/me/')
+
 export const login = (username, password) =>
   client.post('/auth/login/', { username, password })
 
 export const logout = () =>
   client.post('/auth/logout/')
 
+// --- Account flows (T04)
 export const register = (data) =>
   client.post('/auth/register/', data)
 

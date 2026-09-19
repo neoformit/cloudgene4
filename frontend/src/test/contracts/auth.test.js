@@ -1,227 +1,149 @@
 /**
- * Contract tests for authentication API endpoints
- * 
- * These tests validate that the frontend API client correctly handles
- * authentication responses and error formats from the backend.
+ * Contract tests for the auth API module (SPEC §3.4 session auth, §3.5 error envelope).
  */
 
-import { describe, it, expect, beforeAll, vi } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import Ajv from 'ajv'
 import addFormats from 'ajv-formats'
 import * as authApi from '@/api/auth'
-import { authResponseSchema, userSchema, validationErrorSchema } from '../schemas'
+import { authResponseSchema, meResponseSchema, userSchema, validationErrorSchema } from '../schemas'
 
-// Mock the HTTP client to avoid real network requests
 vi.mock('@/api/client', () => ({
   default: {
     post: vi.fn(),
-    get: vi.fn()
-  }
+    get: vi.fn(),
+  },
 }))
 
 const ajv = new Ajv()
 addFormats(ajv)
 global.ajv = ajv
 
+const user = {
+  id: 1,
+  username: 'testuser',
+  email: 'test@example.com',
+  full_name: 'Test User',
+  is_admin: false,
+}
+
+const envelope = (message, code = 'invalid', fields = {}) => ({
+  error: { message, code, fields },
+})
+
 describe('Authentication API Contracts', () => {
-  beforeAll(() => {
-    // Reset all mocks before each test suite
+  let client
+
+  beforeEach(async () => {
     vi.clearAllMocks()
+    client = (await import('@/api/client')).default
   })
 
-  describe('Login Contract', () => {
-    it('should receive valid authentication response on successful login', async () => {
-      const mockResponse = {
-        data: {
-          token: 'abc123token',
-          user: {
-            id: 1,
-            username: 'testuser',
-            email: 'test@example.com',
-            full_name: 'Test User',
-            is_admin: false
-          }
-        }
-      }
+  describe('Session', () => {
+    it('me() calls GET /auth/me/ and accepts both anonymous and authenticated shapes', async () => {
+      client.get.mockResolvedValue({ data: { authenticated: false, user: null } })
+      let response = await authApi.me()
+      expect(client.get).toHaveBeenCalledWith('/auth/me/')
+      expect(response.data).toMatchApiSchema(meResponseSchema)
 
-      const client = await import('@/api/client')
-      client.default.post.mockResolvedValue(mockResponse)
+      client.get.mockResolvedValue({ data: { authenticated: true, user } })
+      response = await authApi.me()
+      expect(response.data).toMatchApiSchema(meResponseSchema)
+    })
 
+    it('login() posts credentials and receives {user} (no token)', async () => {
+      client.post.mockResolvedValue({ data: { user } })
       const response = await authApi.login('testuser', 'password123')
-
-      // Verify the API was called correctly
-      expect(client.default.post).toHaveBeenCalledWith('/auth/login/', {
+      expect(client.post).toHaveBeenCalledWith('/auth/login/', {
         username: 'testuser',
-        password: 'password123'
+        password: 'password123',
       })
-
-      // Validate response structure matches contract
       expect(response.data).toMatchApiSchema(authResponseSchema)
       expect(response.data.user).toMatchApiSchema(userSchema)
     })
 
-    it('should handle validation errors with proper field mapping', async () => {
-      const mockError = {
-        response: {
-          status: 400,
-          data: {
-            username: ['This field is required.'],
-            password: ['This field is required.']
-          }
-        }
-      }
-
-      const client = await import('@/api/client')
-      client.default.post.mockRejectedValue(mockError)
-
-      try {
-        await authApi.login('', '')
-        expect.fail('Expected login to throw error')
-      } catch (error) {
-        expect(error.response.status).toBe(400)
-        expect(error.response.data).toMatchApiSchema(validationErrorSchema)
-        expect(error.response.data).toHaveApiField('username')
-        expect(error.response.data).toHaveApiField('password')
-      }
+    it('an old token-style login response no longer matches the contract', () => {
+      expect(ajv.validate(authResponseSchema, { token: 'abc', user })).toBe(false)
     })
 
-    it('should handle authentication errors correctly', async () => {
-      const mockError = {
+    it('login field errors arrive in error.fields', async () => {
+      client.post.mockRejectedValue({
         response: {
           status: 400,
-          data: {
-            non_field_errors: ['Unable to log in with provided credentials.']
-          }
-        }
-      }
+          data: envelope('username: This field is required.', 'invalid', {
+            username: ['This field is required.'],
+            password: ['This field is required.'],
+          }),
+        },
+      })
+      await expect(authApi.login('', '')).rejects.toSatisfy((error) => {
+        expect(error.response.data).toMatchApiSchema(validationErrorSchema)
+        expect(error.response.data.error.fields).toHaveApiField('username')
+        expect(error.response.data.error.fields).toHaveApiField('password')
+        return true
+      })
+    })
 
-      const client = await import('@/api/client')
-      client.default.post.mockRejectedValue(mockError)
+    it('bad credentials are a non-field error message', async () => {
+      client.post.mockRejectedValue({
+        response: { status: 400, data: envelope('Invalid username or password.') },
+      })
+      await expect(authApi.login('testuser', 'wrong')).rejects.toSatisfy((error) => {
+        expect(error.response.data).toMatchApiSchema(validationErrorSchema)
+        expect(error.response.data.error.message).toBe('Invalid username or password.')
+        return true
+      })
+    })
 
-      try {
-        await authApi.login('testuser', 'wrongpassword')
-        expect.fail('Expected login to throw error')
-      } catch (error) {
-        expect(error.response.status).toBe(400)
-        expect(error.response.data).toHaveApiField('non_field_errors')
-      }
+    it('logout() posts to /auth/logout/', async () => {
+      client.post.mockResolvedValue({ status: 200, data: { message: 'Logged out.' } })
+      const response = await authApi.logout()
+      expect(client.post).toHaveBeenCalledWith('/auth/logout/')
+      expect(response).toBeValidApiResponse()
     })
   })
 
-  describe('Registration Contract', () => {
-    it('should receive valid authentication response on successful registration', async () => {
-      const mockResponse = {
-        data: {
-          token: 'newusertoken123',
-          user: {
-            id: 2,
-            username: 'newuser',
-            email: 'new@example.com',
-            full_name: 'New User',
-            is_admin: false
-          }
-        }
-      }
-
-      const client = await import('@/api/client')
-      client.default.post.mockResolvedValue(mockResponse)
-
-      const registrationData = {
+  describe('Registration', () => {
+    it('register() posts the form and receives {user, message}', async () => {
+      client.post.mockResolvedValue({ data: { user: { ...user, is_active: false }, message: 'ok' } })
+      const data = {
         username: 'newuser',
         email: 'new@example.com',
-        password: 'strongpassword123',
-        full_name: 'New User'
+        password: 'StrongPass123',
+        full_name: 'New User',
       }
-
-      const response = await authApi.register(registrationData)
-
-      expect(client.default.post).toHaveBeenCalledWith('/auth/register/', registrationData)
-      expect(response.data).toMatchApiSchema(authResponseSchema)
+      const response = await authApi.register(data)
+      expect(client.post).toHaveBeenCalledWith('/auth/register/', data)
+      expect(response.data.user).toMatchApiSchema(userSchema)
     })
 
-    it('should handle registration validation errors', async () => {
-      const mockError = {
+    it('registration validation errors arrive in error.fields', async () => {
+      client.post.mockRejectedValue({
         response: {
           status: 400,
-          data: {
+          data: envelope('username: taken', 'invalid', {
             username: ['A user with that username already exists.'],
-            email: ['Enter a valid email address.']
-          }
-        }
-      }
-
-      const client = await import('@/api/client')
-      client.default.post.mockRejectedValue(mockError)
-
-      try {
-        await authApi.register({
-          username: 'existinguser',
-          email: 'invalid-email',
-          password: 'password123'
-        })
-        expect.fail('Expected registration to throw error')
-      } catch (error) {
-        expect(error.response.status).toBe(400)
+            email: ['Enter a valid email address.'],
+          }),
+        },
+      })
+      await expect(authApi.register({})).rejects.toSatisfy((error) => {
         expect(error.response.data).toMatchApiSchema(validationErrorSchema)
-        expect(error.response.data).toHaveApiField('username')
-        expect(error.response.data).toHaveApiField('email')
-      }
+        expect(error.response.data.error.fields).toHaveApiField('username')
+        expect(error.response.data.error.fields).toHaveApiField('email')
+        return true
+      })
     })
   })
 
-  describe('Password Reset Contract', () => {
-    it('should handle successful password reset request', async () => {
-      const mockResponse = {
-        data: { message: 'Password reset email sent.' }
-      }
-
-      const client = await import('@/api/client')
-      client.default.post.mockResolvedValue(mockResponse)
-
+  describe('Password reset', () => {
+    it('requestPasswordReset() posts the e-mail', async () => {
+      client.post.mockResolvedValue({ data: { message: 'Password reset email sent.' } })
       const response = await authApi.requestPasswordReset('test@example.com')
-
-      expect(client.default.post).toHaveBeenCalledWith('/auth/password-reset/', {
-        email: 'test@example.com'
+      expect(client.post).toHaveBeenCalledWith('/auth/password-reset/', {
+        email: 'test@example.com',
       })
       expect(response.data).toHaveApiField('message')
-    })
-
-    it('should handle password reset validation errors', async () => {
-      const mockError = {
-        response: {
-          status: 400,
-          data: {
-            email: ['Enter a valid email address.']
-          }
-        }
-      }
-
-      const client = await import('@/api/client')
-      client.default.post.mockRejectedValue(mockError)
-
-      try {
-        await authApi.requestPasswordReset('invalid-email')
-        expect.fail('Expected password reset to throw error')
-      } catch (error) {
-        expect(error.response.status).toBe(400)
-        expect(error.response.data).toHaveApiField('email')
-      }
-    })
-  })
-
-  describe('Logout Contract', () => {
-    it('should handle successful logout', async () => {
-      const mockResponse = {
-        data: { message: 'Successfully logged out.' }
-      }
-
-      const client = await import('@/api/client')
-      client.default.post.mockResolvedValue(mockResponse)
-
-      const response = await authApi.logout()
-
-      expect(client.default.post).toHaveBeenCalledWith('/auth/logout/')
-      expect(response).toBeValidApiResponse()
     })
   })
 })

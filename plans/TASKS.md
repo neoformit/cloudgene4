@@ -21,7 +21,7 @@ Status legend: ☐ todo · ◐ in progress · ☑ merged · ✖ blocked
 
 ## Phase 1 — Foundations (parallel: T01 ‖ T02)
 
-### T01 Platform foundations ☐
+### T01 Platform foundations ☑ (merged to `rebuild` 41e2e43; unit suite re-verified by orchestrator)
 Owned: `cloudgene_django/`, `requirements.txt`, `frontend/package*.json`, `frontend/vite.config.js`,
 `frontend/src/api/client.js`, `frontend/src/api/auth.js` (me/login/logout only), `frontend/src/stores/auth.js`,
 `frontend/src/router/index.js` (guards only), new `core/` app, `scripts/`, repo-root cruft.
@@ -54,7 +54,7 @@ Scope:
 Done when: app boots with `runserver` alone; login/logout/me work via SPA with session; all existing
 suites green; README quick-start accurate.
 
-### T02 E2E harness ☐
+### T02 E2E harness ◐
 Owned: `e2e/` (new), `frontend/src/**` **only** for adding `data-testid` attributes.
 Scope: implement E2E_TEST_PLAN §2 — stack fixture, auto-failing console/network guards, tracing,
 helpers, page-object skeletons, fixture Nextflow apps (`hello`, `all-inputs`, `fail`, `slow`,
@@ -73,7 +73,7 @@ summary; fixture apps verified with Nextflow 26.04 (`/usr/local/bin/nextflow`).
 Each slice owns its backend **and** frontend so both sides of every contract are changed together, and
 writes the E2E scenarios listed.
 
-### T03 Jobs, execution & run form ☐
+### T03 Jobs, execution & run form ◐
 Owned: `jobs/`, `workflows/definition.py` (new: YAML parsing/validation of a workflow, SPEC §4),
 public workflow endpoints (`workflows/views.py` public viewset + serializers for inputs/outputs),
 `frontend/src/views/public/{WorkflowSubmit,JobList,JobDetail}View.vue`, `frontend/src/components/{jobs,workflows}/`,
@@ -86,7 +86,7 @@ state rename + data migration, submission with uploads, outputs & authenticated 
 frontend polling, dynamic form for all SPEC §4 input types with client validation and field errors.
 E2E: W2, J1–J7, Q1–Q5, X1 (jobs parts).
 
-### T04 Accounts, profile & user admin ☐
+### T04 Accounts, profile & user admin ◐
 Owned: `accounts/`, `frontend/src/views/public/{Register,Activate,Login,PasswordReset,PasswordRecovery,Profile}View.vue`,
 `frontend/src/views/admin/AdminUsersView.vue`, `frontend/src/components/admin/Group*.vue`,
 `frontend/src/api/users.js`, `frontend/src/api/auth.js` (non-T01 parts).
@@ -99,7 +99,7 @@ users/groups endpoints under `/api/admin/` with writable groups & is_active, no 
 group member counts; mail sending uses mail settings from config service.
 E2E: A1–A7, D3, X1 (profile/admin parts).
 
-### T05 Server config, workflows admin & admin panel ☐
+### T05 Server config, workflows admin & admin panel ◐
 Owned: `admin_panel/`, `workflows/` except `definition.py` and public endpoints, `core/` pages/navbar
 views, `frontend/src/views/admin/**` except AdminUsersView, `frontend/src/components/layout/`,
 `frontend/src/views/public/{Home,StaticPage}View.vue`, `frontend/src/stores/server.js`,
@@ -119,7 +119,8 @@ E2E: S1, W1, D1, D2, D4–D7.
   and the orchestrator cherry-picks it for T05 if needed.
 - Queue/maintenance keys in `settings.yaml` (`server.max_running_jobs`, `server.max_queue_size`,
   `server.maintenance`, `server.maintenance_message`, `queue.paused`) — defined by T01's config
-  service; T03 reads, T05 writes.
+  service (`core.config.get/set_value/update_settings`, key table in SPEC §3.2); T03 reads, T05 writes.
+- Worker liveness: T03's `run_worker` calls `core.models.WorkerHeartbeat.beat(...)` each tick.
 - Admin job actions endpoints are implemented by T03; T05 builds the UI.
 
 ---
@@ -151,5 +152,14 @@ upload size limits, `docs/` rewritten (admin guide, workflow YAML reference, dep
 ---
 
 ## Log
+- 2026-09-19 T01 (branch `worktree-agent-a64a5398a72765053`): Celery/Channels/Redis/CORS removed;
+  env-driven settings + logging + whitenoise; `core` app (config service, `is_admin`/`IsAdmin`, error
+  envelope handler, pagination, `WorkerHeartbeat`, `/api/health`, `/api/auth/me`, SPA view with CSRF
+  cookie, JSON 404 for `/api/*`, optional trailing slash, `core.mail`, `create_admin`, temp-home test
+  runner); session+CSRF login/logout; default `home/`; frontend session auth, `apiErrorMessage`,
+  guards await `/me`; vitest 3.2; contract tests discovered; schema staleness test;
+  `scripts/test.sh`; cruft removed; README rewritten. Results: `manage.py test` 171 OK, vitest 56 OK,
+  `npm run build` OK. Cross-area edits and hand-over notes are in the T01 report.
 - 2026-09-19: Audit complete; SPEC, E2E plan and task board drafted. Java 17 + Nextflow 26.04.6
   installed at `/usr/local/bin/nextflow` (verified: trace file + `::message::` stdout).
+- 2026-09-19: T01 merged (171 Django + 56 vitest green). Phase 2 slices T03/T04/T05 started in parallel before T02 lands; they adopt the E2E harness when it merges.
