@@ -1,0 +1,30 @@
+id: multi-process
+name: Multi Process
+version: 1.0.0
+description: E2E fixture. Three processes with five tasks each.
+category: e2e
+workflow:
+  steps:
+    - name: Pipeline
+      type: nextflow
+      script: main.nf
+      processes:
+        - process: ALIGN
+          label: Align
+        - process: CALL
+          label: Call
+        - process: REPORT
+          label: Report
+  inputs:
+    - id: tasks
+      description: Number of chunks
+      type: number
+      value: 5
+      min: 1
+      max: 20
+      required: true
+  outputs:
+    - id: outdir
+      description: Reports
+      type: folder
+      download: true

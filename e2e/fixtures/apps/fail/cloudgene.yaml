@@ -1,0 +1,21 @@
+id: fail
+name: Fail
+version: 1.0.0
+description: E2E fixture. Always fails with an <code>::error::</code> message.
+category: e2e
+workflow:
+  steps:
+    - name: Fail on purpose
+      type: nextflow
+      script: main.nf
+  inputs:
+    - id: note
+      description: Note (ignored)
+      type: text
+      value: this job will fail
+      required: false
+  outputs:
+    - id: outdir
+      description: Output folder
+      type: folder
+      download: true
