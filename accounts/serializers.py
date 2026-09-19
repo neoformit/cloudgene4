@@ -28,7 +28,7 @@ class UserSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'date_joined', 'last_login']
 
-    def get_is_admin(self, obj):
+    def get_is_admin(self, obj) -> bool:
         return obj.is_admin_user()
 
 

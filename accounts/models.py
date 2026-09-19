@@ -37,8 +37,9 @@ class User(AbstractUser):
         return self.groups.filter(name=group_name).exists()
 
     def is_admin_user(self):
-        """Check if user is an admin"""
-        return self.is_superuser or self.groups.filter(name='admin').exists()
+        """Check if user is an admin (single definition: core.permissions.is_admin)"""
+        from core.permissions import is_admin
+        return is_admin(self)
 
     def make_admin(self):
         """Make user an admin"""

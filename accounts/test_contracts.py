@@ -26,8 +26,8 @@ class AuthContractTest(APITestCase):
             is_active=True
         )
     
-    def test_valid_login_returns_token_and_user(self):
-        """Valid credentials should return 200 with token and user"""
+    def test_valid_login_returns_user_and_session(self):
+        """Valid credentials start a session and return the user (no token; SPEC §3.4)"""
         data = {
             'username': 'testuser',
             'password': 'TestPass123!'
@@ -39,8 +39,8 @@ class AuthContractTest(APITestCase):
         response_data = response.json()
         
         # Verify response has required fields
-        self.assertIn('token', response_data)
-        self.assertIn('user', response_data)
+        self.assertEqual(set(response_data), {'user'})
+        self.assertIn('sessionid', response.cookies)
         
         # Verify user object structure
         user_data = response_data['user']
@@ -56,7 +56,7 @@ class AuthContractTest(APITestCase):
         
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         response_data = response.json()
-        self.assertIn('username', response_data)
+        self.assertIn('username', response_data['error']['fields'])
     
     def test_missing_password_returns_400_with_password_error(self):
         """Missing password should return 400 with password in error"""
@@ -66,7 +66,7 @@ class AuthContractTest(APITestCase):
         
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         response_data = response.json()
-        self.assertIn('password', response_data)
+        self.assertIn('password', response_data['error']['fields'])
     
     def test_wrong_credentials_returns_400(self):
         """Wrong credentials should return 400"""
@@ -91,12 +91,12 @@ class AuthContractTest(APITestCase):
 class RegistrationContractTest(APITestCase):
     """Contract tests for user registration"""
     
-    def test_valid_registration_returns_201_with_token(self):
-        """Valid registration should return 201 with token"""
+    def test_valid_registration_returns_201_with_user(self):
+        """Valid registration returns 201 with the (inactive) user; no token"""
         data = {
             'username': 'newuser',
             'email': 'new@example.com',
-            'password': 'strongpass123',
+            'password': 'StrongPass123',
             'full_name': 'New User'
         }
         
@@ -104,7 +104,9 @@ class RegistrationContractTest(APITestCase):
         
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         response_data = response.json()
-        self.assertIn('token', response_data)
+        self.assertIn('user', response_data)
+        self.assertNotIn('token', response_data)
+        self.assertFalse(response_data['user']['is_active'])
         
         # Verify user was created
         user = User.objects.get(username='newuser')
@@ -121,7 +123,7 @@ class RegistrationContractTest(APITestCase):
         
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         response_data = response.json()
-        self.assertIn('username', response_data)
+        self.assertIn('username', response_data['error']['fields'])
     
     def test_missing_email_returns_400_with_email_error(self):
         """Missing email should return 400 with email in error"""
@@ -134,7 +136,7 @@ class RegistrationContractTest(APITestCase):
         
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         response_data = response.json()
-        self.assertIn('email', response_data)
+        self.assertIn('email', response_data['error']['fields'])
     
     def test_missing_password_returns_400_with_password_error(self):
         """Missing password should return 400 with password in error"""
@@ -147,7 +149,7 @@ class RegistrationContractTest(APITestCase):
         
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         response_data = response.json()
-        self.assertIn('password', response_data)
+        self.assertIn('password', response_data['error']['fields'])
     
     def test_invalid_email_format_returns_400_with_email_error(self):
         """Invalid email format should return 400 with email in error"""
@@ -161,7 +163,7 @@ class RegistrationContractTest(APITestCase):
         
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         response_data = response.json()
-        self.assertIn('email', response_data)
+        self.assertIn('email', response_data['error']['fields'])
     
     def test_duplicate_username_returns_400_with_username_error(self):
         """Duplicate username should return 400 with username in error"""
@@ -183,7 +185,7 @@ class RegistrationContractTest(APITestCase):
         
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         response_data = response.json()
-        self.assertIn('username', response_data)
+        self.assertIn('username', response_data['error']['fields'])
 
 
 class PasswordResetContractTest(APITestCase):
@@ -218,7 +220,7 @@ class PasswordResetContractTest(APITestCase):
         
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         response_data = response.json()
-        self.assertIn('email', response_data)
+        self.assertIn('email', response_data['error']['fields'])
     
     def test_unknown_email_returns_400(self):
         """Unknown email should return 400"""
@@ -278,7 +280,10 @@ class UserUpdateContractTest(APITestCase):
         
         response = self.client.patch(f'/api/users/{self.other_user.id}/', data, format='json')
         
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        # 404 (not visible) is preferred over 403: does not reveal that the id exists
+        self.assertIn(response.status_code, [status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND])
+        self.other_user.refresh_from_db()
+        self.assertNotEqual(self.other_user.full_name, 'Hacked Name')
     
     def test_admin_can_update_any_user(self):
         """Admin should be able to update any user"""
@@ -335,7 +340,7 @@ class GroupContractTest(APITestCase):
         
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         response_data = response.json()
-        self.assertIn('name', response_data)
+        self.assertIn('name', response_data['error']['fields'])
     
     def test_non_admin_cannot_create_group(self):
         """Non-admin user should not be able to create groups"""

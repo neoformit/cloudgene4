@@ -2,7 +2,9 @@
 Workflow management views
 """
 from rest_framework import viewsets
-from rest_framework.permissions import AllowAny, IsAdminUser
+from rest_framework.permissions import AllowAny
+
+from core.permissions import IsAdmin, is_admin
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
@@ -10,6 +12,7 @@ from rest_framework.views import APIView
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 
+from rest_framework.exceptions import ValidationError
 from .models import Workflow, WorkflowCategory
 from .serializers import WorkflowSerializer, WorkflowCategorySerializer, WorkflowSettingsSerializer
 
@@ -30,7 +33,7 @@ class WorkflowViewSet(viewsets.ReadOnlyModelViewSet):
 
         if user is None or not user.is_authenticated:
             queryset = queryset.filter(public=True)
-        elif not user.is_admin_user():
+        elif not is_admin(user):
             queryset = queryset.filter(
                 Q(public=True) |
                 Q(allowed_groups__in=user.groups.all())
@@ -55,14 +58,14 @@ class WorkflowAdminViewSet(viewsets.ModelViewSet):
     """
     queryset = Workflow.objects.all()
     serializer_class = WorkflowSettingsSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdmin]
 
 
 class WorkflowSettingsAPIView(APIView):
     """
     API view for workflow settings management
     """
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdmin]
     
     def get(self, request, workflow_id):
         """Get workflow settings"""
@@ -79,4 +82,4 @@ class WorkflowSettingsAPIView(APIView):
             serializer.save()
             return Response(serializer.data)
         
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        raise ValidationError(serializer.errors)

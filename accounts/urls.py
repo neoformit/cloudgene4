@@ -11,6 +11,7 @@ urlpatterns = [
     path('api/auth/', include([
         path('login/', views.LoginView.as_view(), name='login'),
         path('logout/', views.LogoutView.as_view(), name='logout'),
+        path('me/', views.MeView.as_view(), name='me'),
         path('register/', views.RegisterView.as_view(), name='register'),
         path('activate/<str:activation_key>/', views.ActivateAccountView.as_view(), name='activate_account'),
         path('password-reset/', views.PasswordResetView.as_view(), name='password_reset'),

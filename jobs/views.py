@@ -9,6 +9,7 @@ from django.shortcuts import get_object_or_404
 from django.http import Http404, HttpResponse, FileResponse
 from django.db.models import Q
 
+from core.exceptions import error_response
 from .models import Job, JobDownload
 from .serializers import (
     JobListSerializer, JobDetailSerializer, JobSubmissionSerializer
@@ -71,10 +72,7 @@ class JobViewSet(viewsets.ModelViewSet):
             job_queue.cancel_job(str(job.id))
             return Response({'message': 'Job cancelled successfully'})
         except Exception as e:
-            return Response(
-                {'error': str(e)}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return error_response(str(e), 'invalid_state')
     
     @action(detail=True, methods=['post'])
     def restart(self, request, pk=None):
@@ -86,10 +84,7 @@ class JobViewSet(viewsets.ModelViewSet):
             serializer = self.get_serializer(job)
             return Response(serializer.data)
         except Exception as e:
-            return Response(
-                {'error': str(e)}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return error_response(str(e), 'invalid_state')
     
     @action(detail=True, methods=['get'])
     def logs(self, request, pk=None):
@@ -118,10 +113,7 @@ class JobViewSet(viewsets.ModelViewSet):
         download = get_object_or_404(JobDownload, job=job, id=download_id)
         
         if download.is_expired():
-            return Response(
-                {'error': 'Download link has expired'}, 
-                status=status.HTTP_410_GONE
-            )
+            return error_response('Download link has expired', 'gone', status.HTTP_410_GONE)
         
         try:
             # Increment download count
@@ -135,10 +127,7 @@ class JobViewSet(viewsets.ModelViewSet):
                 filename=download.filename
             )
         except FileNotFoundError:
-            return Response(
-                {'error': 'File not found'}, 
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return error_response('File not found', 'not_found', status.HTTP_404_NOT_FOUND)
     
     @action(detail=False, methods=['get'])
     def queue_status(self, request):
@@ -150,10 +139,8 @@ class JobViewSet(viewsets.ModelViewSet):
     def pause_queue(self, request):
         """Pause job queue (admin only)"""
         if not request.user.is_admin_user():
-            return Response(
-                {'error': 'Admin permission required'}, 
-                status=status.HTTP_403_FORBIDDEN
-            )
+            return error_response('Admin permission required', 'permission_denied',
+                                  status.HTTP_403_FORBIDDEN)
         
         job_queue.pause_queue()
         return Response({'message': 'Queue paused'})
@@ -162,10 +149,8 @@ class JobViewSet(viewsets.ModelViewSet):
     def resume_queue(self, request):
         """Resume job queue (admin only)"""
         if not request.user.is_admin_user():
-            return Response(
-                {'error': 'Admin permission required'}, 
-                status=status.HTTP_403_FORBIDDEN
-            )
+            return error_response('Admin permission required', 'permission_denied',
+                                  status.HTTP_403_FORBIDDEN)
         
         job_queue.resume_queue()
         return Response({'message': 'Queue resumed'})
@@ -183,7 +168,4 @@ class JobViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_201_CREATED
             )
         except Exception as e:
-            return Response(
-                {'error': f'Failed to submit job: {str(e)}'}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return error_response(f'Failed to submit job: {str(e)}', 'submission_failed')

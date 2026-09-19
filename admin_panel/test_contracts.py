@@ -204,7 +204,7 @@ class ServerSettingsContractTest(APITestCase):
         
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         response_data = response.json()
-        self.assertIn('name', response_data)
+        self.assertIn('name', response_data['error']['fields'])
     
     def test_non_admin_cannot_access_server_settings(self):
         """Non-admin user should not be able to access server settings"""

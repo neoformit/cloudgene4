@@ -1,6 +1,8 @@
 import os
 import json
 import uuid
+
+from core import config as cloudgene_config
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.utils import timezone
@@ -64,7 +66,7 @@ class Job(models.Model):
         """Get the full path to the job workspace directory"""
         if not self.workspace_dir:
             self.workspace_dir = os.path.join(
-                settings.JOBS_DIR, 
+                str(cloudgene_config.jobs_dir()),
                 str(self.user.id), 
                 str(self.id)
             )

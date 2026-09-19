@@ -102,7 +102,7 @@ class JobSubmissionJSONContractTest(APITestCase):
         
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         response_data = response.json()
-        self.assertIn('workflow_id', response_data)
+        self.assertIn('workflow_id', response_data['error']['fields'])
     
     def test_unknown_workflow_id_returns_400_with_workflow_id_error(self):
         """Unknown workflow_id should return 400 with workflow_id error"""
@@ -118,7 +118,7 @@ class JobSubmissionJSONContractTest(APITestCase):
         
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         response_data = response.json()
-        self.assertIn('workflow_id', response_data)
+        self.assertIn('workflow_id', response_data['error']['fields'])
     
     def test_missing_required_parameter_returns_400_with_parameters_error(self):
         """Missing required parameter should return 400 with parameters error"""
@@ -134,8 +134,8 @@ class JobSubmissionJSONContractTest(APITestCase):
         
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         response_data = response.json()
-        self.assertIn('parameters', response_data)
-        self.assertIn('required_param', str(response_data['parameters']))
+        self.assertIn('parameters', response_data['error']['fields'])
+        self.assertIn('required_param', str(response_data['error']['fields']['parameters']))
     
     def test_structured_json_submission_for_tests(self):
         """Test structured JSON submission (primarily for testing scenarios)"""
@@ -231,7 +231,7 @@ class JobSubmissionFormDataContractTest(APITestCase):
         
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         response_data = response.json()
-        self.assertIn('parameters', response_data)
+        self.assertIn('parameters', response_data['error']['fields'])
 
 
 class JobActionContractTest(APITestCase):
@@ -282,7 +282,9 @@ class JobActionContractTest(APITestCase):
         
         response = self.client.post(f'/api/jobs/{self.job.id}/cancel/')
         
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        # 404 (not visible) is preferred over 403: does not reveal that the job exists
+        self.assertIn(response.status_code, [status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND])
+        self.assertIn('error', response.json())
 
 
 class JobResponseShapeTest(APITestCase):
