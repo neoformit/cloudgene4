@@ -1,0 +1,54 @@
+{
+  "_comment": "Shared examples for accounts/validation.py and frontend/src/utils/validation.js. [input, expected message or null]. For password: [password, confirm or null, expected].",
+  "username": [
+    ["user123", null],
+    ["TestUser", null],
+    ["Bob1", null],
+    ["  alice  ", null],
+    ["", "The username is required."],
+    ["   ", "The username is required."],
+    ["usr", "The username must contain at least four characters."],
+    ["user@test", "Your username is not valid. Only characters A-Z, a-z and digits 0-9 are acceptable."],
+    ["user-123", "Your username is not valid. Only characters A-Z, a-z and digits 0-9 are acceptable."],
+    ["user_123", "Your username is not valid. Only characters A-Z, a-z and digits 0-9 are acceptable."],
+    ["user name", "Your username is not valid. Only characters A-Z, a-z and digits 0-9 are acceptable."],
+    ["jürgen", "Your username is not valid. Only characters A-Z, a-z and digits 0-9 are acceptable."],
+    ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "The username must not contain more than 150 characters."]
+  ],
+  "email": [
+    ["test@example.com", null],
+    ["user.name+tag@domain.co.uk", null],
+    ["  Bob@Example.COM ", null],
+    ["", "E-Mail is required."],
+    ["invalid-email", "Please enter a valid mail address."],
+    ["user@", "Please enter a valid mail address."],
+    ["@domain.com", "Please enter a valid mail address."],
+    ["user@domain", "Please enter a valid mail address."],
+    ["us er@domain.com", "Please enter a valid mail address."]
+  ],
+  "password": [
+    ["TestPass123", null, null],
+    ["TestPass123", "TestPass123", null],
+    ["aB3def", null, null],
+    ["TestPass123", "TestPass124", "Please check your passwords."],
+    ["", null, "Password is required."],
+    ["aB3", null, "Password must contain at least six characters!"],
+    ["NoNumbers", null, "Password must contain at least one number (0-9)!"],
+    ["NOLOWER123", null, "Password must contain at least one lowercase letter (a-z)!"],
+    ["noupper123", null, "Password must contain at least one uppercase letter (A-Z)!"],
+    ["Aa1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", null, "Password must not contain more than 128 characters!"]
+  ],
+  "full_name": [
+    ["Bob Builder", null],
+    ["  ", "The full name is required."],
+    ["", "The full name is required."]
+  ],
+  "group_name": [
+    ["researchers", null],
+    ["test-group", null],
+    ["Lab_2.a", null],
+    ["", "Group names start with a letter or digit and contain only letters, digits, \"_\", \"-\" and \".\" (max. 80 characters)."],
+    ["-lead", "Group names start with a letter or digit and contain only letters, digits, \"_\", \"-\" and \".\" (max. 80 characters)."],
+    ["with space", "Group names start with a letter or digit and contain only letters, digits, \"_\", \"-\" and \".\" (max. 80 characters)."]
+  ]
+}

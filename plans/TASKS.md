@@ -152,6 +152,15 @@ upload size limits, `docs/` rewritten (admin guide, workflow YAML reference, dep
 ---
 
 ## Log
+- 2026-09-19 T04 (branch `worktree-agent-a6b97498ae34ab06e`): case-insensitive unique
+  username/e-mail with `Lower()` constraints + normalisation (migration 0003 aborts listing
+  existing duplicates; drops `UserGroup`/`UserToken`/unused fields); shared validation rules
+  (`accounts/validation.py` ↔ `frontend/src/utils/validation.js`, one case table); idempotent
+  POST activation, `require_activation`; per-user lockout (429 `account_locked`); non-enumerating
+  hashed single-use reset; `/api/me` (+token, self-delete); `/api/admin/users|groups` (groups by
+  name, `is_admin` toggle, member counts); `/api/auth/token/`, `/api/users/`, `/api/groups/`
+  removed. Frontend views rewritten with server field errors and `data-testid`s; initials
+  avatar. E2E `e2e/tests/test_accounts.py` (A1–A7, D3, X1 profile/admin).
 - 2026-09-19 T01 (branch `worktree-agent-a64a5398a72765053`): Celery/Channels/Redis/CORS removed;
   env-driven settings + logging + whitenoise; `core` app (config service, `is_admin`/`IsAdmin`, error
   envelope handler, pagination, `WorkerHeartbeat`, `/api/health`, `/api/auth/me`, SPA view with CSRF
