@@ -133,3 +133,6 @@ yarn-error.log*
 /home/config/.*.tmp
 # ...but Nextflow env files are config, not secrets
 !nextflow.env
+
+# Claude Code agent worktrees
+.claude/worktrees/
