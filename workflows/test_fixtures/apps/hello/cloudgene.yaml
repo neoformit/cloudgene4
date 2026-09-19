@@ -1,0 +1,20 @@
+id: hello
+name: Hello
+version: 1.0.0
+description: Unit-test fixture (SPEC §4).
+category: testing
+workflow:
+  steps:
+    - name: Say hello
+      type: nextflow
+      script: main.nf
+  inputs:
+    - id: message
+      description: Message
+      type: text
+      value: Hello World
+  outputs:
+    - id: outdir
+      description: Output folder
+      type: folder
+      download: true

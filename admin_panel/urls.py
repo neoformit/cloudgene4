@@ -1,15 +1,26 @@
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+from django.urls import path
+
 from . import views
 
-router = DefaultRouter()
-router.register(r'server-settings', views.ServerSettingsViewSet, basename='server-settings')
-router.register(r'templates', views.TemplateViewSet, basename='template')
-router.register(r'navbar-items', views.NavbarItemViewSet, basename='navbar-item')
-router.register(r'system-logs', views.SystemLogViewSet, basename='system-log')
-router.register(r'counters', views.CounterViewSet, basename='counter')
-
 urlpatterns = [
-    path('api/admin/', include(router.urls)),
-    path('api/admin/dashboard/', views.AdminDashboardView.as_view(), name='admin_dashboard'),
+    path('api/admin/dashboard/', views.DashboardView.as_view(), name='admin-dashboard'),
+    path('api/admin/queue/pause/', views.QueuePauseView.as_view(), name='admin-queue-pause'),
+    path('api/admin/queue/resume/', views.QueueResumeView.as_view(), name='admin-queue-resume'),
+    path('api/admin/maintenance/enter/', views.MaintenanceEnterView.as_view(),
+         name='admin-maintenance-enter'),
+    path('api/admin/maintenance/exit/', views.MaintenanceExitView.as_view(),
+         name='admin-maintenance-exit'),
+    path('api/admin/settings/general/', views.GeneralSettingsView.as_view(),
+         name='admin-settings-general'),
+    path('api/admin/settings/mail/', views.MailSettingsView.as_view(),
+         name='admin-settings-mail'),
+    path('api/admin/settings/mail/test/', views.MailTestView.as_view(),
+         name='admin-settings-mail-test'),
+    path('api/admin/settings/nextflow/', views.NextflowSettingsView.as_view(),
+         name='admin-settings-nextflow'),
+    path('api/admin/settings/navbar/', views.NavbarSettingsView.as_view(),
+         name='admin-settings-navbar'),
+    path('api/admin/pages/', views.PageListView.as_view(), name='admin-pages'),
+    path('api/admin/pages/<str:slug>/', views.PageDetailView.as_view(), name='admin-page'),
+    path('api/admin/logs/', views.LogListView.as_view(), name='admin-logs'),
 ]

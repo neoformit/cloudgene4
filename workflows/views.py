@@ -14,7 +14,7 @@ from django.shortcuts import get_object_or_404
 
 from rest_framework.exceptions import ValidationError
 from .models import Workflow, WorkflowCategory
-from .serializers import WorkflowSerializer, WorkflowCategorySerializer, WorkflowSettingsSerializer
+from .serializers import WorkflowSerializer, WorkflowCategorySerializer
 
 
 class WorkflowViewSet(viewsets.ReadOnlyModelViewSet):
@@ -50,36 +50,3 @@ class WorkflowCategoryViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = WorkflowCategory.objects.all()
     serializer_class = WorkflowCategorySerializer
     permission_classes = [AllowAny]
-
-
-class WorkflowAdminViewSet(viewsets.ModelViewSet):
-    """
-    Admin ViewSet for managing workflow settings
-    """
-    queryset = Workflow.objects.all()
-    serializer_class = WorkflowSettingsSerializer
-    permission_classes = [IsAdmin]
-
-
-class WorkflowSettingsAPIView(APIView):
-    """
-    API view for workflow settings management
-    """
-    permission_classes = [IsAdmin]
-    
-    def get(self, request, workflow_id):
-        """Get workflow settings"""
-        workflow = get_object_or_404(Workflow, id=workflow_id)
-        serializer = WorkflowSettingsSerializer(workflow)
-        return Response(serializer.data)
-    
-    def patch(self, request, workflow_id):
-        """Update workflow settings"""
-        workflow = get_object_or_404(Workflow, id=workflow_id)
-        serializer = WorkflowSettingsSerializer(workflow, data=request.data, partial=True)
-        
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        
-        raise ValidationError(serializer.errors)
