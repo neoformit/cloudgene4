@@ -127,7 +127,7 @@ async function performAction(action) {
           <div class="d-flex justify-content-start align-items-center">
             <JobStatusBadge :status="job.status" class="status me-3" />
             <div class="flex-grow-1">
-              <h2 class="mb-0">{{ job.name }}</h2>
+              <h2 class="mb-0" data-testid="job-title">{{ job.name }}</h2>
               <small class="text-muted">
                 <i class="fas fa-clock"></i> {{ prettyDate(job.submitted_at) }}&nbsp;&nbsp;
                 <i class="fas fa-hourglass"></i> {{ prettyDuration(job.started_at, job.completed_at) }}&nbsp;&nbsp;
@@ -148,6 +148,7 @@ async function performAction(action) {
                 v-if="canCancel"
                 class="btn btn-light btn-sm"
                 title="Cancel job"
+                data-testid="job-cancel"
                 @click="confirmAction = 'cancel'"
               >
                 <i class="fas fa-times"></i>
@@ -155,7 +156,7 @@ async function performAction(action) {
             </div>
           </div>
 
-          <div v-if="job.status === 'waiting' || job.status === 'pending'" class="alert alert-info mt-3 mb-0">
+          <div v-if="job.status === 'waiting' || job.status === 'pending'" data-testid="job-queue-position" class="alert alert-info mt-3 mb-0">
             Job is in queue<span v-if="job.queue_position"> on position <b>{{ job.queue_position }}</b></span>.
           </div>
         </div>
@@ -169,6 +170,7 @@ async function performAction(action) {
               <button
                 class="nav-link"
                 :class="{ active: activeTab === 'steps' }"
+                data-testid="job-tab-details"
                 @click="activeTab = 'steps'"
               >Details</button>
             </li>
@@ -176,6 +178,7 @@ async function performAction(action) {
               <button
                 class="nav-link"
                 :class="{ active: activeTab === 'results' }"
+                data-testid="job-tab-results"
                 @click="activeTab = 'results'"
               >Results</button>
             </li>
@@ -183,6 +186,7 @@ async function performAction(action) {
               <button
                 class="nav-link"
                 :class="{ active: activeTab === 'logs' }"
+                data-testid="job-tab-logs"
                 @click="activeTab = 'logs'"
               >Logs</button>
             </li>
@@ -209,7 +213,7 @@ async function performAction(action) {
     </template>
 
     <div v-else class="container my-5">
-      <AlertMessage :message="error" />
+      <AlertMessage :message="error" data-testid="job-error" />
     </div>
 
     <ConfirmDialog

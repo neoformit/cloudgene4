@@ -25,13 +25,13 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div v-if="homeHtml" class="fullsize-container" v-html="homeHtml"></div>
+    <div v-if="homeHtml" data-testid="home-content" class="fullsize-container" v-html="homeHtml"></div>
 
     <div class="container my-5">
       <LoadingSpinner v-if="loading" />
       <template v-else>
         <div v-if="workflows.length" class="row g-4">
-          <div v-for="wf in workflows" :key="wf.id" class="col-md-4">
+          <div v-for="wf in workflows" :key="wf.id" class="col-md-4" data-testid="workflow-card" :data-workflow-id="wf.id">
             <div class="card h-100 card-shadow">
               <div class="card-body">
                 <h5 class="card-title">{{ wf.name }}</h5>
@@ -41,6 +41,7 @@ onMounted(async () => {
                 <RouterLink
                   v-if="auth.isLoggedIn"
                   :to="`/run/${wf.id}`"
+                  data-testid="workflow-run"
                   class="btn btn-primary btn-sm"
                 >
                   Run
