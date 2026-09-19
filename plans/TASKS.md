@@ -21,7 +21,7 @@ Status legend: ☐ todo · ◐ in progress · ☑ merged · ✖ blocked
 
 ## Phase 1 — Foundations (parallel: T01 ‖ T02)
 
-### T01 Platform foundations ☐
+### T01 Platform foundations ◐ (done on branch `worktree-agent-a64a5398a72765053`, awaiting review/merge)
 Owned: `cloudgene_django/`, `requirements.txt`, `frontend/package*.json`, `frontend/vite.config.js`,
 `frontend/src/api/client.js`, `frontend/src/api/auth.js` (me/login/logout only), `frontend/src/stores/auth.js`,
 `frontend/src/router/index.js` (guards only), new `core/` app, `scripts/`, repo-root cruft.
@@ -119,7 +119,8 @@ E2E: S1, W1, D1, D2, D4–D7.
   and the orchestrator cherry-picks it for T05 if needed.
 - Queue/maintenance keys in `settings.yaml` (`server.max_running_jobs`, `server.max_queue_size`,
   `server.maintenance`, `server.maintenance_message`, `queue.paused`) — defined by T01's config
-  service; T03 reads, T05 writes.
+  service (`core.config.get/set_value/update_settings`, key table in SPEC §3.2); T03 reads, T05 writes.
+- Worker liveness: T03's `run_worker` calls `core.models.WorkerHeartbeat.beat(...)` each tick.
 - Admin job actions endpoints are implemented by T03; T05 builds the UI.
 
 ---
@@ -151,5 +152,13 @@ upload size limits, `docs/` rewritten (admin guide, workflow YAML reference, dep
 ---
 
 ## Log
+- 2026-09-19 T01 (branch `worktree-agent-a64a5398a72765053`): Celery/Channels/Redis/CORS removed;
+  env-driven settings + logging + whitenoise; `core` app (config service, `is_admin`/`IsAdmin`, error
+  envelope handler, pagination, `WorkerHeartbeat`, `/api/health`, `/api/auth/me`, SPA view with CSRF
+  cookie, JSON 404 for `/api/*`, optional trailing slash, `core.mail`, `create_admin`, temp-home test
+  runner); session+CSRF login/logout; default `home/`; frontend session auth, `apiErrorMessage`,
+  guards await `/me`; vitest 3.2; contract tests discovered; schema staleness test;
+  `scripts/test.sh`; cruft removed; README rewritten. Results: `manage.py test` 171 OK, vitest 56 OK,
+  `npm run build` OK. Cross-area edits and hand-over notes are in the T01 report.
 - 2026-09-19: Audit complete; SPEC, E2E plan and task board drafted. Java 17 + Nextflow 26.04.6
   installed at `/usr/local/bin/nextflow` (verified: trace file + `::message::` stdout).
