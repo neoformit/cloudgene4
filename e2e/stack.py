@@ -28,6 +28,7 @@ FIXTURE_APPS = E2E_DIR / 'fixtures' / 'apps'
 FRONTEND = REPO / 'frontend'
 BUNDLE = REPO / 'static' / 'frontend'
 PYTHON = os.environ.get('E2E_PYTHON', sys.executable)
+OUTBOX_DIRNAME = 'mail'  # file-backend outbox = $CLOUDGENE_HOME/mail (settings.yaml + Django default)
 NEXTFLOW = os.environ.get('E2E_NEXTFLOW') or shutil.which('nextflow') or '/usr/local/bin/nextflow'
 
 
@@ -52,19 +53,6 @@ def free_port():
 # Frontend bundle
 # ------------------------------------------------------------------------------------------------
 
-def _vite_base_override():
-    """The built index.html must reference assets under a URL Django serves.
-
-    TODO remove after T01: vite.config.js has no `base`, so `npm run build` emits `/assets/...`
-    URLs that fall through to the SPA catch-all (HTML instead of JS -> blank page). Until the
-    config sets it, build with `--base=/static/frontend/` (served by staticfiles).
-    """
-    if os.environ.get('E2E_VITE_BASE'):
-        return os.environ['E2E_VITE_BASE']
-    config = (FRONTEND / 'vite.config.js').read_text()
-    return None if 'base:' in config else '/static/frontend/'
-
-
 def _newest_source_mtime():
     paths = [FRONTEND / 'index.html', FRONTEND / 'vite.config.js', FRONTEND / 'package.json']
     paths += [p for p in (FRONTEND / 'src').rglob('*') if p.is_file()]
@@ -77,33 +65,29 @@ def ensure_frontend_built(log_dir):
     if os.environ.get('E2E_SKIP_BUILD') == '1':
         return
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
-    base = _vite_base_override()
-    stamp = BUNDLE / '.e2e-build-stamp'
     with open(ARTIFACTS / '.build.lock', 'w') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         index = BUNDLE / 'index.html'
-        fresh = (index.exists() and stamp.exists() and stamp.read_text() == repr(base)
-                 and index.stat().st_mtime >= _newest_source_mtime())
+        fresh = index.exists() and index.stat().st_mtime >= _newest_source_mtime()
         if fresh:
             return
         if not (FRONTEND / 'node_modules').exists():
             raise StackError('frontend/node_modules missing: run `npm install` in frontend/ '
                              '(or set E2E_SKIP_BUILD=1 to use an existing static/frontend bundle)')
-        cmd = ['npm', 'run', 'build'] + (['--', '--base=' + base] if base else [])
+        cmd = ['npm', 'run', 'build']
         log = Path(log_dir) / 'frontend-build.log'
         with open(log, 'w') as fh:
             proc = subprocess.run(cmd, cwd=FRONTEND, stdout=fh, stderr=subprocess.STDOUT)
         if proc.returncode != 0:
             raise StackError('Frontend build failed (%s). Log: %s\n%s' % (' '.join(cmd), log, _tail(log, 40)))
-        stamp.write_text(repr(base))
 
 
 # ------------------------------------------------------------------------------------------------
 # CLOUDGENE_HOME
 # ------------------------------------------------------------------------------------------------
 
-def settings_yaml(outbox_dir, base_url):
-    """settings.yaml per SPEC §3.2 with small limits for fast queue tests."""
+def settings_yaml(base_url):
+    """settings.yaml (schema: core/config.py, SPEC §3.2) with small limits for fast queue tests."""
     return {
         'server': {
             'name': constants.SERVER_NAME,
@@ -116,18 +100,16 @@ def settings_yaml(outbox_dir, base_url):
             'max_upload_mb': 50,
         },
         'queue': {'paused': False},
-        'security': {'max_login_attempts': 5, 'lockout_duration': 60},
+        'security': {'max_login_attempts': 5, 'lockout_duration': 60, 'require_activation': True},
         'mail': {
-            'enabled': True,
             'backend': 'file',
-            'file_path': str(outbox_dir),
-            'from': 'noreply@e2e.test',
+            'file_path': OUTBOX_DIRNAME,  # relative to CLOUDGENE_HOME
+            'from_email': 'noreply@e2e.test',
         },
         'nextflow': {'binary': NEXTFLOW},
         'navbar': constants.NAVBAR,
         'apps': [
-            {'id': app_id, 'path': 'apps/%s/cloudgene.yaml' % app_id, 'enabled': True,
-             'public': rules['public'], 'groups': rules['groups']}
+            {'path': app_id, 'enabled': True, 'public': rules['public'], 'groups': rules['groups']}
             for app_id, rules in constants.APPS.items()
         ],
     }
@@ -141,11 +123,11 @@ PAGES = {
 }
 
 
-def build_home(home, outbox_dir, base_url):
+def build_home(home, base_url):
     for sub in ('config', 'pages', 'apps', 'jobs'):
         (home / sub).mkdir(parents=True, exist_ok=True)
     (home / 'config' / 'settings.yaml').write_text(
-        yaml.safe_dump(settings_yaml(outbox_dir, base_url), sort_keys=False, allow_unicode=True))
+        yaml.safe_dump(settings_yaml(base_url), sort_keys=False, allow_unicode=True))
     (home / 'config' / 'nextflow.config').write_text('// global Nextflow config (E2E)\n')
     (home / 'config' / 'nextflow.env').write_text('')
     for name, html in PAGES.items():
@@ -315,21 +297,22 @@ def start_stack(name='main'):
         shutil.rmtree(root)
     log_dir = root / 'logs'
     log_dir.mkdir(parents=True)
-    home, outbox = root / 'home', root / 'outbox'
-    outbox.mkdir()
+    home = root / 'home'
+    outbox = home / OUTBOX_DIRNAME
     db_path = root / 'db.sqlite3'
     port = free_port()
     base_url = 'http://127.0.0.1:%d' % port
 
     ensure_frontend_built(log_dir)
-    build_home(home, outbox, base_url)
+    build_home(home, base_url)
+    outbox.mkdir()
 
     env = dict(os.environ)
     env.update({
-        'DJANGO_SETTINGS_MODULE': 'e2e.e2e_settings',
+        'DJANGO_SETTINGS_MODULE': 'cloudgene_django.settings',
         'CLOUDGENE_HOME': str(home),
         'DATABASE_URL': 'sqlite:///' + str(db_path),  # absolute path -> sqlite:////...
-        'E2E_OUTBOX_DIR': str(outbox),
+        'LOG_LEVEL': os.environ.get('E2E_LOG_LEVEL', 'INFO'),
         'DJANGO_SECRET_KEY': 'e2e-not-secret-' + name,
         'DEBUG': os.environ.get('E2E_DEBUG', 'False'),
         'ALLOWED_HOSTS': '127.0.0.1,localhost',
@@ -343,6 +326,10 @@ def start_stack(name='main'):
                   db_path=db_path, log_dir=log_dir)
     try:
         stack.manage('migrate', '--noinput', log_name='migrate.log')
+        admin = constants.USERS['admin']
+        stack.manage('create_admin', '--username', 'admin', '--email', admin['email'],
+                     '--full-name', admin['full_name'], '--password', admin['password'],
+                     log_name='create_admin.log')
         stack.run_seed('users')
         stack._spawn('server', ['runserver', '127.0.0.1:%d' % port, '--noreload', '--insecure'])
         stack.wait_ready()

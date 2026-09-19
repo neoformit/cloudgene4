@@ -1,6 +1,6 @@
 """Seed the E2E database. Run inside the stack env from the repo root:
 
-    python -m e2e.seed users       # groups + admin/alice/bob (after `migrate`)
+    python -m e2e.seed users       # groups + alice/bob (after `migrate` + `create_admin`)
     python -m e2e.seed workflows   # after the server is up; see fallback below
 
 Idempotent: safe to run repeatedly.
@@ -11,7 +11,7 @@ from pathlib import Path
 
 
 def _setup():
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'e2e.e2e_settings')
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'cloudgene_django.settings')
     import django
     django.setup()
 
@@ -26,13 +26,13 @@ def seed_users():
     for name in {'admin', 'researchers'}:
         Group.objects.get_or_create(name=name)
     for username, spec in USERS.items():
+        if spec['is_admin']:
+            continue  # created by `manage.py create_admin` (see stack.py)
         user = User.objects.filter(username=username).first() or User(username=username)
         user.email = spec['email']
         if hasattr(user, 'full_name'):
             user.full_name = spec['full_name']
         user.is_active = True
-        user.is_staff = spec['is_admin']
-        user.is_superuser = spec['is_admin']
         user.set_password(spec['password'])
         user.save()
         user.groups.set([Group.objects.get(name=g) for g in spec['groups']])

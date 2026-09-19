@@ -17,6 +17,7 @@ Nextflow must be on `PATH` (or set `E2E_NEXTFLOW=/usr/local/bin/nextflow`).
 ## Running
 
 ```bash
+scripts/test.sh e2e                                 # same as below, via the repo entry point
 venv/bin/python -m pytest e2e                       # everything, headless
 venv/bin/python -m pytest e2e -n 4 -m "not serial"  # parallel (one stack per xdist worker)
 venv/bin/python -m pytest e2e -m serial             # tests that change global state, never with -n
@@ -32,17 +33,19 @@ SQLite DB, `migrate`, seed, `manage.py runserver <free port> --insecure` and, if
 exists, `manage.py run_worker`. The SPA is rebuilt (`npm run build`) only when `frontend/` sources
 are newer than `static/frontend/index.html`; set `E2E_SKIP_BUILD=1` to use the existing bundle.
 
-Environment passed to every stack process: `DJANGO_SETTINGS_MODULE=e2e.e2e_settings`,
-`CLOUDGENE_HOME`, `DATABASE_URL=sqlite:////…/db.sqlite3`, `DJANGO_SECRET_KEY`, `DEBUG=False`
-(`E2E_DEBUG=True` to override), `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`, `E2E_OUTBOX_DIR` (file
-e-mail backend). `e2e/e2e_settings.py` imports the project settings and forces these values so a
-run never touches the developer's DB, `emails/` or `jobs/`.
+Every stack process runs with plain project settings configured by env (SPEC §3.2):
+`DJANGO_SETTINGS_MODULE=cloudgene_django.settings`, `CLOUDGENE_HOME=<stack>/home`,
+`DATABASE_URL=sqlite:////<stack>/db.sqlite3`, `DJANGO_SECRET_KEY`, `DEBUG=False` (`E2E_DEBUG=True`
+to override), `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`, `LOG_LEVEL` (`E2E_LOG_LEVEL`). Mail uses
+`mail.backend: file` from the generated settings.yaml; the outbox is `$CLOUDGENE_HOME/mail`
+(`stack.outbox_dir`). The admin is created with `manage.py create_admin`, other users by
+`e2e/seed.py`. So a run never touches the developer's DB, `home/` or mail.
 
 Seed data (`e2e/constants.py`, applied by `e2e/seed.py`):
 
 | user  | password  | groups      | notes |
 |-------|-----------|-------------|-------|
-| admin | Admin1234 | admin       | is_staff + superuser |
+| admin | Admin1234 | admin       | via `manage.py create_admin` |
 | alice | Alice1234 | researchers | |
 | bob   | Bob12345  | —           | |
 
@@ -55,8 +58,8 @@ Limits: `max_running_jobs: 2`, `max_queue_size: 5`.
 |------|-------|
 | one-line-per-test summary with first error, guard findings and trace path | `e2e/.artifacts/summary.txt` |
 | Playwright trace (DOM snapshots, network, console per step) + screenshot, failures only | `e2e/.artifacts/playwright/<test-id>/trace.zip` → `venv/bin/python -m playwright show-trace <zip>` |
-| server / worker / migrate / seed / frontend-build logs | `e2e/.artifacts/stack-<worker>/logs/` |
-| the stack's home (settings.yaml, job workspaces), DB, e-mail outbox | `e2e/.artifacts/stack-<worker>/{home,db.sqlite3,outbox}` |
+| server / worker / migrate / create_admin / seed / frontend-build logs | `e2e/.artifacts/stack-<worker>/logs/` |
+| the stack's home (settings.yaml, pages, apps, job workspaces, `mail/` outbox), DB | `e2e/.artifacts/stack-<worker>/{home,db.sqlite3}` |
 
 `e2e/.artifacts/` is wiped per stack at the start of the next run.
 

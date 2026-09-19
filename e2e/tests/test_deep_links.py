@@ -37,9 +37,7 @@ def test_public_route_logged_out(page, route):
     expect(page).to_have_url(_path_re(route))
 
 
-@pytest.mark.parametrize('route', USER_ROUTES + [
-    pytest.param(r, marks=pytest.mark.xfail(strict=False, reason='needs T01: admin route guard redirects to /login without `next` (F6)'))
-    for r in ADMIN_ROUTES])
+@pytest.mark.parametrize('route', USER_ROUTES + ADMIN_ROUTES)
 def test_protected_route_logged_out_redirects_to_login_with_next(page, route):
     page.goto(route)
     expect(page).to_have_url(_login_redirect_re(route))
