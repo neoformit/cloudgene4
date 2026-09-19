@@ -1,249 +1,90 @@
-# Cloudgene Django Rebuild
+# Cloudgene (Django port)
 
-This project rebuilds the original Java Cloudgene application as a modern Django web application with Python.
+A web service for running [Nextflow](https://www.nextflow.io/) workflows from the browser — a
+port of Cloudgene 3 (Java, kept read-only in `cloudgene3/` for reference) to Django + Vue 3.
 
-## Features
+**Start here:** [`plans/SPEC.md`](plans/SPEC.md) (product, architecture, API contract),
+[`plans/TASKS.md`](plans/TASKS.md) (work in progress), [`plans/E2E_TEST_PLAN.md`](plans/E2E_TEST_PLAN.md).
 
-### Core Functionality
-- ✅ **User Authentication & Group Management**: Custom user model with group-based workflow access control
-- ✅ **Workflow Management**: YAML-based workflow configuration with dynamic parameter handling  
-- ✅ **Job Queue System**: Celery-based job execution with Redis backend
-- ✅ **Nextflow Integration**: Execute Nextflow workflows with parameter substitution
-- ✅ **Admin Panel**: Comprehensive admin interface for server settings, users, workflows, and jobs
-- ✅ **Real-time Updates**: WebSocket support for live job status updates
-- ✅ **File Downloads**: Secure job result downloads with expiration
-
-### API Features
-- RESTful API with Django REST Framework
-- Token-based authentication
-- Comprehensive job management endpoints
-- Workflow browsing and submission
-- Admin dashboard with statistics
-
-### Bug Fixes Addressed
-- ✅ **Space Handling in Job Names**: Job names with spaces are automatically sanitized
-- ✅ **Improved Queue Logic**: Robust job queue management to prevent stuck jobs
-- ✅ **User Deduplication**: Enhanced user registration to prevent duplicate accounts
-
-## Architecture
+## Layout
 
 ```
-cloudgene_django/           # Main Django project
-├── accounts/               # User authentication and management
-├── workflows/              # Workflow configuration and management  
-├── jobs/                   # Job execution and queue management
-├── admin_panel/            # Admin interface and system settings
-├── cloudgene_config.yaml   # Main configuration file
-└── sample_workflow.yaml    # Example workflow definition
+cloudgene_django/   Django project (settings from environment variables)
+core/               platform: config service, auth helpers, error envelope, health, create_admin
+accounts/           users, registration, groups
+workflows/          workflow definitions and registry
+jobs/               jobs, queue and (from T03) the worker
+admin_panel/        admin API
+frontend/           Vue 3 SPA (Vite); `npm run build` writes to static/frontend/
+home/               default CLOUDGENE_HOME: config/settings.yaml, pages/*.html, apps/, jobs/ (ignored)
+scripts/test.sh     runs every test suite
 ```
 
-## Installation & Setup
+Processes: **web** (Django; serves `/api/*` and the built SPA) and **worker**
+(`python manage.py run_worker` — *provided by T03, not available yet*: until then submitted jobs
+stay `pending`). There is no Redis, Celery or WebSocket server.
 
-### Prerequisites
-- Python 3.8+
-- Redis server (for Celery and Channels)
-- Nextflow (for workflow execution)
+## Development quick start
 
-### Quick Start
-1. **Set up the environment:**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate
-   pip install -r requirements.txt
-   ```
+Requirements: Python 3.12, Node 20+ (21 works), Java 17 + Nextflow for running workflows.
 
-2. **Initialize the database:**
-   ```bash
-   python manage.py migrate
-   python manage.py setup_cloudgene
-   ```
-
-3. **Start Redis (required for Celery and WebSockets):**
-   ```bash
-   redis-server
-   ```
-
-4. **Start Celery worker (in a separate terminal):**
-   ```bash
-   source venv/bin/activate
-   celery -A cloudgene_django worker --loglevel=info
-   ```
-
-5. **Start Django development server:**
-   ```bash
-   python manage.py runserver
-   ```
-
-## Configuration
-
-### Main Configuration (`cloudgene_config.yaml`)
-```yaml
-server:
-  name: "Cloudgene Django Server"
-  port: 8000
-  max_jobs: 10
-  
-nextflow:
-  binary: "nextflow"
-  work_dir: "/tmp/nextflow-work"
-  
-queue:
-  max_concurrent_jobs: 10
-  job_timeout: 86400
-```
-
-### Workflow Configuration Example
-```yaml
-id: example-workflow
-name: Example Workflow
-description: A sample bioinformatics workflow
-category: analysis
-
-workflow:
-  steps:
-    - name: ProcessData
-      classname: workflows.steps.DataProcessor
-      
-  inputs:
-    - id: input_file
-      description: Input data file
-      type: file
-      required: true
-      
-  outputs:
-    - id: results
-      description: Analysis results
-      type: folder
-      download: true
-```
-
-## API Endpoints
-
-### Authentication
-- `POST /api/auth/login/` - User login
-- `POST /api/auth/logout/` - User logout  
-- `POST /api/auth/register/` - User registration
-- `GET /api/auth/token/` - Get API token
-
-### Jobs
-- `GET /api/jobs/` - List jobs
-- `POST /api/jobs/` - Submit new job
-- `GET /api/jobs/{id}/` - Get job details
-- `POST /api/jobs/{id}/cancel/` - Cancel job
-- `POST /api/jobs/{id}/restart/` - Restart job
-- `GET /api/jobs/{id}/logs/` - Get job logs
-- `GET /api/jobs/{id}/download/` - List downloadable files
-
-### Workflows
-- `GET /api/workflows/` - List available workflows
-- `GET /api/workflows/{id}/` - Get workflow details
-- `GET /api/categories/` - List workflow categories
-
-### Admin (Admin users only)
-- `GET /api/admin/dashboard/` - Admin dashboard
-- `GET/POST /api/admin/server-settings/` - Server settings
-- `GET/POST /api/admin/templates/` - Page templates
-- `GET /api/admin/system-logs/` - System logs
-- `GET /api/admin/counters/` - System counters
-
-## WebSocket Endpoints
-
-### Job Status Updates
-```javascript
-ws://localhost:8000/ws/jobs/{job_id}/
-```
-
-Receives real-time job status updates:
-```json
-{
-  "type": "job_status",
-  "job_id": "uuid",
-  "status": "running",
-  "progress": 50,
-  "message": "Processing step 2 of 4"
-}
-```
-
-## Usage Examples
-
-### Submit a Job via API
 ```bash
-curl -X POST http://localhost:8000/api/jobs/ \
-  -H "Authorization: Token your-api-token" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "workflow_id": "hello-cloudgene",
-    "name": "test_job",
-    "parameters": {
-      "input_text": "Hello World",
-      "number_input": 42
-    }
-  }'
+# 1. Python environment
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# 2. Local settings (DEBUG on, everything else defaults)
+echo "DEBUG=1" > .env
+
+# 3. Database + an administrator
+python manage.py migrate
+python manage.py create_admin --username admin --email admin@example.org --password Admin1234
+
+# 4. Frontend bundle (served by Django at /static/frontend/)
+(cd frontend && npm install && npm run build)
+
+# 5. Web server → http://127.0.0.1:8000/
+python manage.py runserver
+
+# 6. Worker (separate terminal) — provided by T03
+# python manage.py run_worker
 ```
 
-### Load a Custom Workflow
+For frontend work with hot reload run `npm run dev` in `frontend/` (http://localhost:5173) next to
+`runserver`; Vite proxies `/api` to port 8000.
+
+`create_admin` is idempotent: it creates the user or updates an existing one (password only if
+given; also via `$CLOUDGENE_ADMIN_PASSWORD`; a random one is printed if a new user gets none), and
+makes it an admin (`is_staff`, `is_superuser`, group `admin`).
+
+### Configuration
+
+* **Environment** (infrastructure only; see the docstring in `cloudgene_django/settings.py`):
+  `DEBUG` (default off), `DJANGO_SECRET_KEY` (default: generated once into
+  `$CLOUDGENE_HOME/config/secret_key`), `ALLOWED_HOSTS` (default `localhost,127.0.0.1,[::1]`),
+  `CSRF_TRUSTED_ORIGINS`, `DATABASE_URL` (default SQLite `db.sqlite3`), `CLOUDGENE_HOME`
+  (default `./home`), `LOG_LEVEL`. A `.env` file in the repo root is loaded automatically.
+* **Application settings** live in `$CLOUDGENE_HOME/config/settings.yaml` (server name, queue
+  limits, maintenance, mail, Nextflow, navbar, installed apps). Read/write only through
+  `core.config`; admins edit them in the UI. Key reference: SPEC §3.2.
+* **Pages**: `$CLOUDGENE_HOME/pages/<slug>.html` (`home`, `footer`, `about`, …).
+
+### Auth for API clients
+
+The SPA uses the Django session (cookie) with CSRF (`csrftoken` cookie → `X-CSRFToken` header).
+Scripts should use a token: `Authorization: Token <key>`. All API errors have the shape
+`{"error": {"message": "...", "code": "...", "fields": {"field": ["..."]}}}`.
+API paths may be called with or without the trailing slash. OpenAPI: `schema.yaml` (browse at
+`/api/schema/swagger-ui/`).
+
+## Tests
+
 ```bash
-python manage.py load_sample_workflow --file /path/to/workflow.yaml
+scripts/test.sh unit   # Django checks + tests (incl. schema.yaml staleness) + vitest
+scripts/test.sh e2e    # Playwright E2E (pytest e2e)
+scripts/test.sh all    # both
 ```
 
-## Development
-
-### Running Tests
-```bash
-python manage.py test
-```
-
-### Code Structure
-- **Models**: Django ORM models for data persistence
-- **Serializers**: DRF serializers for API data formatting
-- **Views**: API views and business logic
-- **Tasks**: Celery tasks for background job processing
-- **Consumers**: WebSocket consumers for real-time updates
-
-### Key Components
-1. **Job Queue** (`jobs/queue.py`): Manages job execution and prioritization
-2. **Config Loader** (`workflows/config_loader.py`): Handles YAML workflow definitions
-3. **Task Executor** (`jobs/tasks.py`): Executes workflows using Nextflow
-4. **WebSocket Consumer** (`jobs/consumers.py`): Provides real-time job updates
-
-## Deployment
-
-### Production Considerations
-- Use PostgreSQL instead of SQLite for production
-- Set up proper Redis configuration
-- Use a reverse proxy (nginx) for static files
-- Configure Celery with proper monitoring
-- Set up log rotation and monitoring
-- Use environment variables for sensitive settings
-
-### Environment Variables
-```bash
-DJANGO_SECRET_KEY=your-secret-key
-DEBUG=False
-DATABASE_URL=postgresql://user:pass@localhost/cloudgene
-REDIS_URL=redis://localhost:6379/0
-```
-
-## Comparison with Original Java Version
-
-| Feature | Java Cloudgene | Django Cloudgene | Status |
-|---------|----------------|------------------|---------|
-| User Management | ✅ | ✅ | Improved with proper validation |
-| Workflow Config | ✅ | ✅ | Enhanced YAML processing |
-| Job Queue | ✅ | ✅ | More robust with Celery |
-| Admin Panel | ✅ | ✅ | RESTful API + better UX |
-| Real-time Updates | ✅ | ✅ | WebSocket-based |
-| Nextflow Support | ✅ | ✅ | Full compatibility |
-| Bug Fixes | ❌ | ✅ | Space handling, queue logic, user deduplication |
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for new functionality  
-5. Submit a pull request
-
-## License
-
-This project maintains compatibility with the original Cloudgene license terms.
+After changing any API view or serializer regenerate the committed schema:
+`python manage.py spectacular --file schema.yaml --validate`.
