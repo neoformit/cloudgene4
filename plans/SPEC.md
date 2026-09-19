@@ -383,6 +383,40 @@ workflow:
 ```
 Unknown `type` → validation error at install/reload. `classname:` steps (Java) → unsupported error.
 
+Rules enforced by the parser (`workflows/definition.py`, owned by T03):
+- `id` (app) must match `^[a-z0-9][a-z0-9_-]{0,63}$` (it is also the app dir name); `name` required;
+  `workflow.steps` needs ≥1 step. Input/output ids match `^[A-Za-z_][A-Za-z0-9_]{0,63}$`, are unique
+  across inputs+outputs, and must not be `workflow` or `job_name` (reserved multipart fields).
+- Unknown input/output `type` → error. Accepted aliases: `label` for `description`, `write_file` for
+  `writeFile`. `list`/`radio` need `values` (mapping `key: label`, or a list of scalars /
+  `{key,label}`); a default not among the keys is ignored with a warning. `number`: `value`/`min`/`max`
+  numeric, `min <= max`. `checkbox`: `values` optional but, if given, needs both `true` and `false`
+  keys; default = `value` (bool, or the mapped true value); never "required". `terms_checkbox` /
+  `agb_checkbox` must be checked to submit. `writeFile` only on `textarea`, plain file name.
+  `separator`/`info`/`label` are display-only (never submitted, never in params). `local-file` /
+  `local-folder` behave like `file` / `folder` (browser upload). Output `download` and `serialize`
+  default to `true`; output `type` defaults to `folder`.
+- Steps: `type: nextflow` or no `type` (default `script: main.nf`). Steps with `classname:`, `cmd:`
+  or another `type` load with `type: "unsupported"` + `error` and a definition warning; a job that
+  reaches such a step fails with that message (never silently succeeds).
+
+Python API (stable contract for the registry, T05):
+```python
+from workflows.definition import load_definition, parse_definition, DefinitionError
+d = load_definition(path_or_yaml)   # app dir | path to cloudgene.yaml | YAML str/bytes | dict
+# -> WorkflowDefinition(id, name, version, description, website, author, logo, category,
+#      steps: [Step(name, type, script, revision, params, processes, error)],
+#      inputs: [InputParam(id, type, label, value, values[{key,label}], checkbox_values,
+#               required, visible, help, details, write_file, serialize, accept, min, max)],
+#      outputs: [OutputParam(id, type, label, download, serialize)],
+#      warnings: [str], app_dir: Path|None, source_path, raw: dict, yaml_text: str)
+# d.input(id), d.output(id), d.value_inputs, d.to_dict()
+# DefinitionError.errors -> ["workflow.inputs[2].type: unknown type \"x\" ...", ...]
+```
+The `Workflow` DB row caches the raw YAML (`yaml_config`); the web process and worker re-parse it
+with `load_definition(workflow.yaml_config)` (cheap) — there is no per-parameter table. Each job
+stores a snapshot of the YAML it was submitted with (`Job.workflow_yaml`) and runs against it.
+
 ---
 
 ## 5. Non-functional requirements
