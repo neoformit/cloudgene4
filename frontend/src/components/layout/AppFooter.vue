@@ -1,9 +1,7 @@
 <script setup>
-import { computed } from 'vue'
 import { useServerStore } from '@/stores/server'
 
 const server = useServerStore()
-const footerHtml = computed(() => server.templates.footer || '')
 </script>
 
 <template>
@@ -12,10 +10,9 @@ const footerHtml = computed(() => server.templates.footer || '')
       <p class="float-end mb-0">
         <small><a href="#">Back to top</a></small>
       </p>
-      <p class="mb-0">
-        <small v-if="footerHtml" v-html="footerHtml"></small>
-        <small v-else>Powered by Cloudgene</small>
-      </p>
+      <!-- footer.html is admin-authored HTML from $CLOUDGENE_HOME/pages -->
+      <div v-if="server.footerHtml" class="small" v-html="server.footerHtml"></div>
+      <small v-else>Powered by Cloudgene</small>
     </div>
   </footer>
 </template>
