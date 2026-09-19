@@ -137,7 +137,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { createGroup, deleteGroup as deleteGroupApi, listGroups } from '@/api/users'
+import { createGroup as createGroupApi, deleteGroup as deleteGroupApi, listGroups } from '@/api/users'
 import AlertMessage from '@/components/common/AlertMessage.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import GroupMembersModal from './GroupMembersModal.vue'
@@ -197,7 +197,7 @@ const createGroup = async () => {
   success.value = ''
   
   try {
-    const response = await createGroup({
+    const response = await createGroupApi({
       name: newGroupName.value.trim()
     })
     

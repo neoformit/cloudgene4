@@ -13,6 +13,8 @@ from django.contrib.auth.models import Group
 from django.contrib.auth import get_user_model
 from django.core.mail import send_mail
 from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import ensure_csrf_cookie
 
 from core.exceptions import error_response
 from core.serializers import MessageSerializer
@@ -84,8 +86,12 @@ class LogoutView(APIView):
         return Response({'message': 'Logged out.'})
 
 
+@method_decorator(ensure_csrf_cookie, name='dispatch')
 class MeView(APIView):
-    """Current user. Always 200: ``{"authenticated": false, "user": null}`` for anonymous."""
+    """Current user. Always 200: ``{"authenticated": false, "user": null}`` for anonymous.
+
+    Also sets the ``csrftoken`` cookie (needed when the SPA is served by the Vite dev server).
+    """
     permission_classes = [AllowAny]
 
     @extend_schema(responses={200: inline_serializer('Me', {

@@ -42,7 +42,10 @@ vi.mock('@/components/workflows/form/CheckboxInput.vue', () => ({
 }))
 
 // Mock other input components as simple divs since they're not used in these tests
-const mockComponent = { template: '<div></div>', props: ['param', 'modelValue'], emits: ['update:modelValue'] }
+// vi.mock factories are hoisted above imports, so shared values must be hoisted too
+const { mockComponent } = vi.hoisted(() => ({
+  mockComponent: { template: '<div></div>', props: ['param', 'modelValue'], emits: ['update:modelValue'] },
+}))
 vi.mock('@/components/workflows/form/TextareaInput.vue', () => ({ default: mockComponent }))
 vi.mock('@/components/workflows/form/SelectInput.vue', () => ({ default: mockComponent }))
 vi.mock('@/components/workflows/form/RadioInput.vue', () => ({ default: mockComponent }))
@@ -68,7 +71,7 @@ describe('DynamicForm Component Contract', () => {
       ]
 
       wrapper = mount(DynamicForm, {
-        props: { params }
+        props: { params, workflowId: 'wf', jobName: 'test-job-name' }
       })
 
       // Simulate user input
@@ -78,18 +81,14 @@ describe('DynamicForm Component Contract', () => {
       // Get reference to the onSubmit method
       const form = wrapper.vm
 
-      // Mock the emit function to capture the FormData
-      const mockEmit = vi.fn()
-      wrapper.vm.$emit = mockEmit
-
       // Call onSubmit
-      form.onSubmit('test-job-name')
+      form.onSubmit()
 
       // Verify emit was called with FormData
-      expect(mockEmit).toHaveBeenCalledWith('submit', expect.any(FormData))
+      expect(wrapper.emitted('submit')).toHaveLength(1)
 
       // Extract and validate the FormData
-      const formData = mockEmit.mock.calls[0][1]
+      const formData = wrapper.emitted('submit')[0][0]
       expect(formData).toBeInstanceOf(FormData)
       expect(formData.get('job_name')).toBe('test-job-name')
       expect(formData.get('text_param')).toBe('test value')
@@ -105,7 +104,7 @@ describe('DynamicForm Component Contract', () => {
       ]
 
       wrapper = mount(DynamicForm, {
-        props: { params }
+        props: { params, workflowId: 'wf', jobName: 'file-job-name' }
       })
 
       // Create a mock file
@@ -114,18 +113,15 @@ describe('DynamicForm Component Contract', () => {
       // Simulate file selection by directly updating the component's values
       wrapper.vm.values.file_param = mockFile
 
-      const mockEmit = vi.fn()
-      wrapper.vm.$emit = mockEmit
-
       // Call onSubmit
-      wrapper.vm.onSubmit('file-job-name')
+      wrapper.vm.onSubmit()
 
-      expect(mockEmit).toHaveBeenCalledWith('submit', expect.any(FormData))
+      expect(wrapper.emitted('submit')).toHaveLength(1)
 
-      const formData = mockEmit.mock.calls[0][1]
+      const formData = wrapper.emitted('submit')[0][0]
       expect(formData).toBeInstanceOf(FormData)
       expect(formData.get('job_name')).toBe('file-job-name')
-      expect(formData.get('file_param')).toBe(mockFile)
+      expect(formData.get('file_param').name).toBe(mockFile.name)
     })
 
     it('should create valid FormData object for mixed parameter types', () => {
@@ -146,7 +142,7 @@ describe('DynamicForm Component Contract', () => {
       ]
 
       wrapper = mount(DynamicForm, {
-        props: { params }
+        props: { params, workflowId: 'wf', jobName: 'mixed-job' }
       })
 
       // Set up test values
@@ -155,17 +151,14 @@ describe('DynamicForm Component Contract', () => {
       wrapper.vm.values.file_param = mockFile
       wrapper.vm.values.checkbox_param = true
 
-      const mockEmit = vi.fn()
-      wrapper.vm.$emit = mockEmit
+      wrapper.vm.onSubmit()
 
-      wrapper.vm.onSubmit('mixed-job')
+      expect(wrapper.emitted('submit')).toHaveLength(1)
 
-      expect(mockEmit).toHaveBeenCalledWith('submit', expect.any(FormData))
-
-      const formData = mockEmit.mock.calls[0][1]
+      const formData = wrapper.emitted('submit')[0][0]
       expect(formData.get('job_name')).toBe('mixed-job')
       expect(formData.get('text_param')).toBe('updated text')
-      expect(formData.get('file_param')).toBe(mockFile)
+      expect(formData.get('file_param').name).toBe(mockFile.name)
       expect(formData.get('checkbox_param')).toBe('true') // FormData converts to string
     })
 
@@ -178,7 +171,7 @@ describe('DynamicForm Component Contract', () => {
       ]
 
       wrapper = mount(DynamicForm, {
-        props: { params }
+        props: { params, workflowId: 'wf', jobName: 'array-job' }
       })
 
       // Set up array of files
@@ -188,20 +181,17 @@ describe('DynamicForm Component Contract', () => {
       ]
       wrapper.vm.values.multi_file_param = files
 
-      const mockEmit = vi.fn()
-      wrapper.vm.$emit = mockEmit
+      wrapper.vm.onSubmit()
 
-      wrapper.vm.onSubmit('array-job')
+      expect(wrapper.emitted('submit')).toHaveLength(1)
 
-      expect(mockEmit).toHaveBeenCalledWith('submit', expect.any(FormData))
-
-      const formData = mockEmit.mock.calls[0][1]
+      const formData = wrapper.emitted('submit')[0][0]
       
       // FormData.getAll() should return all values for the same key
       const allFiles = formData.getAll('multi_file_param')
       expect(allFiles).toHaveLength(2)
-      expect(allFiles[0]).toBe(files[0])
-      expect(allFiles[1]).toBe(files[1])
+      expect(allFiles[0].name).toBe(files[0].name)
+      expect(allFiles[1].name).toBe(files[1].name)
     })
 
     it('should exclude empty and null values from FormData', () => {
@@ -228,7 +218,7 @@ describe('DynamicForm Component Contract', () => {
       ]
 
       wrapper = mount(DynamicForm, {
-        props: { params }
+        props: { params, workflowId: 'wf', jobName: 'exclusion-test' }
       })
 
       // Explicitly set some values to empty/null/undefined
@@ -237,12 +227,9 @@ describe('DynamicForm Component Contract', () => {
       wrapper.vm.values.undefined_text = undefined
       wrapper.vm.values.valid_text = 'valid value'
 
-      const mockEmit = vi.fn()
-      wrapper.vm.$emit = mockEmit
+      wrapper.vm.onSubmit()
 
-      wrapper.vm.onSubmit('exclusion-test')
-
-      const formData = mockEmit.mock.calls[0][1]
+      const formData = wrapper.emitted('submit')[0][0]
       
       // Only job_name and valid_text should be in FormData
       expect(formData.get('job_name')).toBe('exclusion-test')
@@ -265,22 +252,19 @@ describe('DynamicForm Component Contract', () => {
       ]
 
       wrapper = mount(DynamicForm, {
-        props: { params }
+        props: { params, workflowId: 'wf', jobName: 'checkbox-test' }
       })
 
       wrapper.vm.values.checkbox_true = true
       wrapper.vm.values.checkbox_false = false
 
-      const mockEmit = vi.fn()
-      wrapper.vm.$emit = mockEmit
+      wrapper.vm.onSubmit()
 
-      wrapper.vm.onSubmit('checkbox-test')
-
-      const formData = mockEmit.mock.calls[0][1]
+      const formData = wrapper.emitted('submit')[0][0]
       
-      // True checkbox should be included, false should be excluded
+      // Both states are sent so the server never sees a "missing" checkbox (F4)
       expect(formData.get('checkbox_true')).toBe('true')
-      expect(formData.get('checkbox_false')).toBeNull() // false values excluded
+      expect(formData.get('checkbox_false')).toBe('false')
     })
   })
 
@@ -303,7 +287,7 @@ describe('DynamicForm Component Contract', () => {
       ]
 
       wrapper = mount(DynamicForm, {
-        props: { params }
+        props: { params, workflowId: 'wf', jobName: '' }
       })
 
       // Verify initial values
@@ -333,7 +317,7 @@ describe('DynamicForm Component Contract', () => {
 
       // This should not throw any errors
       wrapper = mount(DynamicForm, {
-        props: { params }
+        props: { params, workflowId: 'wf', jobName: '' }
       })
 
       // Verify all parameters are initialized
@@ -354,40 +338,35 @@ describe('DynamicForm Component Contract', () => {
       ]
 
       wrapper = mount(DynamicForm, {
-        props: { params }
+        props: { params, workflowId: 'wf', jobName: 'error-prevention-test' }
       })
 
-      const mockEmit = vi.fn()
-      wrapper.vm.$emit = mockEmit
-
-      wrapper.vm.onSubmit('error-prevention-test')
+      wrapper.vm.onSubmit()
 
       // Verify the emitted value has FormData methods
-      const emittedData = mockEmit.mock.calls[0][1]
+      const emittedData = wrapper.emitted('submit')[0][0]
       expect(emittedData).toBeInstanceOf(FormData)
       expect(typeof emittedData.append).toBe('function')
       expect(typeof emittedData.get).toBe('function')
       expect(typeof emittedData.set).toBe('function')
     })
 
-    it('should handle edge case where onSubmit is called with no job name', () => {
+    it('sends an empty job name (server generates the default name, K3)', () => {
       const params = [
         { id: 'param1', type: 'text', value: 'value1' }
       ]
 
       wrapper = mount(DynamicForm, {
-        props: { params }
+        props: { params, workflowId: 'wf', jobName: '' }
       })
-
-      const mockEmit = vi.fn()
-      wrapper.vm.$emit = mockEmit
 
       // Call without name parameter
       wrapper.vm.onSubmit()
 
-      const formData = mockEmit.mock.calls[0][1]
+      const formData = wrapper.emitted('submit')[0][0]
       expect(formData).toBeInstanceOf(FormData)
-      expect(formData.get('job_name')).toBe(null) // undefined becomes null in FormData
+      expect(formData.get('job_name')).toBe('')
+      expect(formData.get('workflow_id')).toBe('wf')
     })
   })
 })

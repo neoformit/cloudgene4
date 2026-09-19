@@ -1078,8 +1078,10 @@ paths:
   /api/auth/me/:
     get:
       operationId: auth_me_retrieve
-      description: 'Current user. Always 200: ``{"authenticated": false, "user": null}``
-        for anonymous.'
+      description: |-
+        Current user. Always 200: ``{"authenticated": false, "user": null}`` for anonymous.
+
+        Also sets the ``csrftoken`` cookie (needed when the SPA is served by the Vite dev server).
       tags:
       - auth
       security:

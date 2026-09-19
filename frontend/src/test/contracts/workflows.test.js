@@ -233,7 +233,7 @@ describe('Workflows API Contracts', () => {
         response: {
           status: 404,
           data: {
-            detail: 'Not found.'
+            error: { message: 'Not found.', code: 'error', fields: {} }
           }
         }
       }
@@ -246,7 +246,7 @@ describe('Workflows API Contracts', () => {
         expect.fail('Expected workflow retrieval to throw error')
       } catch (error) {
         expect(error.response.status).toBe(404)
-        expect(error.response.data).toHaveApiField('detail')
+        expect(error.response.data.error).toHaveApiField('message')
       }
     })
 
@@ -255,7 +255,7 @@ describe('Workflows API Contracts', () => {
         response: {
           status: 404, // Backend returns 404 instead of 403 for security
           data: {
-            detail: 'Not found.'
+            error: { message: 'Not found.', code: 'error', fields: {} }
           }
         }
       }
@@ -268,7 +268,7 @@ describe('Workflows API Contracts', () => {
         expect.fail('Expected workflow retrieval to throw error')
       } catch (error) {
         expect(error.response.status).toBe(404)
-        expect(error.response.data).toHaveApiField('detail')
+        expect(error.response.data.error).toHaveApiField('message')
       }
     })
   })
