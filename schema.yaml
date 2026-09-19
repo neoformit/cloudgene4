@@ -82,6 +82,91 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /api/admin/groups/:
+    get:
+      operationId: admin_groups_list
+      description: Groups (for workflow access). List is **not paginated** (a plain
+        array).
+      tags:
+      - admin
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdminGroup'
+          description: ''
+        default:
+          description: Error envelope (SPEC §3.5)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      operationId: admin_groups_create
+      description: Groups (for workflow access). List is **not paginated** (a plain
+        array).
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminGroupRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AdminGroupRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AdminGroupRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminGroup'
+          description: ''
+        default:
+          description: Error envelope (SPEC §3.5)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/admin/groups/{id}/:
+    delete:
+      operationId: admin_groups_destroy
+      description: Groups (for workflow access). List is **not paginated** (a plain
+        array).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this group.
+        required: true
+      tags:
+      - admin
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+        default:
+          description: Error envelope (SPEC §3.5)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /api/admin/navbar-items/:
     get:
       operationId: admin_navbar_items_list
@@ -738,6 +823,189 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /api/admin/users/:
+    get:
+      operationId: admin_users_list
+      description: 'Admin user management. PATCH ``{groups: [names], is_active, is_admin}``.'
+      parameters:
+      - in: query
+        name: group
+        schema:
+          type: string
+        description: Only members of this group (name)
+      - in: query
+        name: is_active
+        schema:
+          type: boolean
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Username, e-mail or full name contains
+      tags:
+      - admin
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAdminUserList'
+          description: ''
+        default:
+          description: Error envelope (SPEC §3.5)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/admin/users/{id}/:
+    get:
+      operationId: admin_users_retrieve
+      description: 'Admin user management. PATCH ``{groups: [names], is_active, is_admin}``.'
+      parameters:
+      - in: query
+        name: group
+        schema:
+          type: string
+        description: Only members of this group (name)
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this user.
+        required: true
+      - in: query
+        name: is_active
+        schema:
+          type: boolean
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Username, e-mail or full name contains
+      tags:
+      - admin
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUser'
+          description: ''
+        default:
+          description: Error envelope (SPEC §3.5)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      operationId: admin_users_partial_update
+      description: 'Admin user management. PATCH ``{groups: [names], is_active, is_admin}``.'
+      parameters:
+      - in: query
+        name: group
+        schema:
+          type: string
+        description: Only members of this group (name)
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this user.
+        required: true
+      - in: query
+        name: is_active
+        schema:
+          type: boolean
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Username, e-mail or full name contains
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAdminUserUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAdminUserUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAdminUserUpdateRequest'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUser'
+          description: ''
+        default:
+          description: Error envelope (SPEC §3.5)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      operationId: admin_users_destroy
+      description: 'Admin user management. PATCH ``{groups: [names], is_active, is_admin}``.'
+      parameters:
+      - in: query
+        name: group
+        schema:
+          type: string
+        description: Only members of this group (name)
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this user.
+        required: true
+      - in: query
+        name: is_active
+        schema:
+          type: boolean
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Username, e-mail or full name contains
+      tags:
+      - admin
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+        default:
+          description: Error envelope (SPEC §3.5)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /api/admin/workflows/:
     get:
       operationId: admin_workflows_list
@@ -986,9 +1254,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
   /api/auth/activate/{activation_key}/:
-    get:
-      operationId: auth_activate_retrieve
-      description: Account activation view
+    post:
+      operationId: auth_activate_create
+      description: |-
+        Activate an account with the key from the e-mail. Idempotent: using the link again
+        after activation answers 200 with ``status: "already_active"``.
       parameters:
       - in: path
         name: activation_key
@@ -1006,7 +1276,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Message'
+                $ref: '#/components/schemas/ActivateResponse'
           description: ''
         default:
           description: Error envelope (SPEC §3.5)
@@ -1020,7 +1290,10 @@ paths:
       description: |-
         Session login for the SPA (CSRF enforced). Returns the serialized user.
 
-        API clients should use a token (``Authorization: Token <key>``) instead.
+        Failed logins are counted per user; after ``security.max_login_attempts`` failures the
+        account is locked for ``security.lockout_duration`` seconds (429, code ``account_locked``).
+        Unknown usernames and wrong passwords get the same message. API clients use a token
+        (``Authorization: Token <key>``, created on the profile page) instead.
       tags:
       - auth
       requestBody:
@@ -1104,19 +1377,22 @@ paths:
   /api/auth/password-reset/:
     post:
       operationId: auth_password_reset_create
+      description: |-
+        Request a reset link. Always the same 200 answer (does not reveal whether the e-mail
+        is registered). Links are single-use and expire after 24 h; only a hash is stored.
       tags:
       - auth
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PasswordResetRequest'
+              $ref: '#/components/schemas/PasswordResetRequestRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/PasswordResetRequest'
+              $ref: '#/components/schemas/PasswordResetRequestRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/PasswordResetRequest'
+              $ref: '#/components/schemas/PasswordResetRequestRequest'
         required: true
       security:
       - tokenAuth: []
@@ -1135,9 +1411,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-  /api/auth/password-reset-confirm/{token}/:
+  /api/auth/password-reset/{token}/:
     post:
-      operationId: auth_password_reset_confirm_create
+      operationId: auth_password_reset_confirm
+      description: Set a new password with a reset token (single use).
       parameters:
       - in: path
         name: token
@@ -1178,20 +1455,25 @@ paths:
   /api/auth/register/:
     post:
       operationId: auth_register_create
-      description: User registration view
+      description: |-
+        Create an account.
+
+        With ``security.require_activation`` (default) the account is inactive until the link
+        from the activation e-mail is used; otherwise it is active immediately and no mail is
+        sent. Usernames and e-mails are unique ignoring case.
       tags:
       - auth
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UserRegistrationRequest'
+              $ref: '#/components/schemas/RegistrationRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/UserRegistrationRequest'
+              $ref: '#/components/schemas/RegistrationRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/UserRegistrationRequest'
+              $ref: '#/components/schemas/RegistrationRequest'
         required: true
       security:
       - tokenAuth: []
@@ -1203,39 +1485,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RegisterResponse'
-          description: ''
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-  /api/auth/token/:
-    post:
-      operationId: auth_token_create
-      tags:
-      - auth
-      requestBody:
-        content:
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/AuthTokenRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/AuthTokenRequest'
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AuthTokenRequest'
-        required: true
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AuthToken'
           description: ''
         default:
           description: Error envelope (SPEC §3.5)
@@ -1301,206 +1550,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/WorkflowCategory'
           description: ''
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-  /api/groups/:
-    get:
-      operationId: groups_list
-      description: ViewSet for group management
-      parameters:
-      - name: page
-        required: false
-        in: query
-        description: A page number within the paginated result set.
-        schema:
-          type: integer
-      - name: page_size
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
-      tags:
-      - groups
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedGroupList'
-          description: ''
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-    post:
-      operationId: groups_create
-      description: ViewSet for group management
-      tags:
-      - groups
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GroupRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/GroupRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/GroupRequest'
-        required: true
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Group'
-          description: ''
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-  /api/groups/{id}/:
-    get:
-      operationId: groups_retrieve
-      description: ViewSet for group management
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this group.
-        required: true
-      tags:
-      - groups
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Group'
-          description: ''
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-    put:
-      operationId: groups_update
-      description: ViewSet for group management
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this group.
-        required: true
-      tags:
-      - groups
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GroupRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/GroupRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/GroupRequest'
-        required: true
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Group'
-          description: ''
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-    patch:
-      operationId: groups_partial_update
-      description: ViewSet for group management
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this group.
-        required: true
-      tags:
-      - groups
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedGroupRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedGroupRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedGroupRequest'
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Group'
-          description: ''
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-    delete:
-      operationId: groups_destroy
-      description: ViewSet for group management
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this group.
-        required: true
-      tags:
-      - groups
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '204':
-          description: No response body
         default:
           description: Error envelope (SPEC §3.5)
           content:
@@ -1982,25 +2031,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-  /api/users/:
+  /api/me/:
     get:
-      operationId: users_list
-      description: ViewSet for user management
-      parameters:
-      - name: page
-        required: false
-        in: query
-        description: A page number within the paginated result set.
-        schema:
-          type: integer
-      - name: page_size
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
+      operationId: me_retrieve
+      description: |-
+        ``/api/me``: own profile. PATCH ``full_name``, ``email``, ``password`` (+ optional
+        ``password_confirm``); changing e-mail or password requires ``current_password``.
+        DELETE deletes the account (body ``{"password"}``) and ends the session.
       tags:
-      - users
+      - me
       security:
       - tokenAuth: []
       - cookieAuth: []
@@ -2009,109 +2048,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedUserList'
-          description: ''
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-    post:
-      operationId: users_create
-      description: ViewSet for user management
-      tags:
-      - users
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UserRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/UserRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/UserRequest'
-        required: true
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/User'
-          description: ''
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-  /api/users/{id}/:
-    get:
-      operationId: users_retrieve
-      description: ViewSet for user management
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this user.
-        required: true
-      tags:
-      - users
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/User'
-          description: ''
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-    put:
-      operationId: users_update
-      description: ViewSet for user management
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this user.
-        required: true
-      tags:
-      - users
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UserRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/UserRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/UserRequest'
-        required: true
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/User'
+                $ref: '#/components/schemas/Profile'
           description: ''
         default:
           description: Error envelope (SPEC §3.5)
@@ -2120,28 +2057,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
     patch:
-      operationId: users_partial_update
-      description: ViewSet for user management
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this user.
-        required: true
+      operationId: me_partial_update
+      description: |-
+        ``/api/me``: own profile. PATCH ``full_name``, ``email``, ``password`` (+ optional
+        ``password_confirm``); changing e-mail or password requires ``current_password``.
+        DELETE deletes the account (body ``{"password"}``) and ends the session.
       tags:
-      - users
+      - me
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PatchedUserRequest'
+              $ref: '#/components/schemas/PatchedProfileUpdateRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/PatchedUserRequest'
+              $ref: '#/components/schemas/PatchedProfileUpdateRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/PatchedUserRequest'
+              $ref: '#/components/schemas/PatchedProfileUpdateRequest'
       security:
       - tokenAuth: []
       - cookieAuth: []
@@ -2150,7 +2083,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/User'
+                $ref: '#/components/schemas/Profile'
           description: ''
         default:
           description: Error envelope (SPEC §3.5)
@@ -2159,23 +2092,70 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
     delete:
-      operationId: users_destroy
-      description: ViewSet for user management
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this user.
-        required: true
+      operationId: me_destroy
+      description: |-
+        ``/api/me``: own profile. PATCH ``full_name``, ``email``, ``password`` (+ optional
+        ``password_confirm``); changing e-mail or password requires ``current_password``.
+        DELETE deletes the account (body ``{"password"}``) and ends the session.
       tags:
-      - users
+      - me
       security:
       - tokenAuth: []
       - cookieAuth: []
       responses:
-        '204':
-          description: No response body
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+          description: ''
+        default:
+          description: Error envelope (SPEC §3.5)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/me/token/:
+    post:
+      operationId: me_token_create
+      description: |-
+        ``/api/me/token``: POST creates (or regenerates) the API token and returns the key
+        once; DELETE revokes it.
+      tags:
+      - me
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiToken'
+          description: ''
+        default:
+          description: Error envelope (SPEC §3.5)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      operationId: me_token_destroy
+      description: |-
+        ``/api/me/token``: POST creates (or regenerates) the API token and returns the key
+        once; DELETE revokes it.
+      tags:
+      - me
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+          description: ''
         default:
           description: Error envelope (SPEC §3.5)
           content:
@@ -2258,28 +2238,125 @@ paths:
                 $ref: '#/components/schemas/Error'
 components:
   schemas:
-    AuthToken:
+    ActivateResponse:
       type: object
+      properties:
+        message:
+          type: string
+        status:
+          $ref: '#/components/schemas/ActivateResponseStatusEnum'
+      required:
+      - message
+      - status
+    ActivateResponseStatusEnum:
+      enum:
+      - activated
+      - already_active
+      type: string
+      description: |-
+        * `activated` - activated
+        * `already_active` - already_active
+    AdminGroup:
+      type: object
+      description: '``/api/admin/groups`` — name unique ignoring case; ``member_count``
+        read-only.'
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+        member_count:
+          type: integer
+          readOnly: true
+      required:
+      - id
+      - member_count
+      - name
+    AdminGroupRequest:
+      type: object
+      description: '``/api/admin/groups`` — name unique ignoring case; ``member_count``
+        read-only.'
+      properties:
+        name:
+          type: string
+      required:
+      - name
+    AdminUser:
+      type: object
+      description: Row of ``GET /api/admin/users``.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          readOnly: true
+        email:
+          type: string
+          format: email
+          readOnly: true
+        full_name:
+          type: string
+          readOnly: true
+        is_active:
+          type: boolean
+          readOnly: true
+          title: Active
+          description: Designates whether this user should be treated as active. Unselect
+            this instead of deleting accounts.
+        is_admin:
+          type: boolean
+          readOnly: true
+        groups:
+          type: array
+          items:
+            type: string
+          readOnly: true
+        date_joined:
+          type: string
+          format: date-time
+          readOnly: true
+        last_login:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        is_superuser:
+          type: boolean
+          readOnly: true
+          title: Superuser status
+          description: Designates that this user has all permissions without explicitly
+            assigning them.
+        activated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+      required:
+      - activated_at
+      - date_joined
+      - email
+      - full_name
+      - groups
+      - id
+      - is_active
+      - is_admin
+      - is_superuser
+      - last_login
+      - username
+    ApiToken:
+      type: object
+      description: '``POST /api/me/token`` — the key is only ever returned here, once.'
       properties:
         token:
           type: string
-          readOnly: true
+        created:
+          type: string
+          format: date-time
       required:
+      - created
       - token
-    AuthTokenRequest:
-      type: object
-      properties:
-        username:
-          type: string
-          writeOnly: true
-          minLength: 1
-        password:
-          type: string
-          writeOnly: true
-          minLength: 1
-      required:
-      - password
-      - username
     CategoryEnum:
       enum:
       - general
@@ -2317,27 +2394,6 @@ components:
       - last_updated
       - name
       - value
-    Group:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        name:
-          type: string
-          maxLength: 150
-      required:
-      - id
-      - name
-    GroupRequest:
-      type: object
-      properties:
-        name:
-          type: string
-          minLength: 1
-          maxLength: 150
-      required:
-      - name
     Health:
       type: object
       properties:
@@ -2857,6 +2913,29 @@ components:
       required:
       - title
       - url
+    PaginatedAdminUserList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminUser'
     PaginatedCounterList:
       type: object
       required:
@@ -2880,29 +2959,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Counter'
-    PaginatedGroupList:
-      type: object
-      required:
-      - count
-      - results
-      properties:
-        count:
-          type: integer
-          example: 123
-        next:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=4
-        previous:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=2
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/Group'
     PaginatedJobListList:
       type: object
       required:
@@ -3018,29 +3074,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Template'
-    PaginatedUserList:
-      type: object
-      required:
-      - count
-      - results
-      properties:
-        count:
-          type: integer
-          example: 123
-        next:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=4
-        previous:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=2
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/User'
     PaginatedWorkflowCategoryList:
       type: object
       required:
@@ -3133,25 +3166,36 @@ components:
       properties:
         password:
           type: string
-          minLength: 1
+        password_confirm:
+          type: string
       required:
       - password
-    PasswordResetRequest:
+    PasswordResetRequestRequest:
       type: object
       properties:
         email:
           type: string
-          format: email
           minLength: 1
       required:
       - email
-    PatchedGroupRequest:
+    PatchedAdminUserUpdateRequest:
       type: object
+      description: |-
+        ``PATCH /api/admin/users/{id}``.
+
+        ``groups`` is the complete list of group **names** (replaces membership). The ``admin``
+        group is not managed through ``groups`` (it is ignored there and kept as is) — use
+        ``is_admin``, which adds/removes the ``admin`` group and ``is_staff`` together.
       properties:
-        name:
-          type: string
-          minLength: 1
-          maxLength: 150
+        groups:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        is_active:
+          type: boolean
+        is_admin:
+          type: boolean
     PatchedJobDetailRequest:
       type: object
       properties:
@@ -3188,6 +3232,24 @@ components:
             type: integer
         admin_only:
           type: boolean
+    PatchedProfileUpdateRequest:
+      type: object
+      description: '``PATCH /api/me``. Changing ``email`` or ``password`` requires
+        ``current_password``.'
+      properties:
+        full_name:
+          type: string
+        email:
+          type: string
+        password:
+          type: string
+          writeOnly: true
+        password_confirm:
+          type: string
+          writeOnly: true
+        current_password:
+          type: string
+          writeOnly: true
     PatchedServerSettingsRequest:
       type: object
       properties:
@@ -3219,30 +3281,6 @@ components:
         updated_by:
           type: integer
           nullable: true
-    PatchedUserRequest:
-      type: object
-      properties:
-        username:
-          type: string
-          minLength: 1
-          maxLength: 150
-        email:
-          type: string
-          format: email
-          minLength: 1
-          maxLength: 254
-        full_name:
-          type: string
-          maxLength: 255
-        is_active:
-          type: boolean
-          title: Active
-          description: Designates whether this user should be treated as active. Unselect
-            this instead of deleting accounts.
-        is_staff:
-          type: boolean
-          title: Staff status
-          description: Designates whether the user can log into this admin site.
     PatchedWorkflowSettingsRequest:
       type: object
       description: Serializer for admin workflow settings, including Nextflow configuration
@@ -3286,6 +3324,66 @@ components:
         nextflow_config:
           type: string
           description: Nextflow configuration (written to nextflow.config)
+    Profile:
+      type: object
+      description: '``GET /api/me`` — the user plus API-token metadata (never the
+        key itself).'
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          readOnly: true
+        email:
+          type: string
+          format: email
+          readOnly: true
+        full_name:
+          type: string
+          readOnly: true
+        is_active:
+          type: boolean
+          readOnly: true
+          title: Active
+          description: Designates whether this user should be treated as active. Unselect
+            this instead of deleting accounts.
+        is_admin:
+          type: boolean
+          readOnly: true
+        groups:
+          type: array
+          items:
+            type: string
+          readOnly: true
+        date_joined:
+          type: string
+          format: date-time
+          readOnly: true
+        last_login:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        api_token:
+          type: object
+          nullable: true
+          properties:
+            created:
+              type: string
+              format: date-time
+          readOnly: true
+      required:
+      - api_token
+      - date_joined
+      - email
+      - full_name
+      - groups
+      - id
+      - is_active
+      - is_admin
+      - last_login
+      - username
     RegisterResponse:
       type: object
       properties:
@@ -3293,9 +3391,32 @@ components:
           $ref: '#/components/schemas/User'
         message:
           type: string
+        activation_required:
+          type: boolean
       required:
+      - activation_required
       - message
       - user
+    RegistrationRequest:
+      type: object
+      properties:
+        username:
+          type: string
+        email:
+          type: string
+        full_name:
+          type: string
+        password:
+          type: string
+          writeOnly: true
+        password_confirm:
+          type: string
+          writeOnly: true
+      required:
+      - email
+      - full_name
+      - password
+      - username
     ServerSettings:
       type: object
       properties:
@@ -3439,31 +3560,34 @@ components:
         * `partial` - Partial
     User:
       type: object
+      description: The user as seen by themselves (login, /auth/me, /me).
       properties:
         id:
           type: integer
           readOnly: true
         username:
           type: string
-          maxLength: 150
+          readOnly: true
         email:
           type: string
           format: email
-          maxLength: 254
+          readOnly: true
         full_name:
           type: string
-          maxLength: 255
+          readOnly: true
         is_active:
           type: boolean
+          readOnly: true
           title: Active
           description: Designates whether this user should be treated as active. Unselect
             this instead of deleting accounts.
-        is_staff:
-          type: boolean
-          title: Staff status
-          description: Designates whether the user can log into this admin site.
         is_admin:
           type: boolean
+          readOnly: true
+        groups:
+          type: array
+          items:
+            type: string
           readOnly: true
         date_joined:
           type: string
@@ -3474,71 +3598,15 @@ components:
           format: date-time
           readOnly: true
           nullable: true
-        groups:
-          type: array
-          items:
-            $ref: '#/components/schemas/Group'
-          readOnly: true
       required:
       - date_joined
       - email
+      - full_name
       - groups
       - id
+      - is_active
       - is_admin
       - last_login
-      - username
-    UserRegistrationRequest:
-      type: object
-      properties:
-        username:
-          type: string
-          minLength: 1
-          maxLength: 150
-        email:
-          type: string
-          format: email
-          minLength: 1
-          maxLength: 254
-        full_name:
-          type: string
-          maxLength: 255
-        password:
-          type: string
-          writeOnly: true
-          minLength: 1
-        password_confirm:
-          type: string
-          writeOnly: true
-      required:
-      - email
-      - password
-      - username
-    UserRequest:
-      type: object
-      properties:
-        username:
-          type: string
-          minLength: 1
-          maxLength: 150
-        email:
-          type: string
-          format: email
-          minLength: 1
-          maxLength: 254
-        full_name:
-          type: string
-          maxLength: 255
-        is_active:
-          type: boolean
-          title: Active
-          description: Designates whether this user should be treated as active. Unselect
-            this instead of deleting accounts.
-        is_staff:
-          type: boolean
-          title: Staff status
-          description: Designates whether the user can log into this admin site.
-      required:
-      - email
       - username
     Workflow:
       type: object
