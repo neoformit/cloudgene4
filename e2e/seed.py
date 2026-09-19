@@ -40,56 +40,24 @@ def seed_users():
 
 
 def seed_workflows():
-    """Make sure every fixture app from settings.yaml is installed as a Workflow row.
-
-    Target behaviour (T05): the workflow registry syncs `apps:` from settings.yaml into the DB on
-    start-up, so this function finds every row already present and does nothing.
-    """
-    from django.apps import apps as django_apps
+    """Sync the workflow registry from settings.yaml `apps:` (same as `manage.py sync_workflows`,
+    which the web process also does lazily on API requests) and fail loudly if a fixture app is
+    invalid or missing."""
+    from workflows import registry
 
     from e2e.constants import APPS
 
-    Workflow = django_apps.get_model('workflows', 'Workflow')
-    missing = [a for a in APPS if not Workflow.objects.filter(pk=a).exists()]
-    if not missing:
-        print('workflows already installed by the registry: %s' % ', '.join(APPS))
-        return
-    _legacy_load_workflows(missing)
-
-
-# TODO remove after T05 ------------------------------------------------------------------------
-def _legacy_load_workflows(app_ids):
-    """Fallback for the pre-registry code base: load each app via `load_sample_workflow` and set
-    access rules directly on the Workflow row. Apps the legacy loader can't parse are reported,
-    not fatal (e.g. all-inputs uses input types the legacy loader rejects)."""
-    import io
-
-    from django.apps import apps as django_apps
-    from django.conf import settings
-    from django.contrib.auth.models import Group
-    from django.core.management import call_command
-
-    from e2e.constants import APPS
-
-    Workflow = django_apps.get_model('workflows', 'Workflow')
-    home = Path(settings.CLOUDGENE_HOME)
-    for app_id in app_ids:
-        yaml_path = home / 'apps' / app_id / 'cloudgene.yaml'
-        out = io.StringIO()
-        call_command('load_sample_workflow', file=str(yaml_path), stdout=out)
-        wf = Workflow.objects.filter(pk=app_id).first()
-        if wf is None:
-            print('LEGACY-FALLBACK: could not load %s: %s' % (app_id, out.getvalue().strip()))
-            continue
-        rules = APPS[app_id]
-        wf.public = rules['public']
-        if hasattr(wf, 'nextflow_script'):
-            wf.nextflow_script = str(home / 'apps' / app_id / 'main.nf')
-        wf.save()
-        wf.allowed_groups.set([Group.objects.get_or_create(name=g)[0] for g in rules['groups']])
-        print('LEGACY-FALLBACK: loaded %s (public=%s groups=%s)' % (app_id, rules['public'],
-                                                                   rules['groups']))
-# end TODO remove after T05 --------------------------------------------------------------------
+    statuses = {s.id: s for s in registry.sync_all()}
+    problems = []
+    for app_id in APPS:
+        st = statuses.get(app_id)
+        if st is None:
+            problems.append('%s: not listed in settings.yaml apps[]' % app_id)
+        elif not st.valid:
+            problems.append('%s: invalid: %s' % (app_id, '; '.join(st.errors)))
+    if problems:
+        raise SystemExit('workflow registry sync failed:\n  ' + '\n  '.join(problems))
+    print('workflows synced by the registry: %s' % ', '.join(APPS))
 
 
 def main(argv):
