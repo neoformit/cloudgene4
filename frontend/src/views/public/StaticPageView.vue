@@ -11,7 +11,7 @@ const pageHtml = computed(() => server.templates[route.params.slug] || '')
 
 <template>
   <div class="container my-5">
-    <div v-if="pageHtml" v-html="pageHtml"></div>
-    <div v-else class="text-muted">Page not found.</div>
+    <div v-if="pageHtml" data-testid="page-content" v-html="pageHtml"></div>
+    <div v-else data-testid="page-not-found" class="text-muted">Page not found.</div>
   </div>
 </template>

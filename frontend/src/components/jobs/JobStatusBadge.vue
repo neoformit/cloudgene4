@@ -21,7 +21,7 @@ const labels = {
 </script>
 
 <template>
-  <span :class="`badge badge-${status} status-xs`">
+  <span data-testid="job-state" :data-state="status" :class="`badge badge-${status} status-xs`">
     <i :class="icons[status] || 'fas fa-circle'"></i>
   </span>
 </template>
