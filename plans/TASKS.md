@@ -54,7 +54,7 @@ Scope:
 Done when: app boots with `runserver` alone; login/logout/me work via SPA with session; all existing
 suites green; README quick-start accurate.
 
-### T02 E2E harness ◐
+### T02 E2E harness ☑ (merged d5ab6eb; orchestrator re-ran: 52 passed, 7 xfailed, 1 skipped, 3m48s)
 Owned: `e2e/` (new), `frontend/src/**` **only** for adding `data-testid` attributes.
 Scope: implement E2E_TEST_PLAN §2 — stack fixture, auto-failing console/network guards, tracing,
 helpers, page-object skeletons, fixture Nextflow apps (`hello`, `all-inputs`, `fail`, `slow`,
@@ -163,3 +163,11 @@ upload size limits, `docs/` rewritten (admin guide, workflow YAML reference, dep
 - 2026-09-19: Audit complete; SPEC, E2E plan and task board drafted. Java 17 + Nextflow 26.04.6
   installed at `/usr/local/bin/nextflow` (verified: trace file + `::message::` stdout).
 - 2026-09-19: T01 merged (171 Django + 56 vitest green). Phase 2 slices T03/T04/T05 started in parallel before T02 lands; they adopt the E2E harness when it merges.
+- 2026-09-19: All four agents paused by an API session limit mid-task; resumed with context intact.
+- 2026-09-19: T02 merged. Harness notes: per-xdist-worker stack, auto-fail guards on console/pageerror/
+  API ≥400, summary at `e2e/.artifacts/summary.txt`. Nextflow fixture runs take 11–25 s on this 1-CPU
+  host (JVM start-up), not <10 s. T02 findings routed to slices: submit contract must accept
+  `workflow`/`name` (T03), WebSocket console errors on job page (T03, J6), legacy loader rejects §4
+  types (T05, W2), escaped description HTML on home cards (T05), dashboard counts "-" (T05, C5), admin
+  users Groups column empty (T04, A1), reset reveals account existence (T04, A5).
+

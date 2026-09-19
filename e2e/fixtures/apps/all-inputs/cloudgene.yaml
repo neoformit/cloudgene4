@@ -1,0 +1,110 @@
+id: all-inputs
+name: All Inputs
+version: 1.0.0
+description: E2E fixture. One input of every supported type; echoes what it received.
+category: e2e
+workflow:
+  steps:
+    - name: Echo params
+      type: nextflow
+      script: main.nf
+      params:
+        step_param: from-step
+  inputs:
+    - id: sep_general
+      description: General
+      type: separator
+    - id: info_intro
+      description: This form exercises <b>every</b> input type.
+      type: info
+    - id: label_note
+      description: Labels are display-only.
+      type: label
+    - id: text_in
+      description: Text input
+      type: text
+      value: default text
+      required: true
+      help: Any printable text.
+    - id: string_in
+      description: String input
+      type: string
+      value: default string
+      required: false
+    - id: number_in
+      description: Number between 1 and 10
+      type: number
+      value: 5
+      min: 1
+      max: 10
+      required: true
+    - id: notes
+      description: Notes (written to notes.txt)
+      type: textarea
+      value: first line
+      writeFile: notes.txt
+      required: false
+    - id: choice
+      description: List choice
+      type: list
+      value: b
+      values:
+        a: Alpha
+        b: Beta
+        c: Gamma
+    - id: mode
+      description: Radio mode
+      type: radio
+      value: fast
+      values:
+        fast: Fast
+        accurate: Accurate
+    - id: flag
+      description: Checkbox flag
+      type: checkbox
+      value: true
+      values:
+        true: "yes"
+        false: "no"
+    - id: data_file
+      description: CSV file
+      type: file
+      accept: .csv
+      required: true
+    - id: data_folder
+      description: Folder of files
+      type: folder
+      required: false
+    - id: local_file
+      description: Server-side file path
+      type: local-file
+      required: false
+    - id: local_folder
+      description: Server-side folder path
+      type: local-folder
+      required: false
+    - id: hidden_param
+      description: Hidden parameter
+      type: text
+      value: hidden-default
+      visible: false
+      required: false
+    - id: not_serialized
+      description: Not passed to the pipeline
+      type: text
+      value: should-not-arrive
+      serialize: false
+      required: false
+    - id: agb
+      description: I accept the general terms
+      type: agb_checkbox
+      required: false
+    - id: terms
+      description: I accept the terms of service
+      type: terms_checkbox
+      required: true
+  outputs:
+    - id: outdir
+      description: Output folder
+      type: folder
+      download: true

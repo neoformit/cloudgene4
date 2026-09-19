@@ -1,0 +1,22 @@
+id: hello
+name: Hello
+version: 1.0.0
+description: E2E fixture. Writes the given message to <code>hello.txt</code>.
+category: e2e
+workflow:
+  steps:
+    - name: Say hello
+      type: nextflow
+      script: main.nf
+  inputs:
+    - id: message
+      description: Message
+      type: text
+      value: Hello World
+      required: true
+      help: Written verbatim to hello.txt in the output folder.
+  outputs:
+    - id: outdir
+      description: Output folder
+      type: folder
+      download: true

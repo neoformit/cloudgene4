@@ -60,34 +60,34 @@ const TEXT_TYPES = new Set(['text', 'number', 'string'])
   <div>
     <template v-for="param in params" :key="param.id">
       <template v-if="param.type === 'separator'">
-        <hr />
+        <hr :data-testid="`input-${param.id}`" />
       </template>
       <template v-else-if="param.type === 'info' || param.type === 'label'">
-        <p class="text-muted" v-html="param.label"></p>
+        <p :data-testid="`input-${param.id}`" class="text-muted" v-html="param.label"></p>
       </template>
       <template v-else-if="TEXT_TYPES.has(param.type)">
-        <TextInput :param="param" v-model="values[param.id]" />
+        <TextInput :data-testid="`input-${param.id}`" :param="param" v-model="values[param.id]" />
       </template>
       <template v-else-if="param.type === 'textarea'">
-        <TextareaInput :param="param" v-model="values[param.id]" />
+        <TextareaInput :data-testid="`input-${param.id}`" :param="param" v-model="values[param.id]" />
       </template>
       <template v-else-if="param.type === 'list' || param.type === 'binded_list' || param.type === 'app_list'">
-        <SelectInput :param="param" v-model="values[param.id]" />
+        <SelectInput :data-testid="`input-${param.id}`" :param="param" v-model="values[param.id]" />
       </template>
       <template v-else-if="param.type === 'radio'">
-        <RadioInput :param="param" v-model="values[param.id]" />
+        <RadioInput :data-testid="`input-${param.id}`" :param="param" v-model="values[param.id]" />
       </template>
       <template v-else-if="param.type === 'checkbox' || param.type === 'agb_checkbox'">
-        <CheckboxInput :param="param" v-model="values[param.id]" />
+        <CheckboxInput :data-testid="`input-${param.id}`" :param="param" v-model="values[param.id]" />
       </template>
       <template v-else-if="param.type === 'terms_checkbox'">
-        <TermsInput :param="param" v-model="values[param.id]" />
+        <TermsInput :data-testid="`input-${param.id}`" :param="param" v-model="values[param.id]" />
       </template>
       <template v-else-if="FILE_TYPES.has(param.type)">
-        <FileInput :param="param" :multiple="false" v-model="values[param.id]" />
+        <FileInput :data-testid="`input-${param.id}`" :param="param" :multiple="false" v-model="values[param.id]" />
       </template>
       <template v-else-if="FOLDER_TYPES.has(param.type)">
-        <FileInput :param="param" :multiple="true" v-model="values[param.id]" />
+        <FileInput :data-testid="`input-${param.id}`" :param="param" :multiple="true" v-model="values[param.id]" />
       </template>
     </template>
   </div>
