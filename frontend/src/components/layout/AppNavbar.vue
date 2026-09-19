@@ -19,9 +19,9 @@ async function logout() {
 </script>
 
 <template>
-  <nav class="navbar navbar-expand-md fixed-top navbar-dark bg-dark">
+  <nav data-testid="navbar" class="navbar navbar-expand-md fixed-top navbar-dark bg-dark">
     <div class="container">
-      <RouterLink class="navbar-brand" to="/">Cloudgene</RouterLink>
+      <RouterLink class="navbar-brand" to="/" data-testid="nav-brand">Cloudgene</RouterLink>
       <button
         class="navbar-toggler"
         type="button"
@@ -37,11 +37,11 @@ async function logout() {
       <div class="collapse navbar-collapse" id="mainNav">
         <ul class="navbar-nav me-auto">
           <li class="nav-item">
-            <RouterLink class="nav-link" to="/">Home</RouterLink>
+            <RouterLink class="nav-link" to="/" data-testid="nav-home">Home</RouterLink>
           </li>
 
           <li class="nav-item" v-if="auth.isLoggedIn">
-            <RouterLink class="nav-link" to="/jobs">Jobs</RouterLink>
+            <RouterLink class="nav-link" to="/jobs" data-testid="nav-jobs">Jobs</RouterLink>
           </li>
 
           <li
@@ -49,7 +49,7 @@ async function logout() {
             :key="item.id"
             class="nav-item"
           >
-            <a class="nav-link" :href="item.url" :target="item.url?.startsWith('http') ? '_blank' : undefined">
+            <a class="nav-link" data-testid="nav-item" :href="item.url" :target="item.url?.startsWith('http') ? '_blank' : undefined">
               {{ item.title }}
             </a>
           </li>
@@ -60,6 +60,7 @@ async function logout() {
             <li class="nav-item dropdown">
               <a
                 class="nav-link dropdown-toggle"
+                data-testid="nav-user-menu"
                 href="#"
                 data-bs-toggle="dropdown"
                 aria-expanded="false"
@@ -68,25 +69,25 @@ async function logout() {
               </a>
               <ul class="dropdown-menu dropdown-menu-end">
                 <li>
-                  <RouterLink class="dropdown-item" to="/profile">Profile</RouterLink>
+                  <RouterLink class="dropdown-item" to="/profile" data-testid="nav-profile">Profile</RouterLink>
                 </li>
                 <li><hr class="dropdown-divider" /></li>
                 <li v-if="auth.isAdmin">
-                  <RouterLink class="dropdown-item" to="/admin">Admin Panel</RouterLink>
+                  <RouterLink class="dropdown-item" to="/admin" data-testid="nav-admin">Admin Panel</RouterLink>
                 </li>
                 <li v-if="auth.isAdmin"><hr class="dropdown-divider" /></li>
                 <li>
-                  <button class="dropdown-item" @click="logout">Logout</button>
+                  <button class="dropdown-item" data-testid="nav-logout" @click="logout">Logout</button>
                 </li>
               </ul>
             </li>
           </template>
           <template v-else>
             <li class="nav-item">
-              <RouterLink class="nav-link" to="/register">Sign up</RouterLink>
+              <RouterLink class="nav-link" to="/register" data-testid="nav-signup">Sign up</RouterLink>
             </li>
             <li class="nav-item">
-              <RouterLink class="nav-link" to="/login">Login</RouterLink>
+              <RouterLink class="nav-link" to="/login" data-testid="nav-login">Login</RouterLink>
             </li>
           </template>
         </ul>

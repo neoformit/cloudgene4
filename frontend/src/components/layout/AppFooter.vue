@@ -7,7 +7,7 @@ const footerHtml = computed(() => server.templates.footer || '')
 </script>
 
 <template>
-  <footer class="text-muted mt-5" style="border-top: 1px solid #dee2e6;">
+  <footer data-testid="footer" class="text-muted mt-5" style="border-top: 1px solid #dee2e6;">
     <div class="container py-3">
       <p class="float-end mb-0">
         <small><a href="#">Back to top</a></small>
