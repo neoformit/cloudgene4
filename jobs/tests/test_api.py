@@ -414,8 +414,24 @@ class CleanupCommandTest(ApiTestBase):
         self.assertIsNotNone(old.purged_at)
         self.assertFalse(old.can_restart())
         cloudgene_config.set_value('server.job_retention_days', 0)
+        orphan = cloudgene_config.jobs_dir() / '0f0f0f0f-0000-4000-8000-000000000000'
+        (orphan / 'input').mkdir(parents=True)
+        os.utime(orphan, (0, 0))
+        other = cloudgene_config.jobs_dir() / 'not-a-job'
+        other.mkdir()
         call_command('cleanup_jobs', stdout=open(os.devnull, 'w'))
         self.assertTrue(cloudgene_config.job_dir(new.id).exists())
+        self.assertFalse(orphan.exists())
+        self.assertTrue(other.exists())
+
+    def test_deleting_a_user_removes_job_workspaces(self):
+        job = Job.objects.get(pk=self.submit(self.bob, {}).json()['id'])
+        ws = cloudgene_config.job_dir(job.id)
+        self.assertTrue(ws.exists())
+        with self.captureOnCommitCallbacks(execute=True):
+            self.bob.delete()
+        self.assertFalse(Job.objects.filter(pk=job.pk).exists())
+        self.assertFalse(ws.exists())
 
 
 class InstallWorkflowCommandTest(ApiTestBase):

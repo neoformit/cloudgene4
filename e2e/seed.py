@@ -59,36 +59,26 @@ def seed_workflows():
 
 # TODO remove after T05 ------------------------------------------------------------------------
 def _legacy_load_workflows(app_ids):
-    """Fallback for the pre-registry code base: load each app via `load_sample_workflow` and set
-    access rules directly on the Workflow row. Apps the legacy loader can't parse are reported,
-    not fatal (e.g. all-inputs uses input types the legacy loader rejects)."""
+    """Fallback until the T05 registry syncs `apps:`: install each app with T03's
+    `manage.py install_workflow` (validates the definition with workflows.definition)."""
     import io
 
-    from django.apps import apps as django_apps
     from django.conf import settings
-    from django.contrib.auth.models import Group
     from django.core.management import call_command
 
     from e2e.constants import APPS
 
-    Workflow = django_apps.get_model('workflows', 'Workflow')
     home = Path(settings.CLOUDGENE_HOME)
     for app_id in app_ids:
-        yaml_path = home / 'apps' / app_id / 'cloudgene.yaml'
-        out = io.StringIO()
-        call_command('load_sample_workflow', file=str(yaml_path), stdout=out)
-        wf = Workflow.objects.filter(pk=app_id).first()
-        if wf is None:
-            print('LEGACY-FALLBACK: could not load %s: %s' % (app_id, out.getvalue().strip()))
-            continue
         rules = APPS[app_id]
-        wf.public = rules['public']
-        if hasattr(wf, 'nextflow_script'):
-            wf.nextflow_script = str(home / 'apps' / app_id / 'main.nf')
-        wf.save()
-        wf.allowed_groups.set([Group.objects.get_or_create(name=g)[0] for g in rules['groups']])
-        print('LEGACY-FALLBACK: loaded %s (public=%s groups=%s)' % (app_id, rules['public'],
-                                                                   rules['groups']))
+        args = [str(home / 'apps' / app_id)]
+        if rules['public']:
+            args.append('--public')
+        for g in rules['groups']:
+            args += ['--group', g]
+        out = io.StringIO()
+        call_command('install_workflow', *args, stdout=out)
+        print('FALLBACK install_workflow: %s' % out.getvalue().strip())
 # end TODO remove after T05 --------------------------------------------------------------------
 
 
