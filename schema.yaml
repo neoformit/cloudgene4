@@ -82,6 +82,125 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /api/admin/jobs/:
+    get:
+      operationId: admin_jobs_list
+      description: All users' jobs for admins (deleted jobs excluded).
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: search
+        schema:
+          type: string
+        description: Job name / username / workflow / id prefix
+      - in: query
+        name: state
+        schema:
+          type: string
+          enum:
+          - cancelled
+          - failed
+          - running
+          - success
+          - waiting
+        description: Filter by state (comma-separated list allowed)
+      - in: query
+        name: user
+        schema:
+          type: string
+        description: User id or username
+      - in: query
+        name: workflow
+        schema:
+          type: string
+        description: Workflow id
+      tags:
+      - admin
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedJobListList'
+          description: ''
+        default:
+          description: Error envelope (SPEC §3.5)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/admin/jobs/{id}/cancel/:
+    post:
+      operationId: admin_jobs_cancel_create
+      description: All users' jobs for admins (deleted jobs excluded).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-fA-F-]{32,36}$
+        required: true
+      tags:
+      - admin
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobDetail'
+          description: ''
+        default:
+          description: Error envelope (SPEC §3.5)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/admin/jobs/{id}/restart/:
+    post:
+      operationId: admin_jobs_restart_create
+      description: All users' jobs for admins (deleted jobs excluded).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-fA-F-]{32,36}$
+        required: true
+      tags:
+      - admin
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobDetail'
+          description: ''
+        default:
+          description: Error envelope (SPEC §3.5)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /api/admin/navbar-items/:
     get:
       operationId: admin_navbar_items_list
@@ -1535,7 +1654,6 @@ paths:
   /api/jobs/:
     get:
       operationId: jobs_list
-      description: ViewSet for managing jobs
       parameters:
       - name: page
         required: false
@@ -1549,6 +1667,17 @@ paths:
         description: Number of results to return per page.
         schema:
           type: integer
+      - in: query
+        name: state
+        schema:
+          type: string
+          enum:
+          - cancelled
+          - failed
+          - running
+          - success
+          - waiting
+        description: Filter by state (comma-separated list allowed)
       tags:
       - jobs
       security:
@@ -1569,20 +1698,16 @@ paths:
                 $ref: '#/components/schemas/Error'
     post:
       operationId: jobs_create
-      description: Submit a new job
       tags:
       - jobs
       requestBody:
         content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/JobSubmissionRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/JobSubmissionRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/JobSubmissionRequest'
+              $ref: '#/components/schemas/JobSubmitRequestRequest'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JobSubmitRequestRequest'
         required: true
       security:
       - tokenAuth: []
@@ -1592,7 +1717,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JobSubmission'
+                $ref: '#/components/schemas/JobDetail'
           description: ''
         default:
           description: Error envelope (SPEC §3.5)
@@ -1603,91 +1728,15 @@ paths:
   /api/jobs/{id}/:
     get:
       operationId: jobs_retrieve
-      description: ViewSet for managing jobs
       parameters:
       - in: path
         name: id
         schema:
           type: string
+          pattern: ^[0-9a-fA-F-]{32,36}$
         required: true
       tags:
       - jobs
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/JobDetail'
-          description: ''
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-    put:
-      operationId: jobs_update
-      description: ViewSet for managing jobs
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - jobs
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/JobDetailRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/JobDetailRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/JobDetailRequest'
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/JobDetail'
-          description: ''
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-    patch:
-      operationId: jobs_partial_update
-      description: ViewSet for managing jobs
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - jobs
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedJobDetailRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedJobDetailRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedJobDetailRequest'
       security:
       - tokenAuth: []
       - cookieAuth: []
@@ -1706,12 +1755,12 @@ paths:
                 $ref: '#/components/schemas/Error'
     delete:
       operationId: jobs_destroy
-      description: ViewSet for managing jobs
       parameters:
       - in: path
         name: id
         schema:
           type: string
+          pattern: ^[0-9a-fA-F-]{32,36}$
         required: true
       tags:
       - jobs
@@ -1730,26 +1779,15 @@ paths:
   /api/jobs/{id}/cancel/:
     post:
       operationId: jobs_cancel_create
-      description: Cancel a job
       parameters:
       - in: path
         name: id
         schema:
           type: string
+          pattern: ^[0-9a-fA-F-]{32,36}$
         required: true
       tags:
       - jobs
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/JobDetailRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/JobDetailRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/JobDetailRequest'
       security:
       - tokenAuth: []
       - cookieAuth: []
@@ -1766,15 +1804,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-  /api/jobs/{id}/download/:
+  /api/jobs/{id}/log/:
     get:
-      operationId: jobs_download_retrieve
-      description: Get list of downloadable files
+      operationId: jobs_log_retrieve
       parameters:
       - in: path
         name: id
         schema:
           type: string
+          pattern: ^[0-9a-fA-F-]{32,36}$
         required: true
       tags:
       - jobs
@@ -1784,9 +1822,9 @@ paths:
       responses:
         '200':
           content:
-            application/json:
+            text/plain:
               schema:
-                $ref: '#/components/schemas/JobDetail'
+                type: string
           description: ''
         default:
           description: Error envelope (SPEC §3.5)
@@ -1794,20 +1832,21 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-  /api/jobs/{id}/download/{download_id}/:
+  /api/jobs/{id}/outputs/{file_id}/:
     get:
-      operationId: jobs_download_retrieve_2
-      description: Download a specific file
+      operationId: jobs_outputs_retrieve
       parameters:
       - in: path
-        name: download_id
+        name: file_id
         schema:
           type: string
+          pattern: ^\d+$
         required: true
       - in: path
         name: id
         schema:
           type: string
+          pattern: ^[0-9a-fA-F-]{32,36}$
         required: true
       tags:
       - jobs
@@ -1817,25 +1856,28 @@ paths:
       responses:
         '200':
           content:
-            application/json:
+            application/octet-stream:
               schema:
-                $ref: '#/components/schemas/JobDetail'
+                type: string
+                format: binary
           description: ''
+        '404':
+          description: Not found
         default:
           description: Error envelope (SPEC §3.5)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-  /api/jobs/{id}/logs/:
+  /api/jobs/{id}/status/:
     get:
-      operationId: jobs_logs_retrieve
-      description: Get job logs
+      operationId: jobs_status_retrieve
       parameters:
       - in: path
         name: id
         schema:
           type: string
+          pattern: ^[0-9a-fA-F-]{32,36}$
         required: true
       tags:
       - jobs
@@ -1847,134 +1889,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JobDetail'
-          description: ''
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-  /api/jobs/{id}/restart/:
-    post:
-      operationId: jobs_restart_create
-      description: Restart a failed or cancelled job
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - jobs
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/JobDetailRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/JobDetailRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/JobDetailRequest'
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/JobDetail'
-          description: ''
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-  /api/jobs/pause_queue/:
-    post:
-      operationId: jobs_pause_queue_create
-      description: Pause job queue (admin only)
-      tags:
-      - jobs
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/JobDetailRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/JobDetailRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/JobDetailRequest'
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/JobDetail'
-          description: ''
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-  /api/jobs/queue_status/:
-    get:
-      operationId: jobs_queue_status_retrieve
-      description: Get queue status information
-      tags:
-      - jobs
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/JobDetail'
-          description: ''
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-  /api/jobs/resume_queue/:
-    post:
-      operationId: jobs_resume_queue_create
-      description: Resume job queue (admin only)
-      tags:
-      - jobs
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/JobDetailRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/JobDetailRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/JobDetailRequest'
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/JobDetail'
+                $ref: '#/components/schemas/JobStatus'
           description: ''
         default:
           description: Error envelope (SPEC §3.5)
@@ -2389,8 +2304,20 @@ components:
       - last_seen
       - ok
       - pid
+    InputValue:
+      type: object
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+      required:
+      - key
+      - label
     JobDetail:
       type: object
+      description: Light payload polled by the job page every 2 s while the job is
+        active.
       properties:
         id:
           type: string
@@ -2398,18 +2325,21 @@ components:
           readOnly: true
         name:
           type: string
-          description: Optional job name
-          maxLength: 255
+          readOnly: true
+          description: Free text; never used in paths (K3)
+        state:
+          type: string
+          description: waiting|running|success|failed|cancelled
+        workflow_id:
+          type: string
         workflow_name:
           type: string
-          readOnly: true
-        user_username:
+        workflow_version:
           type: string
-          readOnly: true
-        status:
-          allOf:
-          - $ref: '#/components/schemas/JobStatusEnum'
-          readOnly: true
+        user:
+          type: string
+        user_id:
+          type: integer
         submitted_at:
           type: string
           format: date-time
@@ -2419,123 +2349,124 @@ components:
           format: date-time
           readOnly: true
           nullable: true
-        completed_at:
+        finished_at:
           type: string
           format: date-time
           readOnly: true
           nullable: true
-        duration:
-          type: string
-          readOnly: true
-        parameters:
-          description: Input parameters for the job
-        results:
-          readOnly: true
-        logs:
-          type: string
-          readOnly: true
-        error_message:
-          type: string
-          readOnly: true
-        priority:
-          type: integer
+        duration_seconds:
+          type: number
+          format: double
+          nullable: true
           readOnly: true
         queue_position:
           type: integer
+          nullable: true
+          readOnly: true
+        cancel_requested:
+          type: boolean
+          readOnly: true
+        expires_at:
+          type: string
+          format: date-time
+          readOnly: true
+        purged_at:
+          type: string
+          format: date-time
           readOnly: true
           nullable: true
-        workspace_dir:
+          description: Workspace removed
+        can_cancel:
+          type: boolean
+          readOnly: true
+        can_delete:
+          type: boolean
+          readOnly: true
+        can_restart:
+          type: boolean
+          description: Restart is an admin action (``POST /api/admin/jobs/{id}/restart``).
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        error_message:
           type: string
           readOnly: true
         steps:
           type: array
           items:
             $ref: '#/components/schemas/JobStep'
-          readOnly: true
         messages:
           type: array
           items:
             $ref: '#/components/schemas/JobMessage'
+        outputs_count:
+          type: integer
           readOnly: true
-        downloads:
+        inputs:
           type: array
           items:
-            $ref: '#/components/schemas/JobDownload'
+            $ref: '#/components/schemas/JobInput'
           readOnly: true
-        can_cancel:
-          type: string
-          readOnly: true
-        can_restart:
+        outputs:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobOutput'
+        log_url:
           type: string
           readOnly: true
       required:
       - can_cancel
+      - can_delete
       - can_restart
-      - completed_at
-      - downloads
-      - duration
+      - cancel_requested
+      - duration_seconds
       - error_message
+      - expires_at
+      - finished_at
       - id
-      - logs
+      - inputs
+      - log_url
       - messages
-      - priority
+      - name
+      - outputs
+      - outputs_count
+      - purged_at
       - queue_position
-      - results
       - started_at
-      - status
+      - state
       - steps
       - submitted_at
-      - user_username
+      - updated_at
+      - user
+      - user_id
+      - workflow_id
       - workflow_name
-      - workspace_dir
-    JobDetailRequest:
-      type: object
-      properties:
-        name:
-          type: string
-          description: Optional job name
-          maxLength: 255
-        parameters:
-          description: Input parameters for the job
-    JobDownload:
+      - workflow_version
+    JobInput:
       type: object
       properties:
         id:
-          type: integer
-          readOnly: true
-        filename:
           type: string
-          readOnly: true
-        file_size:
-          type: integer
-          readOnly: true
-        file_size_mb:
+        label:
           type: string
-          readOnly: true
-        download_count:
-          type: integer
-          readOnly: true
-        created_at:
+        type:
           type: string
-          format: date-time
-          readOnly: true
-        expires_at:
-          type: string
-          format: date-time
-          readOnly: true
+        value:
           nullable: true
-        is_expired:
-          type: string
-          readOnly: true
+        files:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+          description: '[{name, size}] for uploads'
       required:
-      - created_at
-      - download_count
-      - expires_at
-      - file_size
-      - file_size_mb
-      - filename
+      - files
       - id
-      - is_expired
+      - label
+      - type
+      - value
     JobList:
       type: object
       properties:
@@ -2546,17 +2477,20 @@ components:
         name:
           type: string
           readOnly: true
-          description: Optional job name
+          description: Free text; never used in paths (K3)
+        state:
+          type: string
+          description: waiting|running|success|failed|cancelled
+        workflow_id:
+          type: string
         workflow_name:
           type: string
-          readOnly: true
-        user_username:
+        workflow_version:
           type: string
-          readOnly: true
-        status:
-          allOf:
-          - $ref: '#/components/schemas/JobStatusEnum'
-          readOnly: true
+        user:
+          type: string
+        user_id:
+          type: integer
         submitted_at:
           type: string
           format: date-time
@@ -2566,54 +2500,79 @@ components:
           format: date-time
           readOnly: true
           nullable: true
-        completed_at:
+        finished_at:
           type: string
           format: date-time
           readOnly: true
           nullable: true
-        duration:
-          type: string
-          readOnly: true
-        priority:
-          type: integer
+        duration_seconds:
+          type: number
+          format: double
+          nullable: true
           readOnly: true
         queue_position:
           type: integer
+          nullable: true
+          readOnly: true
+        cancel_requested:
+          type: boolean
+          readOnly: true
+        expires_at:
+          type: string
+          format: date-time
+          readOnly: true
+        purged_at:
+          type: string
+          format: date-time
           readOnly: true
           nullable: true
+          description: Workspace removed
         can_cancel:
-          type: string
+          type: boolean
+          readOnly: true
+        can_delete:
+          type: boolean
           readOnly: true
         can_restart:
-          type: string
+          type: boolean
+          description: Restart is an admin action (``POST /api/admin/jobs/{id}/restart``).
           readOnly: true
       required:
       - can_cancel
+      - can_delete
       - can_restart
-      - completed_at
-      - duration
+      - cancel_requested
+      - duration_seconds
+      - expires_at
+      - finished_at
       - id
       - name
-      - priority
+      - purged_at
       - queue_position
       - started_at
-      - status
+      - state
       - submitted_at
-      - user_username
+      - user
+      - user_id
+      - workflow_id
       - workflow_name
+      - workflow_version
     JobMessage:
       type: object
       properties:
         id:
           type: integer
           readOnly: true
-        message_type:
+        level:
           allOf:
-          - $ref: '#/components/schemas/MessageTypeEnum'
+          - $ref: '#/components/schemas/JobMessageLevelEnum'
           readOnly: true
-        message:
+        text:
           type: string
           readOnly: true
+        step:
+          type: integer
+          nullable: true
         created_at:
           type: string
           format: date-time
@@ -2621,129 +2580,222 @@ components:
       required:
       - created_at
       - id
-      - message
-      - message_type
-    JobStatusEnum:
+      - level
+      - step
+      - text
+    JobMessageLevelEnum:
       enum:
-      - pending
-      - running
-      - completed
-      - failed
-      - cancelled
-      - waiting
+      - debug
+      - info
+      - success
+      - warning
+      - error
       type: string
       description: |-
-        * `pending` - Pending
-        * `running` - Running
-        * `completed` - Completed
-        * `failed` - Failed
-        * `cancelled` - Cancelled
-        * `waiting` - Waiting
-    JobStep:
+        * `debug` - Debug
+        * `info` - Info
+        * `success` - Success
+        * `warning` - Warning
+        * `error` - Error
+    JobOutput:
       type: object
       properties:
         id:
           type: integer
           readOnly: true
+        output_id:
+          type: string
+          readOnly: true
+        label:
+          type: string
+          readOnly: true
+        name:
+          type: string
+        path:
+          type: string
+          readOnly: true
+        size:
+          type: integer
+          readOnly: true
+        download_count:
+          type: integer
+          readOnly: true
+        url:
+          type: string
+          readOnly: true
+      required:
+      - download_count
+      - id
+      - label
+      - name
+      - output_id
+      - path
+      - size
+      - url
+    JobStatus:
+      type: object
+      description: Light payload polled by the job page every 2 s while the job is
+        active.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
         name:
           type: string
           readOnly: true
-        description:
+          description: Free text; never used in paths (K3)
+        state:
           type: string
-          readOnly: true
-        step_type:
+          description: waiting|running|success|failed|cancelled
+        workflow_id:
           type: string
-          readOnly: true
-        status:
-          allOf:
-          - $ref: '#/components/schemas/JobStepStatusEnum'
+        workflow_name:
+          type: string
+        workflow_version:
+          type: string
+        user:
+          type: string
+        user_id:
+          type: integer
+        submitted_at:
+          type: string
+          format: date-time
           readOnly: true
         started_at:
           type: string
           format: date-time
           readOnly: true
           nullable: true
-        completed_at:
+        finished_at:
           type: string
           format: date-time
           readOnly: true
           nullable: true
-        duration:
+        duration_seconds:
+          type: number
+          format: double
+          nullable: true
+          readOnly: true
+        queue_position:
+          type: integer
+          nullable: true
+          readOnly: true
+        cancel_requested:
+          type: boolean
+          readOnly: true
+        expires_at:
           type: string
+          format: date-time
+          readOnly: true
+        purged_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          description: Workspace removed
+        can_cancel:
+          type: boolean
+          readOnly: true
+        can_delete:
+          type: boolean
+          readOnly: true
+        can_restart:
+          type: boolean
+          description: Restart is an admin action (``POST /api/admin/jobs/{id}/restart``).
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        error_message:
+          type: string
+          readOnly: true
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobStep'
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobMessage'
+        outputs_count:
+          type: integer
+          readOnly: true
+      required:
+      - can_cancel
+      - can_delete
+      - can_restart
+      - cancel_requested
+      - duration_seconds
+      - error_message
+      - expires_at
+      - finished_at
+      - id
+      - messages
+      - name
+      - outputs_count
+      - purged_at
+      - queue_position
+      - started_at
+      - state
+      - steps
+      - submitted_at
+      - updated_at
+      - user
+      - user_id
+      - workflow_id
+      - workflow_name
+      - workflow_version
+    JobStep:
+      type: object
+      properties:
+        id:
+          type: integer
           readOnly: true
         order:
           type: integer
           readOnly: true
-        output:
+        name:
           type: string
           readOnly: true
-        error_output:
+        state:
           type: string
+        started_at:
+          type: string
+          format: date-time
           readOnly: true
+          nullable: true
+        finished_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        processes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProcessProgress'
       required:
-      - completed_at
-      - description
-      - duration
-      - error_output
+      - finished_at
       - id
       - name
       - order
-      - output
+      - processes
       - started_at
-      - status
-      - step_type
-    JobStepStatusEnum:
-      enum:
-      - pending
-      - running
-      - completed
-      - failed
-      - skipped
-      type: string
-      description: |-
-        * `pending` - Pending
-        * `running` - Running
-        * `completed` - Completed
-        * `failed` - Failed
-        * `skipped` - Skipped
-    JobSubmission:
+      - state
+    JobSubmitRequestRequest:
       type: object
       properties:
-        name:
+        workflow:
           type: string
-          description: Optional job name
-          maxLength: 255
-        parameters:
-          description: Input parameters for the job
-    JobSubmissionRequest:
-      type: object
-      properties:
-        workflow_id:
-          type: string
-          writeOnly: true
           minLength: 1
-        name:
+          description: Workflow id
+        job_name:
           type: string
-          description: Optional job name
+          description: 'Optional free-text name (default: "<workflow> <date>")'
           maxLength: 255
-        parameters:
-          description: Input parameters for the job
       required:
-      - workflow_id
-    LevelEnum:
-      enum:
-      - debug
-      - info
-      - warning
-      - error
-      - critical
-      type: string
-      description: |-
-        * `debug` - Debug
-        * `info` - Info
-        * `warning` - Warning
-        * `error` - Error
-        * `critical` - Critical
+      - workflow
     LoginRequest:
       type: object
       properties:
@@ -2783,18 +2835,6 @@ components:
           type: string
       required:
       - message
-    MessageTypeEnum:
-      enum:
-      - info
-      - warning
-      - error
-      - success
-      type: string
-      description: |-
-        * `info` - Information
-        * `warning` - Warning
-        * `error` - Error
-        * `success` - Success
     NavbarItem:
       type: object
       properties:
@@ -3110,24 +3150,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/WorkflowSettings'
-    ParameterTypeEnum:
-      enum:
-      - file
-      - folder
-      - text
-      - number
-      - checkbox
-      - list
-      - textarea
-      type: string
-      description: |-
-        * `file` - File
-        * `folder` - Folder
-        * `text` - Text
-        * `number` - Number
-        * `checkbox` - Checkbox
-        * `list` - List
-        * `textarea` - Textarea
     PasswordResetConfirmRequest:
       type: object
       properties:
@@ -3152,15 +3174,6 @@ components:
           type: string
           minLength: 1
           maxLength: 150
-    PatchedJobDetailRequest:
-      type: object
-      properties:
-        name:
-          type: string
-          description: Optional job name
-          maxLength: 255
-        parameters:
-          description: Input parameters for the job
     PatchedNavbarItemRequest:
       type: object
       properties:
@@ -3286,6 +3299,31 @@ components:
         nextflow_config:
           type: string
           description: Nextflow configuration (written to nextflow.config)
+    ProcessProgress:
+      type: object
+      properties:
+        name:
+          type: string
+        label:
+          type: string
+        submitted:
+          type: integer
+        running:
+          type: integer
+        completed:
+          type: integer
+        failed:
+          type: integer
+        total:
+          type: integer
+      required:
+      - completed
+      - failed
+      - label
+      - name
+      - running
+      - submitted
+      - total
     RegisterResponse:
       type: object
       properties:
@@ -3357,7 +3395,7 @@ components:
           readOnly: true
         level:
           allOf:
-          - $ref: '#/components/schemas/LevelEnum'
+          - $ref: '#/components/schemas/SystemLogLevelEnum'
           readOnly: true
         message:
           type: string
@@ -3378,6 +3416,20 @@ components:
       - metadata
       - timestamp
       - user_username
+    SystemLogLevelEnum:
+      enum:
+      - debug
+      - info
+      - warning
+      - error
+      - critical
+      type: string
+      description: |-
+        * `debug` - Debug
+        * `info` - Info
+        * `warning` - Warning
+        * `error` - Error
+        * `critical` - Critical
     Template:
       type: object
       properties:
@@ -3542,77 +3594,75 @@ components:
       - username
     Workflow:
       type: object
+      description: Public workflow (list/detail) incl. the typed run-form schema from
+        cloudgene.yaml.
       properties:
         id:
           type: string
-          maxLength: 255
+          readOnly: true
         name:
           type: string
-          maxLength: 255
+          readOnly: true
         description:
           type: string
+          readOnly: true
         version:
           type: string
-          maxLength: 50
+          readOnly: true
         website:
           type: string
           format: uri
-          maxLength: 200
+          readOnly: true
+        author:
+          type: string
+          readOnly: true
+        logo:
+          type: string
+          readOnly: true
         category_name:
           type: string
           readOnly: true
         status:
-          $ref: '#/components/schemas/WorkflowStatusEnum'
+          allOf:
+          - $ref: '#/components/schemas/WorkflowStatusEnum'
+          readOnly: true
         public:
           type: boolean
+          readOnly: true
           description: Publicly accessible to all users
-        created_at:
-          type: string
-          format: date-time
-          readOnly: true
-        updated_at:
-          type: string
-          format: date-time
-          readOnly: true
-        parameters:
+        inputs:
           type: array
           items:
-            $ref: '#/components/schemas/WorkflowParameter'
-          readOnly: true
-        inputs:
-          type: string
+            $ref: '#/components/schemas/WorkflowInput'
           readOnly: true
         outputs:
-          type: string
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkflowOutput'
           readOnly: true
-        allowed_groups:
+        definition_errors:
           type: array
           items:
             type: string
           readOnly: true
-        nextflow_profile:
-          type: string
-          description: Nextflow profile to use
-          maxLength: 255
-        working_directory:
-          type: string
-          description: Working directory for Nextflow execution
-        env_vars:
-          type: string
-          description: Environment variables (written to nextflow.env)
-        nextflow_config:
-          type: string
-          description: Nextflow configuration (written to nextflow.config)
+        max_upload_mb:
+          type: integer
+          readOnly: true
       required:
-      - allowed_groups
+      - author
       - category_name
-      - created_at
+      - definition_errors
+      - description
       - id
       - inputs
+      - logo
+      - max_upload_mb
       - name
       - outputs
-      - parameters
-      - updated_at
+      - public
+      - status
+      - version
+      - website
     WorkflowCategory:
       type: object
       properties:
@@ -3632,53 +3682,85 @@ components:
       - created_at
       - id
       - name
-    WorkflowParameter:
+    WorkflowInput:
       type: object
+      description: One run-form input (SPEC §4); built from the parsed definition,
+        not a DB table.
       properties:
-        parameter_id:
-          type: string
-          maxLength: 255
-        name:
-          type: string
-          maxLength: 255
-        description:
-          type: string
-        parameter_type:
-          $ref: '#/components/schemas/ParameterTypeEnum'
-        required:
-          type: boolean
-        default_value:
-          type: string
-        values: {}
-        is_input:
-          type: boolean
-        is_output:
-          type: boolean
-        order:
-          type: integer
-          maximum: 9223372036854775807
-          minimum: -9223372036854775808
-          format: int64
         id:
           type: string
-          readOnly: true
         type:
           type: string
-          readOnly: true
         label:
           type: string
-          readOnly: true
         value:
+          nullable: true
+          description: Typed default
+        values:
+          type: array
+          items:
+            $ref: '#/components/schemas/InputValue'
+        checkbox_values:
+          type: object
+          additionalProperties: {}
+          nullable: true
+        required:
+          type: boolean
+        visible:
+          type: boolean
+        help:
           type: string
-          readOnly: true
+        details:
+          type: string
+        accept:
+          type: string
+        min:
+          type: number
+          format: double
+          nullable: true
+        max:
+          type: number
+          format: double
+          nullable: true
+        write_file:
+          type: string
+        serialize:
+          type: boolean
       required:
+      - accept
+      - checkbox_values
+      - details
+      - help
       - id
       - label
-      - name
-      - parameter_id
-      - parameter_type
+      - max
+      - min
+      - required
+      - serialize
       - type
       - value
+      - values
+      - visible
+      - write_file
+    WorkflowOutput:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        label:
+          type: string
+        download:
+          type: boolean
+        serialize:
+          type: boolean
+      required:
+      - download
+      - id
+      - label
+      - serialize
+      - type
     WorkflowSettings:
       type: object
       description: Serializer for admin workflow settings, including Nextflow configuration

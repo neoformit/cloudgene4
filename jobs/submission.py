@@ -56,17 +56,20 @@ def clean_job_name(raw, workflow_name: str) -> str:
     return name
 
 
+def _basename(name) -> str:
+    base = str(name or '').replace('\\', '/').split('/')[-1]
+    return _CONTROL.sub('', base).strip()
+
+
 def display_filename(name: str) -> str:
     """Original file name for display: basename only, control characters removed."""
-    base = str(name or '').replace('\\', '/').split('/')[-1]
-    base = _CONTROL.sub('', base).strip()
-    return base[:255] or 'file'
+    return _basename(name)[:255] or 'file'
 
 
 def safe_filename(name: str) -> str:
     """File name used on disk: ASCII letters, digits, ``.``, ``_``, ``-`` only (spaces and other
     characters become ``_``); never hidden, never empty, at most 150 characters."""
-    base = display_filename(name)
+    base = _basename(name)
     ascii_name = unicodedata.normalize('NFKD', base).encode('ascii', 'ignore').decode('ascii')
     ascii_name = re.sub(r'[^A-Za-z0-9._-]+', '_', ascii_name)
     ascii_name = re.sub(r'_{2,}', '_', ascii_name).strip('._-')

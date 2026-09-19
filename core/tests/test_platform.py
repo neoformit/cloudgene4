@@ -7,7 +7,7 @@ from django.test import SimpleTestCase, TestCase
 from rest_framework.test import APIClient
 
 from jobs.models import Job
-from workflows.models import Workflow, WorkflowParameter
+from workflows.models import Workflow
 
 User = get_user_model()
 
@@ -33,19 +33,19 @@ class NoCeleryChannelsTest(SimpleTestCase):
 
 
 class SubmissionWithoutWorkerTest(TestCase):
-    def test_submitted_job_stays_pending_until_worker_exists(self):
+    def test_submitted_job_waits_until_the_worker_claims_it(self):
         """Celery is gone; submission must not crash and must not fake a running job."""
         user = User.objects.create_user(username='alice', email='a@example.org',
                                         password='Secret123', full_name='A')
-        wf = Workflow.objects.create(id='hello', name='Hello', status='enabled', public=True,
-                                     yaml_config='workflow: {}')
-        WorkflowParameter.objects.create(workflow=wf, parameter_id='name', name='Name',
-                                         parameter_type='text', required=True, is_input=True)
+        Workflow.objects.create(
+            id='hello', name='Hello', status='enabled', public=True,
+            yaml_config='id: hello\nname: Hello\nworkflow:\n  steps: [{script: main.nf}]\n'
+                        '  inputs:\n    - {id: name, description: Name, type: text}\n')
         client = APIClient()
         client.force_authenticate(user)
-        r = client.post('/api/jobs/', {'workflow_id': 'hello', 'name': 'my job',
-                                       'parameters': {'name': 'x'}}, format='json')
+        r = client.post('/api/jobs/', {'workflow': 'hello', 'job_name': 'my job', 'name': 'x'},
+                        format='json')
         self.assertEqual(r.status_code, 201, r.content)
         job = Job.objects.get(id=r.json()['id'])
-        self.assertEqual(job.status, 'pending')
+        self.assertEqual(job.status, 'waiting')
         self.assertIsNone(job.started_at)

@@ -143,15 +143,10 @@ class JobStep(models.Model):
     """One workflow step of a job; ``processes`` holds per-Nextflow-process task counts:
     ``[{"name", "label", "submitted", "running", "completed", "failed", "total"}]``."""
 
-    STATE_CHOICES = [
-        ('waiting', 'Waiting'), ('running', 'Running'), ('success', 'Success'),
-        ('failed', 'Failed'), ('cancelled', 'Cancelled'),
-    ]
-
     job = models.ForeignKey(Job, on_delete=models.CASCADE, related_name='steps')
     order = models.IntegerField(default=0)
     name = models.CharField(max_length=255)
-    status = models.CharField(max_length=20, choices=STATE_CHOICES, default='waiting')
+    status = models.CharField(max_length=20, choices=JobState.CHOICES, default='waiting')
     started_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)
     processes = models.JSONField(default=list, blank=True)

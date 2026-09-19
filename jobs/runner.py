@@ -99,8 +99,8 @@ def build_env(job, definition: WorkflowDefinition, app_dir: Path, base_env=None)
         for key, value in cloudgene_config.parse_env(text).items():
             env[key] = _expand(value, env)
     user = job.user
-    full_name = ''
-    if hasattr(user, 'get_full_name'):
+    full_name = getattr(user, 'full_name', '') or ''
+    if not full_name and hasattr(user, 'get_full_name'):
         full_name = user.get_full_name() or ''
     env.update({
         'CLOUDGENE_JOB_ID': str(job.id),

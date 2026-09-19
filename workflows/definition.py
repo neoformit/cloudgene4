@@ -485,7 +485,9 @@ def parse_definition(data, app_dir=None) -> WorkflowDefinition:
         raise DefinitionError('The workflow definition must be a YAML mapping')
 
     app_id = _str(data.get('id')).strip()
-    if not app_id:
+    if isinstance(data.get('id'), bool):
+        errors.append(f'id: "{app_id}" was read as a boolean; quote it in the YAML')
+    elif not app_id:
         errors.append('id: is required')
     elif not APP_ID_RE.match(app_id):
         errors.append(f'id: "{app_id}" must match {APP_ID_RE.pattern}')

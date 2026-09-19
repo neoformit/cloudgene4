@@ -48,13 +48,17 @@ def app_dir(workflow) -> Path:
         value = getter()
         if value:
             return Path(value)
-    for attr in ('app_dir', 'path', 'app_path'):
+    # 'nextflow_script' holds the cloudgene.yaml path for rows created by `install_workflow`
+    # (interim, until the T05 registry stores the app dir explicitly).
+    for attr in ('app_dir', 'path', 'app_path', 'nextflow_script'):
         value = getattr(workflow, attr, None)
         if isinstance(value, (str, Path)) and str(value):
             p = Path(value)
+            if attr == 'nextflow_script' and not p.is_absolute():
+                continue
             if not p.is_absolute():
                 p = cloudgene_config.apps_dir() / p
-            return p.parent if p.suffix in ('.yaml', '.yml') else p
+            return p.parent if p.suffix in ('.yaml', '.yml', '.nf') else p
     return cloudgene_config.apps_dir() / workflow.id
 
 

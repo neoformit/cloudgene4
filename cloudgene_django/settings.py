@@ -222,7 +222,7 @@ SPECTACULAR_SETTINGS = {
         'core.serializers.add_error_envelope',
     ],
     'ENUM_NAME_OVERRIDES': {
-        'JobStatusEnum': 'jobs.models.Job.STATUS_CHOICES',
+        'JobStatusEnum': 'jobs.models.JobState.CHOICES',
         'WorkflowStatusEnum': 'workflows.models.Workflow.STATUS_CHOICES',
         'HealthStatusEnum': ['ok', 'degraded', 'error'],
     },

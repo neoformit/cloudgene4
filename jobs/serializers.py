@@ -1,202 +1,171 @@
 """
-Serializers for job-related API endpoints
+Response serializers for the jobs API (plans/SPEC.md §3.6). Submission is validated in
+``jobs/submission.py`` against the workflow definition; ``JobSubmitRequestSerializer`` only
+documents the multipart request for the OpenAPI schema.
 """
+from django.urls import reverse
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
-from django.contrib.auth import get_user_model
-from .models import Job, JobStep, JobMessage, JobDownload
-from workflows.models import Workflow
 
-User = get_user_model()
+from .models import Job, JobMessage, JobOutput, JobState, JobStep
+
+
+class ProcessProgressSerializer(serializers.Serializer):
+    name = serializers.CharField()
+    label = serializers.CharField()
+    submitted = serializers.IntegerField()
+    running = serializers.IntegerField()
+    completed = serializers.IntegerField()
+    failed = serializers.IntegerField()
+    total = serializers.IntegerField()
 
 
 class JobStepSerializer(serializers.ModelSerializer):
-    duration = serializers.SerializerMethodField()
-    
+    state = serializers.CharField(source='status')
+    processes = ProcessProgressSerializer(many=True)
+
     class Meta:
         model = JobStep
-        fields = ['id', 'name', 'description', 'step_type', 'status', 
-                 'started_at', 'completed_at', 'duration', 'order', 'output', 'error_output']
+        fields = ['id', 'order', 'name', 'state', 'started_at', 'finished_at', 'processes']
         read_only_fields = fields
-    
-    def get_duration(self, obj):
-        if obj.started_at and obj.completed_at:
-            return (obj.completed_at - obj.started_at).total_seconds()
-        return None
 
 
 class JobMessageSerializer(serializers.ModelSerializer):
+    step = serializers.IntegerField(source='step_id', allow_null=True)
+
     class Meta:
         model = JobMessage
-        fields = ['id', 'message_type', 'message', 'created_at']
+        fields = ['id', 'level', 'text', 'step', 'created_at']
         read_only_fields = fields
 
 
-class JobDownloadSerializer(serializers.ModelSerializer):
-    file_size_mb = serializers.SerializerMethodField()
-    is_expired = serializers.SerializerMethodField()
-    
+class JobOutputSerializer(serializers.ModelSerializer):
+    name = serializers.CharField()
+    url = serializers.SerializerMethodField()
+
     class Meta:
-        model = JobDownload
-        fields = ['id', 'filename', 'file_size', 'file_size_mb', 'download_count', 
-                 'created_at', 'expires_at', 'is_expired']
+        model = JobOutput
+        fields = ['id', 'output_id', 'label', 'name', 'path', 'size', 'download_count', 'url']
         read_only_fields = fields
-    
-    def get_file_size_mb(self, obj):
-        return round(obj.file_size / (1024 * 1024), 2)
-    
-    def get_is_expired(self, obj):
-        return obj.is_expired()
+
+    def get_url(self, obj) -> str:
+        return reverse('job-output-download', kwargs={'pk': str(obj.job_id), 'file_id': obj.id})
+
+
+class JobInputSerializer(serializers.Serializer):
+    id = serializers.CharField()
+    label = serializers.CharField()
+    type = serializers.CharField()
+    value = serializers.JSONField(allow_null=True)
+    files = serializers.ListField(child=serializers.DictField(), help_text='[{name, size}] for uploads')
 
 
 class JobListSerializer(serializers.ModelSerializer):
-    workflow_name = serializers.CharField(source='workflow.name', read_only=True)
-    user_username = serializers.CharField(source='user.username', read_only=True)
-    duration = serializers.SerializerMethodField()
+    state = serializers.CharField(source='status', help_text='waiting|running|success|failed|cancelled')
+    workflow_id = serializers.CharField(source='app_id')
+    workflow_name = serializers.CharField(source='app_name')
+    workflow_version = serializers.CharField(source='app_version')
+    user = serializers.CharField(source='user.username')
+    user_id = serializers.IntegerField()
+    queue_position = serializers.SerializerMethodField()
+    duration_seconds = serializers.SerializerMethodField()
+    expires_at = serializers.SerializerMethodField()
     can_cancel = serializers.SerializerMethodField()
+    can_delete = serializers.SerializerMethodField()
     can_restart = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Job
-        fields = ['id', 'name', 'workflow_name', 'user_username', 'status', 
-                 'submitted_at', 'started_at', 'completed_at', 'duration',
-                 'priority', 'queue_position', 'can_cancel', 'can_restart']
+        fields = ['id', 'name', 'state', 'workflow_id', 'workflow_name', 'workflow_version',
+                  'user', 'user_id', 'submitted_at', 'started_at', 'finished_at',
+                  'duration_seconds', 'queue_position', 'cancel_requested', 'expires_at',
+                  'purged_at', 'can_cancel', 'can_delete', 'can_restart']
         read_only_fields = fields
-    
-    def get_duration(self, obj):
-        duration = obj.get_duration()
-        return duration.total_seconds() if duration else None
-    
-    def get_can_cancel(self, obj):
+
+    def get_queue_position(self, obj) -> int | None:
+        return obj.queue_position()
+
+    def get_duration_seconds(self, obj) -> float | None:
+        return obj.duration_seconds()
+
+    @extend_schema_field(OpenApiTypes.DATETIME)
+    def get_expires_at(self, obj):
+        return obj.expires_at()
+
+    def get_can_cancel(self, obj) -> bool:
         return obj.can_cancel()
-    
-    def get_can_restart(self, obj):
+
+    def get_can_delete(self, obj) -> bool:
+        return obj.can_delete()
+
+    def get_can_restart(self, obj) -> bool:
+        """Restart is an admin action (``POST /api/admin/jobs/{id}/restart``)."""
         return obj.can_restart()
 
 
-class JobDetailSerializer(serializers.ModelSerializer):
-    workflow_name = serializers.CharField(source='workflow.name', read_only=True)
-    user_username = serializers.CharField(source='user.username', read_only=True)
-    steps = JobStepSerializer(many=True, read_only=True)
-    messages = JobMessageSerializer(many=True, read_only=True)
-    downloads = JobDownloadSerializer(many=True, read_only=True)
-    duration = serializers.SerializerMethodField()
-    can_cancel = serializers.SerializerMethodField()
-    can_restart = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = Job
-        fields = ['id', 'name', 'workflow_name', 'user_username', 'status',
-                 'submitted_at', 'started_at', 'completed_at', 'duration',
-                 'parameters', 'results', 'logs', 'error_message',
-                 'priority', 'queue_position', 'workspace_dir',
-                 'steps', 'messages', 'downloads', 'can_cancel', 'can_restart']
-        read_only_fields = ['id', 'submitted_at', 'started_at', 'completed_at',
-                          'status', 'results', 'logs', 'error_message',
-                          'priority', 'queue_position', 'workspace_dir']
-    
-    def get_duration(self, obj):
-        duration = obj.get_duration()
-        return duration.total_seconds() if duration else None
-    
-    def get_can_cancel(self, obj):
-        return obj.can_cancel()
-    
-    def get_can_restart(self, obj):
-        return obj.can_restart()
+class JobStatusSerializer(JobListSerializer):
+    """Light payload polled by the job page every 2 s while the job is active."""
+    steps = JobStepSerializer(many=True)
+    messages = JobMessageSerializer(many=True)
+    outputs_count = serializers.SerializerMethodField()
+
+    class Meta(JobListSerializer.Meta):
+        fields = JobListSerializer.Meta.fields + ['updated_at', 'error_message', 'steps', 'messages',
+                                                  'outputs_count']
+        read_only_fields = fields
+
+    def get_outputs_count(self, obj) -> int:
+        return obj.outputs.count()
 
 
-class JobSubmissionSerializer(serializers.ModelSerializer):
-    workflow_id = serializers.CharField(write_only=True)
-    
-    class Meta:
-        model = Job
-        fields = ['workflow_id', 'name', 'parameters']
-    
-    def to_internal_value(self, data):
-        """
-        Handle FormData by converting it to the expected format
-        """
-        # If data is FormData (multipart form), extract parameters
-        if hasattr(data, 'getlist'):
-            # This is FormData - extract parameters into a dict
-            parameters = {}
-            workflow_id = data.get('workflow_id')
-            job_name = data.get('job_name')
-            
-            # Process all fields except special ones
-            for key in data.keys():
-                if key not in ['workflow_id', 'job_name']:
-                    values = data.getlist(key)
-                    if len(values) == 1:
-                        parameters[key] = values[0]
-                    else:
-                        parameters[key] = values
-            
-            # Create structured data
-            structured_data = {
-                'workflow_id': workflow_id,
-                'name': job_name,
-                'parameters': parameters
-            }
-            
-            return super().to_internal_value(structured_data)
-        
-        return super().to_internal_value(data)
-    
-    def validate_workflow_id(self, value):
+class JobDetailSerializer(JobStatusSerializer):
+    inputs = serializers.SerializerMethodField()
+    outputs = JobOutputSerializer(many=True)
+    log_url = serializers.SerializerMethodField()
+
+    class Meta(JobStatusSerializer.Meta):
+        fields = JobStatusSerializer.Meta.fields + ['inputs', 'outputs', 'log_url']
+        read_only_fields = fields
+
+    def get_log_url(self, obj) -> str:
+        return reverse('job-log', kwargs={'pk': str(obj.id)})
+
+    @extend_schema_field(JobInputSerializer(many=True))
+    def get_inputs(self, obj):
+        from . import workflow_bridge
         try:
-            workflow = Workflow.objects.get(id=value, status='enabled')
-        except Workflow.DoesNotExist:
-            raise serializers.ValidationError("Workflow not found or disabled")
-        
-        # Check if user has access to this workflow
-        user = self.context['request'].user
-        if not workflow.can_access(user):
-            raise serializers.ValidationError("You don't have permission to access this workflow")
-        
-        return value
-    
-    def validate_parameters(self, value):
-        # Parameters should always be a dictionary from FormData processing
-        if not isinstance(value, dict):
-            raise serializers.ValidationError("Parameters must be a dictionary.")
-        
-        # Validate parameters against workflow inputs
-        workflow_id = self.initial_data.get('workflow_id')
-        if workflow_id:
-            try:
-                workflow = Workflow.objects.get(id=workflow_id)
-                # Get workflow parameters from the model
-                workflow_params = workflow.parameters.filter(is_input=True)
-                
-                required_params = [
-                    param.parameter_id for param in workflow_params 
-                    if param.required
-                ]
-                
-                for param_id in required_params:
-                    if param_id not in value or not value[param_id]:
-                        raise serializers.ValidationError(
-                            f"Required parameter '{param_id}' is missing"
-                        )
-                
-            except Workflow.DoesNotExist:
-                pass  # Will be caught by workflow_id validation
-        
-        return value
-    
-    def create(self, validated_data):
-        workflow_id = validated_data.pop('workflow_id')
-        workflow = Workflow.objects.get(id=workflow_id)
-        
-        job = Job.objects.create(
-            workflow=workflow,
-            user=self.context['request'].user,
-            **validated_data
-        )
-        
-        # Submit job to queue
-        from .queue import job_queue
-        job_queue.submit_job(job)
-        
-        return job
+            definition = workflow_bridge.definition_from_yaml(obj.workflow_yaml)
+        except Exception:
+            return [{'id': k, 'label': k, 'type': 'text', 'value': v, 'files': []}
+                    for k, v in (obj.parameters or {}).items()]
+        out = []
+        for p in definition.value_inputs:
+            if not p.visible or p.id not in (obj.parameters or {}):
+                continue
+            value = obj.parameters[p.id]
+            files = [{'name': f.get('name'), 'size': f.get('size')}
+                     for f in (obj.uploads or {}).get(p.id, [])]
+            if p.is_file:
+                value = ', '.join(f['name'] for f in files)
+            elif p.type == 'textarea' and p.write_file:
+                value = p.write_file
+            elif p.type in ('list', 'radio'):
+                value = next((v['label'] for v in p.values if v['key'] == value), value)
+            out.append({'id': p.id, 'label': p.label, 'type': p.type, 'value': value, 'files': files})
+        return out
+
+
+class JobSubmitRequestSerializer(serializers.Serializer):
+    workflow = serializers.CharField(help_text='Workflow id')
+    job_name = serializers.CharField(required=False, allow_blank=True, max_length=255,
+                                     help_text='Optional free-text name (default: "<workflow> <date>")')
+    # Additional fields: one per workflow input id (files as multipart file parts).
+
+
+class JobDeletedSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    deleted = serializers.BooleanField()
+
+
+STATE_CHOICES = list(JobState.ALL)
