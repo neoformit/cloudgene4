@@ -60,7 +60,7 @@ async function handleSubmit(formData) {
     <template v-else-if="workflow">
       <div class="page-header">
         <div class="py-1 container">
-          <h2>{{ workflow.name }}</h2>
+          <h2 data-testid="workflow-title">{{ workflow.name }}</h2>
           <small class="text-muted">{{ workflow.version }}</small>
           <p v-if="workflow.description" class="mt-1 mb-0">{{ workflow.description }}</p>
         </div>
@@ -73,13 +73,14 @@ async function handleSubmit(formData) {
           </li>
         </ul>
 
-        <AlertMessage :message="error" />
+        <AlertMessage :message="error" data-testid="run-error" />
 
-        <form @submit.prevent="$refs.dynForm.onSubmit()">
+        <form data-testid="run-form" @submit.prevent="$refs.dynForm.onSubmit()">
           <div class="mb-4">
             <label for="job-name" class="form-label fw-semibold">Job Name:</label>
             <input
               id="job-name"
+              data-testid="job-name"
               v-model="jobName"
               type="text"
               class="form-control col-sm-3"
@@ -96,7 +97,7 @@ async function handleSubmit(formData) {
           />
 
           <div class="mt-4">
-            <button class="btn btn-primary" type="submit" :disabled="submitting">
+            <button class="btn btn-primary" type="submit" data-testid="job-submit" :disabled="submitting">
               <span v-if="submitting" class="spinner-border spinner-border-sm me-1"></span>
               {{ submitting ? 'Submitting…' : 'Submit Job' }}
             </button>

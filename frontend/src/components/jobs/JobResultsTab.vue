@@ -44,6 +44,8 @@ function downloadUrl(item) {
             </div>
             <a
               :href="downloadUrl(item)"
+              data-testid="job-output-link"
+              :data-filename="item.filename || item.name"
               class="btn btn-sm btn-outline-primary ms-3"
               :download="item.filename"
             >

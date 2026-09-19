@@ -33,13 +33,14 @@ async function submit() {
     <h2>Sign in</h2>
     <br>
 
-    <AlertMessage :message="error" />
+    <AlertMessage :message="error" data-testid="login-error" />
 
     <form class="form-horizontal" autocomplete="off" @submit.prevent="submit">
       <div class="mb-3">
         <label for="username" class="form-label">Username:</label>
         <input
           id="username"
+          data-testid="login-username"
           v-model="username"
           type="text"
           class="form-control col-sm-3"
@@ -52,6 +53,7 @@ async function submit() {
         <label for="password" class="form-label">Password:</label>
         <input
           id="password"
+          data-testid="login-password"
           v-model="password"
           type="password"
           class="form-control col-sm-3"
@@ -61,7 +63,7 @@ async function submit() {
       </div>
 
       <div class="mb-3">
-        <button class="btn btn-primary" type="submit" :disabled="loading">
+        <button class="btn btn-primary" type="submit" data-testid="login-submit" :disabled="loading">
           <span v-if="loading" class="spinner-border spinner-border-sm me-1"></span>
           Sign in
         </button>
