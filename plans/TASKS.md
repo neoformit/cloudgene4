@@ -73,7 +73,7 @@ summary; fixture apps verified with Nextflow 26.04 (`/usr/local/bin/nextflow`).
 Each slice owns its backend **and** frontend so both sides of every contract are changed together, and
 writes the E2E scenarios listed.
 
-### T03 Jobs, execution & run form ◐ (branch ready for review)
+### T03 Jobs, execution & run form ☑ (merged a11820f) (branch ready for review)
 Owned: `jobs/`, `workflows/definition.py` (new: YAML parsing/validation of a workflow, SPEC §4),
 public workflow endpoints (`workflows/views.py` public viewset + serializers for inputs/outputs),
 `frontend/src/views/public/{WorkflowSubmit,JobList,JobDetail}View.vue`, `frontend/src/components/{jobs,workflows}/`,
@@ -127,10 +127,10 @@ E2E: S1, W1, D1, D2, D4–D7.
 
 ## Phase 3 — Integration & agent-driven QA
 
-### T06 Integration run ☐
+### T06 Integration run ☑
 Orchestrator merges T03–T05, resolves conflicts, runs `scripts/test.sh all`. Any failure → fix task.
 
-### T07a/b/c Exploratory QA sessions ☐ (parallel, read-only on app code)
+### T07a/b/c Exploratory QA sessions ◐ (parallel, read-only on app code)
 Charters: (a) run form & job lifecycle abuse (odd inputs, big/odd files, rapid submit/cancel, reload
 mid-run); (b) security & access control (IDOR, privilege escalation, CSRF, path traversal, XSS in job
 names/pages); (c) admin round-trips & multi-user scenarios (settings persistence, group changes taking
@@ -221,4 +221,8 @@ upload size limits, `docs/` rewritten (admin guide, workflow YAML reference, dep
   e2e 90 passed / 2 xfailed / 1 skipped (5m32s). The 2 e2e failures T05 reported were the pre-fix
   hashing/lockout interference (e80c5ad), not T05 regressions — they do not reproduce on `rebuild`.
   Remaining xfail/skip are all T03-dependent: D2 admin jobs, J1 unicode job name, Q1 queue (no worker).
+- 2026-09-20: T03 merged. **Phase 2 complete.** Orchestrator verification on `rebuild` (a11820f):
+  `scripts/test.sh unit` = 282 Django + 144 vitest OK; `pytest e2e` = **109 passed, 0 failed, 0 skipped,
+  0 xfailed** (9m45s) — every scenario in E2E_TEST_PLAN §3 now runs against the real stack incl.
+  Nextflow. K1/K2/K3 all covered by passing tests. T07 exploratory QA started.
 
