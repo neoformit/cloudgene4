@@ -126,7 +126,7 @@ async function performAction(action) {
               <small class="text-muted">
                 <span title="Submitted"><i class="fas fa-clock"></i> {{ prettyDate(job.submitted_at) }}</span>&nbsp;&nbsp;
                 <span title="Elapsed" data-testid="job-elapsed"><i class="fas fa-hourglass"></i> {{ elapsed }}</span>&nbsp;&nbsp;
-                <span title="User" data-testid="job-user"><i class="fas fa-user"></i> {{ job.user }}</span>&nbsp;&nbsp;
+                <span title="User" data-testid="job-user"><i class="fas fa-user"></i> {{ job.user?.username }}</span>&nbsp;&nbsp;
                 <span title="Workflow" data-testid="job-workflow"><i class="fas fa-tag"></i> {{ job.workflow_name }} {{ job.workflow_version }}</span>
               </small>
             </div>

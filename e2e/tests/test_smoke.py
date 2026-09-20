@@ -9,8 +9,6 @@ from e2e.pages import Navbar
 PUBLIC_NAV = [i['title'] for i in NAVBAR if not i.get('admin_only')]
 ALL_NAV = [i['title'] for i in NAVBAR]
 
-needs_pages = pytest.mark.xfail(strict=False, reason='needs T05: pages/*.html from CLOUDGENE_HOME rendered via /api/pages/{slug} (C3)')
-needs_navbar = pytest.mark.xfail(strict=False, reason='needs T05: navbar items loaded from settings.yaml (C4)')
 
 
 def test_home_loads_cleanly_anonymous(page, base_url):
@@ -28,19 +26,16 @@ def test_home_loads_cleanly_logged_in(page, login):
     expect(page.get_by_test_id('footer')).to_be_visible()
 
 
-@needs_pages
 def test_home_renders_home_template(page):
     page.goto('/')
     expect(page.get_by_test_id('home-content')).to_contain_text(PAGE_MARKERS['home'])
 
 
-@needs_pages
 def test_footer_renders_footer_template(page):
     page.goto('/')
     expect(page.get_by_test_id('footer')).to_contain_text(PAGE_MARKERS['footer'])
 
 
-@needs_pages
 def test_about_page_renders_pages_file(page):
     page.goto('/pages/about')
     expect(page.get_by_test_id('page-content')).to_contain_text(PAGE_MARKERS['about'])
@@ -52,7 +47,6 @@ def test_unknown_page_shows_not_found(page, expect_api_error):
     expect(page.get_by_test_id('page-not-found')).to_be_visible()
 
 
-@needs_navbar
 @pytest.mark.parametrize('user, expected', [(None, PUBLIC_NAV), ('alice', PUBLIC_NAV), ('admin', ALL_NAV)],
                          ids=['anonymous', 'alice', 'admin'])
 def test_navbar_items_from_yaml_in_order(page, login, user, expected):

@@ -86,7 +86,7 @@ state rename + data migration, submission with uploads, outputs & authenticated 
 frontend polling, dynamic form for all SPEC §4 input types with client validation and field errors.
 E2E: W2, J1–J7, Q1–Q5, X1 (jobs parts).
 
-### T04 Accounts, profile & user admin ◐
+### T04 Accounts, profile & user admin ☑ (merged 1dbe4d6)
 Owned: `accounts/`, `frontend/src/views/public/{Register,Activate,Login,PasswordReset,PasswordRecovery,Profile}View.vue`,
 `frontend/src/views/admin/AdminUsersView.vue`, `frontend/src/components/admin/Group*.vue`,
 `frontend/src/api/users.js`, `frontend/src/api/auth.js` (non-T01 parts).
@@ -99,7 +99,7 @@ users/groups endpoints under `/api/admin/` with writable groups & is_active, no 
 group member counts; mail sending uses mail settings from config service.
 E2E: A1–A7, D3, X1 (profile/admin parts).
 
-### T05 Server config, workflows admin & admin panel ◐
+### T05 Server config, workflows admin & admin panel ◐ (code complete on `worktree-agent-abae60ae3ae8457c1`; D2 E2E xfail until T03's admin job endpoints)
 Owned: `admin_panel/`, `workflows/` except `definition.py` and public endpoints, `core/` pages/navbar
 views, `frontend/src/views/admin/**` except AdminUsersView, `frontend/src/components/layout/`,
 `frontend/src/views/public/{Home,StaticPage}View.vue`, `frontend/src/stores/server.js`,
@@ -167,6 +167,20 @@ upload size limits, `docs/` rewritten (admin guide, workflow YAML reference, dep
   Results: `manage.py test` 270 OK, `npx vitest run` 106 OK, `npm run build` OK, E2E see the T03
   report. Issues closed: J1–J11, W2, F1–F4, K2, K3 (W4 partly: admin editing of the Nextflow files
   is T05's).
+- 2026-09-20 T05 (branch `worktree-agent-abae60ae3ae8457c1`): workflow registry
+  (`workflows/registry.py`: settings.yaml `apps[]` → `Workflow` cache rows; install by path
+  (reference in place, `--copy` optional), uninstall, reload, access, per-app Nextflow settings;
+  adapter to T03's `definition.load_definition` with a built-in fallback validator; lazy sync
+  middleware + `sync_workflows` / `install_workflow` commands; unknown group names ignored with a
+  warning and pruned when a Group is deleted). Public `GET /api/server` + `/api/pages/{slug}`;
+  admin dashboard/queue/maintenance, settings general|mail(+test)|nextflow|navbar, pages CRUD,
+  logs, workflows API. `SystemLog` DB log handler for `cloudgene.*` (SPEC §3.8) + `cleanup_logs`.
+  SPA: server store from `/api/server`, YAML navbar, footer, maintenance banner, Home/StaticPage,
+  all admin views rewritten (dashboard controls, jobs filters, workflows, pages editor, logs),
+  admin keeps the top navbar, sidebar only links real routes. Removed `ServerSettings`, `Template`,
+  `NavbarItem`, `Counter*`, `config_loader`, `load_sample_workflow`, `WorkflowGroupModal`,
+  `TemplateEditorView`. Issues W1, W3, C1–C7, F7 fixed; W4 partly (variable list/values; export →
+  T03). Results: `manage.py test` 244 OK, vitest 152 OK, `npm run build` OK, `pytest e2e` see report.
 - 2026-09-19 T04 (branch `worktree-agent-a6b97498ae34ab06e`): case-insensitive unique
   username/e-mail with `Lower()` constraints + normalisation (migration 0003 aborts listing
   existing duplicates; drops `UserGroup`/`UserToken`/unused fields); shared validation rules
@@ -194,4 +208,11 @@ upload size limits, `docs/` rewritten (admin guide, workflow YAML reference, dep
   `workflow`/`name` (T03), WebSocket console errors on job page (T03, J6), legacy loader rejects §4
   types (T05, W2), escaped description HTML on home cards (T05), dashboard counts "-" (T05, C5), admin
   users Groups column empty (T04, A1), reset reveals account existence (T04, A5).
+- 2026-09-20: T04 merged and re-verified by orchestrator: 230 Django + 114 vitest + e2e 61 passed /
+  7 xfailed / 1 skipped. One e2e failure found on re-run (test_a3_lockout) was a host-speed problem,
+  not an app bug: PBKDF2 costs ~3 s per check here, longer than the test's 3 s lockout window, so the
+  lock expired during the login it should have blocked. Fixed in e80c5ad by an opt-in
+  `INSECURE_FAST_PASSWORD_HASHING` env switch used only by the E2E stack (`E2E_REAL_HASHING=1`
+  restores the production hasher). NOTE for T09: ~3 s per login on this class of host is a real
+  production concern — review hasher/iterations and consider caching.
 

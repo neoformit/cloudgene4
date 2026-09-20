@@ -97,37 +97,3 @@ class WorkflowSerializer(serializers.ModelSerializer):
     def get_max_upload_mb(self, obj) -> int:
         from core import config as cloudgene_config
         return int(cloudgene_config.get('server.max_upload_mb', 1024) or 1024)
-
-
-class WorkflowSettingsSerializer(serializers.ModelSerializer):
-    """
-    Serializer for admin workflow settings, including Nextflow configuration
-    """
-    category_name = serializers.CharField(source='category.name', read_only=True)
-    allowed_groups = serializers.StringRelatedField(many=True, read_only=True)
-    allowed_group_names = serializers.ListField(
-        child=serializers.CharField(), write_only=True, required=False,
-        help_text="List of group names to assign to this workflow"
-    )
-    
-    class Meta:
-        model = Workflow
-        fields = ['id', 'name', 'description', 'version', 'website', 'category_name',
-                 'status', 'public', 'created_at', 'updated_at', 'allowed_groups', 'allowed_group_names',
-                 'nextflow_profile', 'working_directory', 'env_vars', 'nextflow_config']
-        read_only_fields = ['id', 'created_at', 'updated_at', 'category_name', 'allowed_groups']
-    
-    def update(self, instance, validated_data):
-        # Handle allowed_group_names separately
-        group_names = validated_data.pop('allowed_group_names', None)
-        
-        # Update other fields
-        instance = super().update(instance, validated_data)
-        
-        # Update group membership if provided
-        if group_names is not None:
-            from django.contrib.auth.models import Group
-            groups = Group.objects.filter(name__in=group_names)
-            instance.allowed_groups.set(groups)
-        
-        return instance

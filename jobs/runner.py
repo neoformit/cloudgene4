@@ -38,6 +38,24 @@ timeline {{
 """
 
 
+def _app_files(app_id: str):
+    """Per-app Nextflow files from the registry (falls back to the app dir)."""
+    try:
+        from workflows import registry
+        settings = registry.get_nextflow_settings(app_id)
+        return Path(settings['config_path']), Path(settings['env_path'])
+    except Exception:  # registry not available / unknown app
+        return None, None
+
+
+def app_config_path(app_id: str, app_dir: Path) -> Path:
+    return _app_files(app_id)[0] or app_dir / 'nextflow.config'
+
+
+def app_env_path(app_id: str, app_dir: Path) -> Path:
+    return _app_files(app_id)[1] or app_dir / 'nextflow.env'
+
+
 @dataclass
 class PreparedStep:
     command: list
@@ -94,29 +112,28 @@ def build_env(job, definition: WorkflowDefinition, app_dir: Path, base_env=None)
     path = env.get('PATH', '/usr/bin:/bin')
     if '/usr/local/bin' not in path.split(':'):
         env['PATH'] = path + ':/usr/local/bin'
-    for env_file in (cloudgene_config.nextflow_env_path(), app_dir / 'nextflow.env'):
+    for env_file in (cloudgene_config.nextflow_env_path(), app_env_path(definition.id, app_dir)):
         text = cloudgene_config.read_text(env_file) if env_file.is_file() else ''
         for key, value in cloudgene_config.parse_env(text).items():
             env[key] = _expand(value, env)
-    user = job.user
-    full_name = getattr(user, 'full_name', '') or ''
-    if not full_name and hasattr(user, 'get_full_name'):
-        full_name = user.get_full_name() or ''
-    env.update({
-        'CLOUDGENE_JOB_ID': str(job.id),
-        'CLOUDGENE_JOB_NAME': job.name or '',
-        'CLOUDGENE_USER_NAME': user.get_username(),
-        'CLOUDGENE_USER_EMAIL': user.email or '',
-        'CLOUDGENE_USER_FULL_NAME': full_name,
-        'CLOUDGENE_APP_ID': definition.id or job.app_id,
-        'CLOUDGENE_APP_VERSION': definition.version or job.app_version or '',
-        'CLOUDGENE_APP_LOCATION': str(app_dir),
-        'CLOUDGENE_SERVICE_NAME': cloudgene_config.get('server.name', 'Cloudgene') or '',
-        'CLOUDGENE_SERVICE_URL': cloudgene_config.get('server.url', '') or '',
-        'CLOUDGENE_CONTACT_EMAIL': cloudgene_config.get('mail.from_email', '') or '',
-        'NXF_ANSI_LOG': 'false',
-    })
+    env.update(cloudgene_variables(job, definition, app_dir))
+    env['NXF_ANSI_LOG'] = 'false'
     return env
+
+
+def cloudgene_variables(job, definition: WorkflowDefinition, app_dir: Path) -> dict:
+    """``CLOUDGENE_*`` variables for one job (W4). The names/scopes are owned by
+    ``workflows.template_utils.VARIABLES`` (admin UI); the job-specific values come from here."""
+    from workflows.template_utils import cloudgene_variables as base
+
+    class _App:                     # the snapshot of the app this job was submitted with
+        id = definition.id or job.app_id
+        name = definition.name or job.app_name
+        version = definition.version or job.app_version or ''
+        app_location = str(app_dir)
+
+    values = base(workflow=_App, job=job, user=job.user)
+    return {k: str(v) for k, v in values.items()}
 
 
 def work_dir_for(job, configured: str) -> Path:
@@ -156,7 +173,7 @@ def prepare_step(job, definition: WorkflowDefinition, index: int, *, binary: str
     if step.revision:
         cmd += ['-r', step.revision]
     cmd += ['-params-file', str(params_path)]
-    for cfg in (cloudgene_config.nextflow_config_path(), app_dir / 'nextflow.config'):
+    for cfg in (cloudgene_config.nextflow_config_path(), app_config_path(definition.id, app_dir)):
         if cfg.is_file():
             cmd += ['-c', str(cfg)]
     cmd += ['-c', str(cg_config)]

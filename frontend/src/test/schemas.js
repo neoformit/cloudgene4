@@ -156,13 +156,24 @@ const JOB_STATE = { type: 'string', enum: ['waiting', 'running', 'success', 'fai
 // GET /api/jobs/ items (JobListSerializer)
 export const jobListItemSchema = {
   type: 'object',
-  required: ['id', 'name', 'state', 'workflow_id', 'workflow_name', 'workflow_version', 'user',
-    'submitted_at', 'started_at', 'finished_at', 'duration_seconds', 'queue_position',
-    'cancel_requested', 'expires_at', 'can_cancel', 'can_delete', 'can_restart'],
+  required: ['id', 'name', 'state', 'workflow', 'user', 'workflow_id', 'workflow_name',
+    'workflow_version', 'user_username', 'submitted_at', 'started_at', 'finished_at',
+    'duration_seconds', 'queue_position', 'cancel_requested', 'expires_at', 'can_cancel',
+    'can_delete', 'can_restart'],
   properties: {
     id: { type: 'string' },
     name: { type: 'string' },
     state: JOB_STATE,
+    workflow: {
+      type: 'object',
+      required: ['id', 'name', 'version'],
+      properties: { id: { type: 'string' }, name: { type: 'string' }, version: { type: 'string' } },
+    },
+    user: {
+      type: 'object',
+      required: ['id', 'username'],
+      properties: { id: { type: 'integer' }, username: { type: 'string' } },
+    },
     queue_position: { type: ['integer', 'null'] },
     can_cancel: { type: 'boolean' },
     can_delete: { type: 'boolean' },

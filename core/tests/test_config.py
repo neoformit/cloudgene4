@@ -140,7 +140,8 @@ class ConfigWriteTest(TempHomeMixin, SimpleTestCase):
             doc['apps'].append({'path': 'hello', 'groups': ['g']})
         config.update_settings(add_app)
         self.assertEqual(config.get('apps'),
-                         [{'path': 'hello', 'groups': ['g'], 'enabled': True, 'public': False}])
+                         [{'path': 'hello', 'groups': ['g'], 'enabled': True, 'public': False,
+                          'profile': '', 'work_dir': ''}])
 
     def test_save_is_atomic_no_temp_files_left(self):
         config.save_settings({'server': {'name': 'Z'}})

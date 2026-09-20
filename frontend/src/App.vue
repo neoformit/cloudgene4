@@ -1,23 +1,28 @@
 <script setup>
-import { onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { onMounted, watch } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 import { useServerStore } from '@/stores/server'
 import AppNavbar from '@/components/layout/AppNavbar.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
+import MaintenanceBanner from '@/components/layout/MaintenanceBanner.vue'
 
-const route = useRoute()
-const serverStore = useServerStore()
+const auth = useAuthStore()
+const server = useServerStore()
 
-onMounted(() => serverStore.load())
+onMounted(() => server.load())
+
+// The navbar returned by /api/server is filtered for the viewer: refresh on login/logout.
+watch(
+  () => auth.user?.id ?? null,
+  (now, before) => {
+    if (now !== before) server.load(true)
+  }
+)
 </script>
 
 <template>
-  <template v-if="route.path.startsWith('/admin')">
-    <RouterView />
-  </template>
-  <template v-else>
-    <AppNavbar />
-    <RouterView />
-    <AppFooter />
-  </template>
+  <AppNavbar />
+  <MaintenanceBanner />
+  <RouterView />
+  <AppFooter />
 </template>

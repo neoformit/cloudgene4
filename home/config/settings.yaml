@@ -39,10 +39,20 @@ nextflow:
 
 # Extra navbar entries, in this order.
 navbar:
+  - title: Home
+    url: /
+    icon: home
+  - title: My Jobs
+    url: /jobs
+    icon: tasks
+    auth_only: true           # hidden for anonymous visitors (admin_only: true = admins only)
   - title: About
     url: /pages/about
     icon: info-circle
 
-# Installed workflows. path: app dir (or its cloudgene.yaml), relative to
-# $CLOUDGENE_HOME/apps or absolute. groups: groups allowed to run it.
+# Installed workflows (the workflow registry, SPEC §3.2). path: app dir (or its
+# cloudgene.yaml), relative to $CLOUDGENE_HOME/apps (then $CLOUDGENE_HOME) or absolute.
+# enabled/public/groups: access; profile/work_dir: per-app Nextflow overrides.
+# Install with `manage.py install_workflow <path>` or Admin → Workflows; after hand edits the
+# next API request (or `manage.py sync_workflows`) re-syncs.
 apps: []

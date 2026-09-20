@@ -14,7 +14,7 @@ from django.test.utils import override_settings
 from django.contrib.auth.models import Group
 
 from core import config as cloudgene_config
-from jobs.management.commands.install_workflow import install_workflow
+from workflows import registry
 
 User = get_user_model()
 
@@ -119,7 +119,8 @@ def make_app(app_id, yaml_text=None, *, mode='success', name=None, public=True, 
     (app / 'main.nf').write_text('// fake\n')
     for rel, content in (files or {}).items():
         (app / rel).write_text(content)
-    return install_workflow(app, public=public, groups=groups, enabled=enabled)
+    return registry.install(str(app), public=public, groups=list(groups), enabled=enabled,
+                            replace=True)
 
 
 def make_user(username, admin=False, groups=(), password='Passw0rd1'):

@@ -112,6 +112,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'workflows.middleware.WorkflowSyncMiddleware',  # T05: lazy registry sync on /api/
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -148,6 +149,11 @@ if DATABASES['default']['ENGINE'] == 'django.db.backends.sqlite3':
     # Web and worker share the DB file; wait for locks instead of failing.
     DATABASES['default'].setdefault('OPTIONS', {}).setdefault('timeout', 20)
 
+
+# Test-only escape hatch: PBKDF2 costs ~3 s per check on small hosts, which slows the E2E
+# suite and makes short lockout windows untestable. Never set this outside a test stack.
+if os.environ.get('INSECURE_FAST_PASSWORD_HASHING') == '1':
+    PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
@@ -258,6 +264,12 @@ LOGGING = {
         'console': {
             'class': 'logging.StreamHandler',
             'formatter': 'standard',
+            'level': LOG_LEVEL,
+        },
+        # T05: cloudgene.* records at INFO+ → SystemLog (Admin → Logs), SPEC §3.8
+        'db': {
+            'class': 'admin_panel.logging.DatabaseLogHandler',
+            'level': 'INFO',
         },
     },
     'root': {
@@ -267,6 +279,7 @@ LOGGING = {
     'loggers': {
         'django': {'handlers': ['console'], 'level': LOG_LEVEL, 'propagate': False},
         'django.db.backends': {'level': 'INFO'},
+        'cloudgene': {'handlers': ['console', 'db'], 'level': 'INFO', 'propagate': False},
     },
 }
 

@@ -40,46 +40,24 @@ def seed_users():
 
 
 def seed_workflows():
-    """Make sure every fixture app from settings.yaml is installed as a Workflow row.
-
-    Target behaviour (T05): the workflow registry syncs `apps:` from settings.yaml into the DB on
-    start-up, so this function finds every row already present and does nothing.
-    """
-    from django.apps import apps as django_apps
+    """Sync the workflow registry from settings.yaml `apps:` (same as `manage.py sync_workflows`,
+    which the web process also does lazily on API requests) and fail loudly if a fixture app is
+    invalid or missing."""
+    from workflows import registry
 
     from e2e.constants import APPS
 
-    Workflow = django_apps.get_model('workflows', 'Workflow')
-    missing = [a for a in APPS if not Workflow.objects.filter(pk=a).exists()]
-    if not missing:
-        print('workflows already installed by the registry: %s' % ', '.join(APPS))
-        return
-    _legacy_load_workflows(missing)
-
-
-# TODO remove after T05 ------------------------------------------------------------------------
-def _legacy_load_workflows(app_ids):
-    """Fallback until the T05 registry syncs `apps:`: install each app with T03's
-    `manage.py install_workflow` (validates the definition with workflows.definition)."""
-    import io
-
-    from django.conf import settings
-    from django.core.management import call_command
-
-    from e2e.constants import APPS
-
-    home = Path(settings.CLOUDGENE_HOME)
-    for app_id in app_ids:
-        rules = APPS[app_id]
-        args = [str(home / 'apps' / app_id)]
-        if rules['public']:
-            args.append('--public')
-        for g in rules['groups']:
-            args += ['--group', g]
-        out = io.StringIO()
-        call_command('install_workflow', *args, stdout=out)
-        print('FALLBACK install_workflow: %s' % out.getvalue().strip())
-# end TODO remove after T05 --------------------------------------------------------------------
+    statuses = {s.id: s for s in registry.sync_all()}
+    problems = []
+    for app_id in APPS:
+        st = statuses.get(app_id)
+        if st is None:
+            problems.append('%s: not listed in settings.yaml apps[]' % app_id)
+        elif not st.valid:
+            problems.append('%s: invalid: %s' % (app_id, '; '.join(st.errors)))
+    if problems:
+        raise SystemExit('workflow registry sync failed:\n  ' + '\n  '.join(problems))
+    print('workflows synced by the registry: %s' % ', '.join(APPS))
 
 
 def main(argv):

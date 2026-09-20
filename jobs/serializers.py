@@ -61,12 +61,26 @@ class JobInputSerializer(serializers.Serializer):
     files = serializers.ListField(child=serializers.DictField(), help_text='[{name, size}] for uploads')
 
 
+class JobWorkflowSerializer(serializers.Serializer):
+    id = serializers.CharField()
+    name = serializers.CharField()
+    version = serializers.CharField()
+
+
+class JobUserSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    username = serializers.CharField()
+
+
 class JobListSerializer(serializers.ModelSerializer):
     state = serializers.CharField(source='status', help_text='waiting|running|success|failed|cancelled')
+    workflow = serializers.SerializerMethodField()
+    user = serializers.SerializerMethodField()
+    # flat aliases (kept for links and simple tables)
     workflow_id = serializers.CharField(source='app_id')
     workflow_name = serializers.CharField(source='app_name')
     workflow_version = serializers.CharField(source='app_version')
-    user = serializers.CharField(source='user.username')
+    user_username = serializers.CharField(source='user.username')
     user_id = serializers.IntegerField()
     queue_position = serializers.SerializerMethodField()
     duration_seconds = serializers.SerializerMethodField()
@@ -77,11 +91,23 @@ class JobListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Job
-        fields = ['id', 'name', 'state', 'workflow_id', 'workflow_name', 'workflow_version',
-                  'user', 'user_id', 'submitted_at', 'started_at', 'finished_at',
+        fields = ['id', 'name', 'state', 'workflow', 'user', 'workflow_id', 'workflow_name',
+                  'workflow_version', 'user_username', 'user_id',
+                  'submitted_at', 'started_at', 'finished_at',
                   'duration_seconds', 'queue_position', 'cancel_requested', 'expires_at',
                   'purged_at', 'can_cancel', 'can_delete', 'can_restart']
         read_only_fields = fields
+
+    @extend_schema_field(JobWorkflowSerializer)
+    def get_workflow(self, obj):
+        row = obj.workflow if obj.workflow_id else None
+        return {'id': obj.app_id or (row.id if row else ''),
+                'name': obj.app_name or (row.name if row else ''),
+                'version': obj.app_version or (row.version if row else '')}
+
+    @extend_schema_field(JobUserSerializer)
+    def get_user(self, obj):
+        return {'id': obj.user_id, 'username': obj.user.username}
 
     def get_queue_position(self, obj) -> int | None:
         return obj.queue_position()

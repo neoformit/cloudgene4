@@ -72,7 +72,18 @@ makes it an admin (`is_staff`, `is_superuser`, group `admin`).
 * **Application settings** live in `$CLOUDGENE_HOME/config/settings.yaml` (server name, queue
   limits, maintenance, mail, Nextflow, navbar, installed apps). Read/write only through
   `core.config`; admins edit them in the UI. Key reference: SPEC §3.2.
-* **Pages**: `$CLOUDGENE_HOME/pages/<slug>.html` (`home`, `footer`, `about`, …).
+* **Pages**: `$CLOUDGENE_HOME/pages/<slug>.html` (`home`, `footer`, `about`, …), editable in
+  Admin → Pages; every page is served at `/pages/<slug>`.
+* **Workflows** are directories with a `cloudgene.yaml` (SPEC §4) listed in `settings.yaml`
+  `apps:`. Install one from the admin panel or the CLI:
+
+  ```bash
+  python manage.py install_workflow /path/to/app [--public] [--groups researchers,staff] [--copy]
+  python manage.py sync_workflows          # re-read settings.yaml apps[] (also done lazily)
+  ```
+
+  Access (`enabled`, `public`, `groups`) and the per-app Nextflow `profile`/`work_dir` live in
+  `apps[]`; per-app `nextflow.config`/`nextflow.env` in `$CLOUDGENE_HOME/apps/<id>/`.
 
 ### Auth for API clients
 

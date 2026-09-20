@@ -246,7 +246,7 @@ class JobLifecycleApiTest(ApiTestBase):
         listing = c.get('/api/jobs/').json()
         self.assertEqual(listing['count'], 1)
         item = listing['results'][0]
-        self.assertEqual((item['name'], item['state'], item['workflow_id'], item['user']),
+        self.assertEqual((item['name'], item['state'], item['workflow_id'], item['user']['username']),
                          ('my job ✓', 'success', 'hello', 'alice'))
         self.assertTrue(item['can_delete'])
         self.assertIsNotNone(item['expires_at'])
@@ -432,21 +432,3 @@ class CleanupCommandTest(ApiTestBase):
             self.bob.delete()
         self.assertFalse(Job.objects.filter(pk=job.pk).exists())
         self.assertFalse(ws.exists())
-
-
-class InstallWorkflowCommandTest(ApiTestBase):
-    def test_install_and_invalid(self):
-        from django.core.management.base import CommandError
-        app = cloudgene_config.apps_dir() / 'broken'
-        app.mkdir(parents=True)
-        (app / 'cloudgene.yaml').write_text('id: broken\nname: B\nworkflow:\n  steps: []\n')
-        with self.assertRaises(CommandError):
-            call_command('install_workflow', 'broken', stdout=open(os.devnull, 'w'))
-        (app / 'cloudgene.yaml').write_text('id: broken\nname: B\nworkflow:\n  steps: [{script: main.nf}]\n')
-        call_command('install_workflow', 'broken', '--group', 'researchers', stdout=open(os.devnull, 'w'))
-        from workflows.models import Workflow
-        wf = Workflow.objects.get(pk='broken')
-        self.assertFalse(wf.public)
-        self.assertEqual(list(wf.allowed_groups.values_list('name', flat=True)), ['researchers'])
-        from jobs import workflow_bridge
-        self.assertEqual(workflow_bridge.app_dir(wf), app.resolve())
