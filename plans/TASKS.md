@@ -86,7 +86,7 @@ state rename + data migration, submission with uploads, outputs & authenticated 
 frontend polling, dynamic form for all SPEC §4 input types with client validation and field errors.
 E2E: W2, J1–J7, Q1–Q5, X1 (jobs parts).
 
-### T04 Accounts, profile & user admin ◐
+### T04 Accounts, profile & user admin ☑ (merged 1dbe4d6)
 Owned: `accounts/`, `frontend/src/views/public/{Register,Activate,Login,PasswordReset,PasswordRecovery,Profile}View.vue`,
 `frontend/src/views/admin/AdminUsersView.vue`, `frontend/src/components/admin/Group*.vue`,
 `frontend/src/api/users.js`, `frontend/src/api/auth.js` (non-T01 parts).
@@ -179,4 +179,11 @@ upload size limits, `docs/` rewritten (admin guide, workflow YAML reference, dep
   `workflow`/`name` (T03), WebSocket console errors on job page (T03, J6), legacy loader rejects §4
   types (T05, W2), escaped description HTML on home cards (T05), dashboard counts "-" (T05, C5), admin
   users Groups column empty (T04, A1), reset reveals account existence (T04, A5).
+- 2026-09-20: T04 merged and re-verified by orchestrator: 230 Django + 114 vitest + e2e 61 passed /
+  7 xfailed / 1 skipped. One e2e failure found on re-run (test_a3_lockout) was a host-speed problem,
+  not an app bug: PBKDF2 costs ~3 s per check here, longer than the test's 3 s lockout window, so the
+  lock expired during the login it should have blocked. Fixed in e80c5ad by an opt-in
+  `INSECURE_FAST_PASSWORD_HASHING` env switch used only by the E2E stack (`E2E_REAL_HASHING=1`
+  restores the production hasher). NOTE for T09: ~3 s per login on this class of host is a real
+  production concern — review hasher/iterations and consider caching.
 
