@@ -1,29 +1,32 @@
 <script setup>
 import { ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { confirmPasswordReset } from '@/api/auth'
+import { apiErrorMessage, apiFieldErrors } from '@/api/client'
+import { firstFieldErrors, validatePassword } from '@/utils/validation'
 import AlertMessage from '@/components/common/AlertMessage.vue'
 
 const route = useRoute()
-const router = useRouter()
 
 const password = ref('')
 const confirmPassword = ref('')
 const error = ref('')
+const fieldError = ref('')
+const success = ref('')
 const loading = ref(false)
 
 async function submit() {
   error.value = ''
-  if (password.value !== confirmPassword.value) {
-    error.value = 'Passwords do not match.'
-    return
-  }
+  fieldError.value = validatePassword(password.value, confirmPassword.value) || ''
+  if (fieldError.value) return
   loading.value = true
   try {
-    await confirmPasswordReset(route.params.token, password.value)
-    router.push('/login')
+    const { data } = await confirmPasswordReset(route.params.token, password.value, confirmPassword.value)
+    success.value = data.message
   } catch (e) {
-    error.value = e.response?.data?.message || 'Password reset failed. The link may be expired.'
+    // invalid_token / expired_token → message; password rules → field error
+    fieldError.value = firstFieldErrors(apiFieldErrors(e)).password || ''
+    if (!fieldError.value) error.value = apiErrorMessage(e, 'Password reset failed.')
   } finally {
     loading.value = false
   }
@@ -35,8 +38,13 @@ async function submit() {
     <h2>Set New Password</h2>
     <br>
 
-    <form @submit.prevent="submit">
-      <AlertMessage :message="error" />
+    <div v-if="success" class="alert alert-success" data-testid="recover-success">
+      {{ success }} <RouterLink to="/login" data-testid="recover-login-link">Login now</RouterLink>.
+    </div>
+
+    <form v-else novalidate data-testid="recover-form" @submit.prevent="submit">
+      <AlertMessage :message="error" data-testid="recover-error" />
+      <p v-if="error"><RouterLink to="/reset-password">Request a new link</RouterLink></p>
 
       <div class="mb-3">
         <label for="new-password" class="form-label">New Password:</label>
@@ -44,9 +52,14 @@ async function submit() {
           id="new-password"
           v-model="password"
           type="password"
-          class="form-control col-sm-3"
-          required
+          autocomplete="new-password"
+          :class="['form-control', fieldError ? 'is-invalid' : '']"
+          data-testid="recover-password"
         />
+        <div class="invalid-feedback" data-testid="recover-password-error">{{ fieldError }}</div>
+        <div v-if="!fieldError" class="form-text">
+          At least six characters with a digit, a lower- and an upper-case letter.
+        </div>
       </div>
 
       <div class="mb-3">
@@ -55,12 +68,13 @@ async function submit() {
           id="confirm-password"
           v-model="confirmPassword"
           type="password"
-          class="form-control col-sm-3"
-          required
+          autocomplete="new-password"
+          class="form-control"
+          data-testid="recover-password-confirm"
         />
       </div>
 
-      <button class="btn btn-primary" type="submit" :disabled="loading">
+      <button class="btn btn-primary" type="submit" :disabled="loading" data-testid="recover-submit">
         <span v-if="loading" class="spinner-border spinner-border-sm me-1"></span>
         Set password
       </button>

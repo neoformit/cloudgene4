@@ -135,7 +135,7 @@ class AuthSessionTest(TestCase):
         token = self.csrf()
         r = self.client.post('/api/auth/login/', {'username': 'alice', 'password': 'bad'},
                              format='json', HTTP_X_CSRFTOKEN=token)
-        err = assert_envelope(self, r, 400, 'invalid')
+        err = assert_envelope(self, r, 400, 'invalid_credentials')
         self.assertEqual(err['message'], 'Invalid username or password.')
         r = self.client.post('/api/auth/login/', {'password': 'x'}, format='json',
                              HTTP_X_CSRFTOKEN=token)
@@ -148,7 +148,7 @@ class AuthSessionTest(TestCase):
         token = self.csrf()
         r = self.client.post('/api/auth/login/', {'username': 'alice', 'password': PASSWORD},
                              format='json', HTTP_X_CSRFTOKEN=token)
-        assert_envelope(self, r, 400)
+        assert_envelope(self, r, 403, 'account_inactive')
 
 
 class TokenAuthTest(TestCase):
@@ -203,7 +203,7 @@ class MiscRoutingTest(TestCase):
         for i in range(5):
             make_user(f'user{i}')
         client.force_authenticate(admin)
-        r = client.get('/api/users/?page_size=2')
+        r = client.get('/api/admin/users/?page_size=2')
         self.assertEqual(r.status_code, 200)
         self.assertEqual(len(r.json()['results']), 2)
         self.assertEqual(r.json()['count'], 6)

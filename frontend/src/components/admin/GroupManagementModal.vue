@@ -1,263 +1,191 @@
-<template>
-  <div class="modal fade" :class="{ show: show }" :style="{ display: show ? 'block' : 'none' }" @click="closeIfBackdrop">
-    <div class="modal-dialog modal-lg">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">
-            <i class="fas fa-users me-2"></i>
-            Group Management
-          </h5>
-          <button type="button" class="btn-close" @click="$emit('close')"></button>
-        </div>
-        
-        <div class="modal-body">
-          <AlertMessage :message="error" />
-          
-          <div v-if="success" class="alert alert-success">
-            {{ success }}
-          </div>
-          
-          <!-- Create New Group Section -->
-          <div class="card mb-4">
-            <div class="card-header">
-              <h6 class="mb-0">
-                <i class="fas fa-plus me-2"></i>
-                Create New Group
-              </h6>
-            </div>
-            <div class="card-body">
-              <form @submit.prevent="createGroup">
-                <div class="row">
-                  <div class="col-md-8">
-                    <input
-                      v-model="newGroupName"
-                      type="text"
-                      class="form-control"
-                      placeholder="Group name (e.g., researchers, admins)"
-                      :disabled="creating"
-                      required
-                    />
-                  </div>
-                  <div class="col-md-4">
-                    <button type="submit" class="btn btn-primary w-100" :disabled="creating || !newGroupName.trim()">
-                      <span v-if="creating" class="spinner-border spinner-border-sm me-2"></span>
-                      {{ creating ? 'Creating...' : 'Create Group' }}
-                    </button>
-                  </div>
-                </div>
-              </form>
-            </div>
-          </div>
-          
-          <!-- Existing Groups Section -->
-          <div class="card">
-            <div class="card-header">
-              <h6 class="mb-0">
-                <i class="fas fa-list me-2"></i>
-                Existing Groups
-              </h6>
-            </div>
-            <div class="card-body p-0" v-if="groups.length">
-              <div class="table-responsive">
-                <table class="table table-sm mb-0">
-                  <thead>
-                    <tr>
-                      <th>Group Name</th>
-                      <th class="text-center">Members</th>
-                      <th class="text-end">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="group in groups" :key="group.id">
-                      <td>
-                        <strong>{{ group.name }}</strong>
-                      </td>
-                      <td class="text-center">
-                        <span class="badge bg-primary">
-                          {{ getUserCount(group.name) }}
-                        </span>
-                      </td>
-                      <td class="text-end">
-                        <button
-                          class="btn btn-sm btn-outline-primary me-2"
-                          @click="viewGroupMembers(group)"
-                          title="View members"
-                        >
-                          <i class="fas fa-users"></i>
-                        </button>
-                        <button
-                          class="btn btn-sm btn-outline-danger"
-                          @click="confirmDeleteGroup = group"
-                          title="Delete group"
-                          :disabled="getUserCount(group.name) > 0"
-                        >
-                          <i class="fas fa-trash"></i>
-                        </button>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            <div v-else class="card-body text-center text-muted">
-              No groups created yet.
-            </div>
-          </div>
-        </div>
-        
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" @click="$emit('close')">
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-  
-  <!-- Group Members Modal -->
-  <GroupMembersModal 
-    v-if="selectedGroup"
-    :group="selectedGroup"
-    :users="users"
-    @close="selectedGroup = null"
-    @update="handleMembersUpdate"
-  />
-  
-  <!-- Delete Group Confirmation -->
-  <ConfirmDialog
-    v-if="confirmDeleteGroup"
-    title="Delete Group"
-    :message="`Are you sure you want to delete the group <b>${confirmDeleteGroup.name}</b>? This action cannot be undone.`"
-    confirm-text="Delete Group"
-    :loading="deleting"
-    @confirm="deleteGroup"
-    @cancel="confirmDeleteGroup = null"
-  />
-</template>
-
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { createGroup as createGroupApi, deleteGroup as deleteGroupApi, listGroups } from '@/api/users'
+import { ref, onMounted } from 'vue'
+import { createGroup, deleteGroup, listGroups } from '@/api/users'
+import { apiErrorMessage, apiFieldErrors } from '@/api/client'
+import { firstFieldErrors, validateGroupName } from '@/utils/validation'
 import AlertMessage from '@/components/common/AlertMessage.vue'
-import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import GroupMembersModal from './GroupMembersModal.vue'
 
-const props = defineProps({
-  show: {
-    type: Boolean,
-    default: false
-  },
-  users: {
-    type: Array,
-    default: () => []
-  },
-  initialGroups: {
-    type: Array,
-    default: () => []
-  }
+defineProps({
+  show: { type: Boolean, default: true },
 })
+const emit = defineEmits(['close', 'groups-updated'])
 
-const emit = defineEmits(['close', 'groupsUpdated'])
+const PROTECTED = 'admin'
 
-const groups = ref([...props.initialGroups])
+const groups = ref([])
+const loading = ref(true)
+const error = ref('')
+const nameError = ref('')
 const newGroupName = ref('')
 const creating = ref(false)
+const confirmDelete = ref(null)
 const deleting = ref(false)
-const error = ref('')
-const success = ref('')
 const selectedGroup = ref(null)
-const confirmDeleteGroup = ref(null)
 
-const getUserCount = (groupName) => {
-  return props.users.filter(user => 
-    (user.groups || []).includes(groupName)
-  ).length
-}
-
-const closeIfBackdrop = (event) => {
-  if (event.target === event.currentTarget) {
-    emit('close')
-  }
-}
-
-const refreshGroups = async () => {
+async function refresh() {
+  loading.value = true
   try {
-    const response = await listGroups()
-    groups.value = response.data.results || response.data || []
-  } catch (err) {
-    console.error('Failed to refresh groups:', err)
+    const { data } = await listGroups()
+    groups.value = data
+  } catch (e) {
+    error.value = apiErrorMessage(e, 'Could not load groups.')
+  } finally {
+    loading.value = false
   }
 }
 
-const createGroup = async () => {
-  if (!newGroupName.value.trim()) return
-  
-  creating.value = true
+onMounted(refresh)
+
+async function create() {
   error.value = ''
-  success.value = ''
-  
+  nameError.value = validateGroupName(newGroupName.value) || ''
+  if (nameError.value) return
+  creating.value = true
   try {
-    const response = await createGroupApi({
-      name: newGroupName.value.trim()
-    })
-    
-    groups.value.push(response.data)
+    await createGroup({ name: newGroupName.value.trim() })
     newGroupName.value = ''
-    success.value = `Group "${response.data.name}" created successfully`
-    emit('groupsUpdated')
-    
-    // Clear success message after 3 seconds
-    setTimeout(() => {
-      success.value = ''
-    }, 3000)
-  } catch (err) {
-    error.value = err.response?.data?.message || 'Failed to create group'
+    await refresh()
+    emit('groups-updated')
+  } catch (e) {
+    nameError.value = firstFieldErrors(apiFieldErrors(e)).name || ''
+    if (!nameError.value) error.value = apiErrorMessage(e, 'Creating the group failed.')
   } finally {
     creating.value = false
   }
 }
 
-const viewGroupMembers = (group) => {
-  selectedGroup.value = group
-}
-
-const deleteGroup = async () => {
-  if (!confirmDeleteGroup.value) return
-  
+async function doDelete() {
   deleting.value = true
   error.value = ''
-  
   try {
-    await deleteGroupApi(confirmDeleteGroup.value.id)
-    groups.value = groups.value.filter(g => g.id !== confirmDeleteGroup.value.id)
-    success.value = `Group "${confirmDeleteGroup.value.name}" deleted successfully`
-    emit('groupsUpdated')
-    
-    // Clear success message after 3 seconds
-    setTimeout(() => {
-      success.value = ''
-    }, 3000)
-  } catch (err) {
-    error.value = err.response?.data?.message || 'Failed to delete group'
+    await deleteGroup(confirmDelete.value.id)
+    confirmDelete.value = null
+    await refresh()
+    emit('groups-updated')
+  } catch (e) {
+    error.value = apiErrorMessage(e, 'Deleting the group failed.')
+    confirmDelete.value = null
   } finally {
     deleting.value = false
-    confirmDeleteGroup.value = null
   }
 }
 
-const handleMembersUpdate = () => {
-  emit('groupsUpdated')
+function membersChanged() {
+  refresh()
+  emit('groups-updated')
 }
-
-onMounted(() => {
-  if (props.show) {
-    refreshGroups()
-  }
-})
 </script>
 
-<style scoped>
-.modal.show {
-  background-color: rgba(0, 0, 0, 0.5);
-}
-</style>
+<template>
+  <div
+    class="modal d-block"
+    tabindex="-1"
+    style="background: rgba(0,0,0,0.5);"
+    data-testid="group-modal"
+    @click.self="emit('close')"
+  >
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-users me-2"></i>Groups</h5>
+          <button type="button" class="btn-close" aria-label="Close" data-testid="group-modal-close-x" @click="emit('close')"></button>
+        </div>
+
+        <div class="modal-body">
+          <p class="text-muted small">
+            Groups control which workflows a user may run. Administrator rights are managed with the
+            “Make admin” button in the user list, not through the <code>admin</code> group here.
+          </p>
+          <AlertMessage :message="error" data-testid="group-error" />
+
+          <form class="d-flex gap-2 mb-4" novalidate data-testid="group-create-form" @submit.prevent="create">
+            <div class="flex-grow-1">
+              <input
+                v-model="newGroupName"
+                type="text"
+                :class="['form-control', nameError ? 'is-invalid' : '']"
+                placeholder="New group name, e.g. researchers"
+                aria-label="New group name"
+                :disabled="creating"
+                data-testid="group-create-name"
+              />
+              <div class="invalid-feedback" data-testid="group-create-error">{{ nameError }}</div>
+            </div>
+            <div>
+              <button type="submit" class="btn btn-primary text-nowrap" :disabled="creating" data-testid="group-create-submit">
+                <span v-if="creating" class="spinner-border spinner-border-sm me-1"></span>
+                Create group
+              </button>
+            </div>
+          </form>
+
+          <div v-if="loading" class="text-muted">Loading…</div>
+          <table v-else-if="groups.length" class="table table-sm align-middle mb-0" data-testid="group-table">
+            <thead>
+              <tr>
+                <th>Group</th>
+                <th class="text-center">Members</th>
+                <th class="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="group in groups" :key="group.id" data-testid="group-row" :data-group="group.name">
+                <td><strong>{{ group.name }}</strong></td>
+                <td class="text-center">
+                  <span class="badge bg-primary" data-testid="group-member-count">{{ group.member_count }}</span>
+                </td>
+                <td class="text-end text-nowrap">
+                  <button
+                    class="btn btn-sm btn-outline-primary me-2"
+                    title="Members"
+                    :aria-label="`Members of ${group.name}`"
+                    data-testid="group-members"
+                    @click="selectedGroup = group"
+                  >
+                    <i class="fas fa-users"></i>
+                  </button>
+                  <button
+                    class="btn btn-sm btn-outline-danger"
+                    :title="group.name === PROTECTED ? 'The admin group cannot be deleted' : 'Delete group'"
+                    :aria-label="`Delete ${group.name}`"
+                    :disabled="group.name === PROTECTED"
+                    data-testid="group-delete"
+                    @click="confirmDelete = group"
+                  >
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div v-else class="text-center text-muted" data-testid="group-empty">No groups yet.</div>
+
+          <div v-if="confirmDelete" class="alert alert-danger mt-3" data-testid="group-delete-dialog">
+            Delete group <strong>{{ confirmDelete.name }}</strong>?
+            Its {{ confirmDelete.member_count }} member(s) lose access to workflows restricted to it.
+            <div class="mt-2">
+              <button class="btn btn-sm btn-danger me-2" :disabled="deleting" data-testid="group-delete-confirm" @click="doDelete">
+                Delete
+              </button>
+              <button class="btn btn-sm btn-secondary" :disabled="deleting" data-testid="group-delete-cancel" @click="confirmDelete = null">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-testid="group-modal-close" @click="emit('close')">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <GroupMembersModal
+    v-if="selectedGroup"
+    :group="selectedGroup"
+    @close="selectedGroup = null"
+    @members-changed="membersChanged"
+  />
+</template>

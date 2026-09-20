@@ -222,13 +222,14 @@ class PasswordResetContractTest(APITestCase):
         response_data = response.json()
         self.assertIn('email', response_data['error']['fields'])
     
-    def test_unknown_email_returns_400(self):
-        """Unknown email should return 400"""
-        data = {'email': 'unknown@example.com'}
-        
-        response = self.client.post('/api/auth/password-reset/', data, format='json')
-        
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+    def test_unknown_email_returns_same_200(self):
+        """Unknown email gets the same answer as a known one (no enumeration, A5)"""
+        known = self.client.post('/api/auth/password-reset/', {'email': 'test@example.com'},
+                                  format='json')
+        unknown = self.client.post('/api/auth/password-reset/', {'email': 'unknown@example.com'},
+                                   format='json')
+        self.assertEqual(unknown.status_code, status.HTTP_200_OK)
+        self.assertEqual(known.json(), unknown.json())
 
 
 class UserUpdateContractTest(APITestCase):
@@ -264,7 +265,8 @@ class UserUpdateContractTest(APITestCase):
             'email': 'updated@example.com'
         }
         
-        response = self.client.patch(f'/api/users/{self.user.id}/', data, format='json')
+        data['current_password'] = 'TestPass123!'  # e-mail change needs it
+        response = self.client.patch('/api/me/', data, format='json')
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         
@@ -273,15 +275,14 @@ class UserUpdateContractTest(APITestCase):
         self.assertEqual(self.user.full_name, 'Updated Name')
     
     def test_user_cannot_update_another_users_profile(self):
-        """User should not be able to update another user's profile"""
+        """Non-admins cannot reach the admin user endpoint"""
         self.client.force_authenticate(user=self.user)
         
         data = {'full_name': 'Hacked Name'}
         
-        response = self.client.patch(f'/api/users/{self.other_user.id}/', data, format='json')
-        
-        # 404 (not visible) is preferred over 403: does not reveal that the id exists
-        self.assertIn(response.status_code, [status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND])
+        response = self.client.patch(f'/api/admin/users/{self.other_user.id}/', data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.other_user.refresh_from_db()
         self.assertNotEqual(self.other_user.full_name, 'Hacked Name')
     
@@ -289,9 +290,9 @@ class UserUpdateContractTest(APITestCase):
         """Admin should be able to update any user"""
         self.client.force_authenticate(user=self.admin)
         
-        data = {'full_name': 'Admin Updated Name'}
-        
-        response = self.client.patch(f'/api/users/{self.other_user.id}/', data, format='json')
+        data = {'is_active': False}
+
+        response = self.client.patch(f'/api/admin/users/{self.other_user.id}/', data, format='json')
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
@@ -320,7 +321,7 @@ class GroupContractTest(APITestCase):
         
         data = {'name': 'test-group'}
         
-        response = self.client.post('/api/groups/', data, format='json')
+        response = self.client.post('/api/admin/groups/', data, format='json')
         
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         response_data = response.json()
@@ -336,7 +337,7 @@ class GroupContractTest(APITestCase):
         
         data = {}
         
-        response = self.client.post('/api/groups/', data, format='json')
+        response = self.client.post('/api/admin/groups/', data, format='json')
         
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         response_data = response.json()
@@ -348,6 +349,6 @@ class GroupContractTest(APITestCase):
         
         data = {'name': 'test-group'}
         
-        response = self.client.post('/api/groups/', data, format='json')
+        response = self.client.post('/api/admin/groups/', data, format='json')
         
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
