@@ -73,7 +73,7 @@ summary; fixture apps verified with Nextflow 26.04 (`/usr/local/bin/nextflow`).
 Each slice owns its backend **and** frontend so both sides of every contract are changed together, and
 writes the E2E scenarios listed.
 
-### T03 Jobs, execution & run form ◐
+### T03 Jobs, execution & run form ◐ (branch ready for review)
 Owned: `jobs/`, `workflows/definition.py` (new: YAML parsing/validation of a workflow, SPEC §4),
 public workflow endpoints (`workflows/views.py` public viewset + serializers for inputs/outputs),
 `frontend/src/views/public/{WorkflowSubmit,JobList,JobDetail}View.vue`, `frontend/src/components/{jobs,workflows}/`,
@@ -152,6 +152,21 @@ upload size limits, `docs/` rewritten (admin guide, workflow YAML reference, dep
 ---
 
 ## Log
+- 2026-09-20 T03 (branch `worktree-agent-aef1c0812f594f342`): jobs slice done. `workflows/definition.py`
+  (cloudgene.yaml parser/validator, SPEC §4 + Python API); job model rework + data migration
+  (`waiting/running/success/failed/cancelled`, `JobStep.processes`, `JobMessage`, `JobOutput`,
+  `cancel_requested`, `deleted_at`, `purged_at`; `JobValue`/`JobDownload` dropped, `jobs/tasks.py`
+  and `jobs/queue.py` removed); `manage.py run_worker` (single-instance lock, heartbeat, orphan
+  reconciliation, pause/maintenance from config, atomic claim, Nextflow per step in its own process
+  group, cancel SIGTERM→SIGKILL, graceful shutdown, `--once`); trace + stdout progress and
+  `::message::` annotations (stdout **and** task `.command.out`, de-duplicated); submission with
+  uploads/`writeFile`/typed params; outputs + authenticated downloads with traversal protection;
+  jobs API incl. `/status`, cancel, delete, log, admin list/cancel/restart; `cleanup_jobs` and
+  `install_workflow` commands; run form for every input type with client validation + field errors;
+  job list/detail with polling (no WebSocket code left); E2E W2, J1–J7, Q1–Q5, X1 (jobs).
+  Results: `manage.py test` 270 OK, `npx vitest run` 106 OK, `npm run build` OK, E2E see the T03
+  report. Issues closed: J1–J11, W2, F1–F4, K2, K3 (W4 partly: admin editing of the Nextflow files
+  is T05's).
 - 2026-09-19 T04 (branch `worktree-agent-a6b97498ae34ab06e`): case-insensitive unique
   username/e-mail with `Lower()` constraints + normalisation (migration 0003 aborts listing
   existing duplicates; drops `UserGroup`/`UserToken`/unused fields); shared validation rules

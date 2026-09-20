@@ -65,8 +65,12 @@ Test reality (the "tests pass" claim is false):
 service + default `CLOUDGENE_HOME` in `home/`; session+CSRF auth, error envelope, `/api/auth/me`,
 `/api/health`. `scripts/test.sh unit` = `manage.py check` + `makemigrations --check` +
 `manage.py test` (171 tests incl. the former contract tests and the schema-staleness test) +
-`npx vitest run` (56 tests, vitest 3.2 on vite 5) — all green. Jobs are accepted but stay `pending`
-until T03's worker exists.
+`npx vitest run` (56 tests, vitest 3.2 on vite 5) — all green.
+
+**After T03 (jobs, execution & run form):** jobs really run — `manage.py run_worker` schedules and
+executes Nextflow (§3.3), the run form is generated from `cloudgene.yaml` (§4) and the job page
+polls `/api/jobs/{id}/status`. K2 and K3 are fixed; `jobs/tasks.py`, `jobs/queue.py`, `JobValue`
+and `JobDownload` are gone.
 
 Status markers in the register: ✅ fixed · ◐ partially fixed (remaining work named).
 
@@ -77,17 +81,17 @@ IDs are referenced from `TASKS.md`. Sev: **B**locker / **H**igh / **M**edium / *
 **Execution & queue (jobs/)**
 | ID | Sev | Issue |
 |----|-----|-------|
-| J1 | B | Workflows are never actually executed with Nextflow. Steps are dispatched on `classname` substrings; the Cloudgene format (`script:`, `revision:`, `params:`) is ignored; `generate_nextflow_script` fabricates a dummy `main.nf`; unknown steps "succeed" as a Python placeholder. |
-| J2 | B | Queue not advanced after job completion (K2). No scheduler process. `start_job` sets `running` before the task is accepted; no orphan reconciliation. |
-| J3 | B | Uploaded files: `UploadedFile` objects are placed into `Job.parameters` (JSONField) → crash / never written to workspace. No per-input file/folder handling, no `writeFile`, no `serialize`. |
-| J4 | H | Queue config read from `queue.*` in YAML but server settings live under `server.*` (`max_jobs`, `max_queue_size`); pause flag written to YAML by web process, never read by the runner; maintenance mode not enforced on submission. |
-| J5 | H | Cancel: `celery revoke` does not kill the Nextflow process tree; status set to cancelled while process keeps running. |
-| J6 | H | No live progress: WebSocket requires Redis + ASGI server (neither running); step/task/message model not populated from Nextflow trace; frontend polls every 20 s as fallback. |
-| J7 | H | Job name spaces replaced with `_` (K3 hack); job name required in UI although optional in brief. |
-| J8 | M | Outputs: all files under `results/` become downloads; outputs from YAML (`download`, folder vs file) ignored; downloads expire after 7 days and workspace is `rmtree`'d 1 h after completion (results vanish). |
-| J9 | M | `restart` wipes logs and re-queues with no guard for workflow deletion/disable; semantics differ from Cloudgene (admin-only "retire/restart"). |
-| J10| M | Job delete not supported (Cloudgene allows users to delete finished jobs); job retention/cleanup policy undefined. |
-| J11| L | `JobValue`, `WorkflowExecution`, `queue_position` are unused/never maintained. |
+| J1 ✅ T03 | B | Workflows are never actually executed with Nextflow. Steps are dispatched on `classname` substrings; the Cloudgene format (`script:`, `revision:`, `params:`) is ignored; `generate_nextflow_script` fabricates a dummy `main.nf`; unknown steps "succeed" as a Python placeholder. |
+| J2 ✅ T03 | B | Queue not advanced after job completion (K2). No scheduler process. `start_job` sets `running` before the task is accepted; no orphan reconciliation. |
+| J3 ✅ T03 | B | Uploaded files: `UploadedFile` objects are placed into `Job.parameters` (JSONField) → crash / never written to workspace. No per-input file/folder handling, no `writeFile`, no `serialize`. |
+| J4 ✅ T03 (worker reads `server.*`/`queue.paused` every tick; maintenance enforced on submit) | H | Queue config read from `queue.*` in YAML but server settings live under `server.*` (`max_jobs`, `max_queue_size`); pause flag written to YAML by web process, never read by the runner; maintenance mode not enforced on submission. |
+| J5 ✅ T03 (process-group SIGTERM→SIGKILL) | H | Cancel: `celery revoke` does not kill the Nextflow process tree; status set to cancelled while process keeps running. |
+| J6 ✅ T03 (polling `/status`, trace + annotations) | H | No live progress: WebSocket requires Redis + ASGI server (neither running); step/task/message model not populated from Nextflow trace; frontend polls every 20 s as fallback. |
+| J7 ✅ T03 (K3) | H | Job name spaces replaced with `_` (K3 hack); job name required in UI although optional in brief. |
+| J8 ✅ T03 (YAML outputs, retention `cleanup_jobs`) | M | Outputs: all files under `results/` become downloads; outputs from YAML (`download`, folder vs file) ignored; downloads expire after 7 days and workspace is `rmtree`'d 1 h after completion (results vanish). |
+| J9 ✅ T03 (admin-only restart with guards) | M | `restart` wipes logs and re-queues with no guard for workflow deletion/disable; semantics differ from Cloudgene (admin-only "retire/restart"). |
+| J10 ✅ T03 | M | Job delete not supported (Cloudgene allows users to delete finished jobs); job retention/cleanup policy undefined. |
+| J11 ✅ T03 (`JobValue`/`JobDownload` dropped; `WorkflowExecution`/`WorkflowParameter` → T05) | L | `JobValue`, `WorkflowExecution`, `queue_position` are unused/never maintained. |
 
 **Accounts (accounts/)**
 | ID | Sev | Issue |
@@ -106,9 +110,9 @@ IDs are referenced from `TASKS.md`. Sev: **B**locker / **H**igh / **M**edium / *
 | ID | Sev | Issue |
 |----|-----|-------|
 | W1 | H | No workflow registry: brief requires installed workflows declared in YAML config; today only a `load_sample_workflow` command writes one DB row. No reload, no install from path. |
-| W2 | H | Parameter model loses YAML attributes (`label`, `help`, `min/max`, `writeFile`, `serialize`, `visible`, `details`, `accept`…). Input type set too small vs Cloudgene (`local-file`, `local-folder`, `app_list`, `separator`, `info`, `agb_checkbox`, `terms_checkbox`, `radio`, `binded_list`, `string`). `label` is populated from `description`. |
+| W2 ✅ T03 (`workflows/definition.py` + public API; the DB parameter table is gone) | H | Parameter model loses YAML attributes (`label`, `help`, `min/max`, `writeFile`, `serialize`, `visible`, `details`, `accept`…). Input type set too small vs Cloudgene (`local-file`, `local-folder`, `app_list`, `separator`, `info`, `agb_checkbox`, `terms_checkbox`, `radio`, `binded_list`, `string`). `label` is populated from `description`. |
 | W3 | M | Admin workflow list uses the public list endpoint (enabled-only), so disabled workflows vanish from admin. Status (enable/disable) not editable in UI. |
-| W4 | M | `template_utils` reads Django settings that don't exist; global Nextflow config/env not applied; per-job variables (`CLOUDGENE_JOB_ID`, `USER_*`) missing. |
+| W4 ◐ T03: global/app `nextflow.config`+`nextflow.env` and all `CLOUDGENE_*` job variables are applied by the worker; admin editing of those files → T05 | M | `template_utils` reads Django settings that don't exist; global Nextflow config/env not applied; per-job variables (`CLOUDGENE_JOB_ID`, `USER_*`) missing. |
 | W5 | L | Categories endpoint unused. |
 
 **Admin/config (admin_panel/, config)**
@@ -125,10 +129,10 @@ IDs are referenced from `TASKS.md`. Sev: **B**locker / **H**igh / **M**edium / *
 **Frontend ↔ API contract mismatches (examples, non-exhaustive)**
 | ID | Sev | Issue |
 |----|-----|-------|
-| F1 | H | Job detail/list use `job.username`, `job.workflow_id`; API returns `user_username`, `workflow_name`. |
-| F2 | H | Steps tab uses `step.state`, `step.messages[].type/text`; API has `status`, messages are job-level. |
-| F3 | H | Results tab reads `item.count`, `item.name`; API: `download_count`, `filename`. Download/log links unauthenticated (A2). |
-| F4 | M | Checkbox inputs default to `false` ignoring YAML default; unchecked checkbox not sent at all → backend "required" error. `number` sent as string. |
+| F1 ✅ T03 | H | Job detail/list use `job.username`, `job.workflow_id`; API returns `user_username`, `workflow_name`. |
+| F2 ✅ T03 | H | Steps tab uses `step.state`, `step.messages[].type/text`; API has `status`, messages are job-level. |
+| F3 ✅ T03 (session-authenticated download/log links) | H | Results tab reads `item.count`, `item.name`; API: `download_count`, `filename`. Download/log links unauthenticated (A2). |
+| F4 ✅ T03 | M | Checkbox inputs default to `false` ignoring YAML default; unchecked checkbox not sent at all → backend "required" error. `number` sent as string. |
 | F5 ✅ T01 (backend handler + `apiErrorMessage`; views migrate as slices touch them) | M | Error envelope inconsistent: backend returns `{message}`, `{error}`, `{detail}`, or field dicts; frontend guesses. |
 | F6 ✅ T01 | M | 401 interceptor hard-redirects to `/login` even for anonymous-allowed calls; `requiresAdmin` guard uses stale `localStorage` user. |
 | F7 | L | Admin sidebar/navbar link to routes that don't exist; admin layout hides public navbar entirely. |
@@ -227,33 +231,68 @@ by updating this section.
   `WorkflowExecution`, `JobValue` models (migration).
 
 ### 3.3 Job lifecycle & queue **[D]**
-States: `waiting` (queued) → `running` → `success` | `failed` | `cancelled`.
-(Rename from pending/completed; keep `pending` only as legacy alias in data migration.) Additional
-flag: `deleted` (soft) for user-deleted jobs.
+States: `waiting` (queued) → `running` → `success` | `failed` | `cancelled` (`Job.status` in the DB,
+`state` in the API). Legacy `pending`/`completed` were data-migrated (jobs `0003_job_rework`).
+Soft delete: `Job.deleted_at` (user-deleted jobs are hidden everywhere and their workspace removed);
+`Job.purged_at` marks a workspace removed by retention.
 
-- **Submit** (web): validate inputs against workflow definition; reject with 503 if maintenance mode
-  (admins exempt) or 429/409 if queue full; create Job(`waiting`), create workspace, save uploads to
-  `input/<param-id>/<filename>` (sanitised filename), store resolved parameter values (paths, not file
-  objects) in `Job.parameters`. Transaction-safe; on failure the workspace is removed.
-- **Worker loop** (every ~1 s): read config; if not paused, claim oldest `waiting` jobs up to
-  `max_running_jobs` using an atomic conditional UPDATE (`status=waiting → running`), spawn executor
-  (subprocess in its own process group), poll running executors, parse trace/stdout into steps,
-  finalise. On start-up: any `running` job with no live process → `failed` ("worker restarted").
-- **Execution** (per step in `workflow.steps`): Nextflow step = `nextflow run <script> [-r revision]
-  -params-file params.json -c global.config -c app.config [-profile p] -w work -with-trace
-  logs/trace.txt -with-report ... -log logs/nextflow.log` with env from `nextflow.env` files and
-  `CLOUDGENE_*` variables. Params = step `params` + serialisable inputs + output paths. Stdout
-  `::message::`, `::warning::`, `::error::`, `::group::`/`::endgroup::` annotations become job messages.
-  Unknown step types fail the job with a clear message (never silently "succeed").
-- **Progress**: trace file (tab-separated) parsed incrementally → per-process task counts
-  (submitted/running/completed/failed) shown as steps/tasks in the UI.
-- **Cancel**: `waiting` → `cancelled` immediately; `running` → worker sends SIGTERM to process group,
-  SIGKILL after grace period, then `cancelled`. Web only sets `cancel_requested=True`.
-- **Outputs**: for each YAML output with `download: true`, collect files under `output/<id>/` into
-  `JobOutput` rows (relative path, size). Downloads served by an authenticated streaming view with path
-  traversal protection. Retention: configurable `job_retention_days` (default 7) via a
-  `cleanup_jobs` command; UI shows expiry.
-- Job name (K3): free text, trimmed, ≤255, default generated. Never used in paths.
+- **Submit** (web, `jobs/submission.py`): `POST /api/jobs` multipart. Order of checks: workflow
+  exists + `can_access` (else 404) → enabled (409 `workflow_disabled`) → maintenance (503
+  `maintenance`, admins exempt) → queue full (429 `queue_full`, `max_queue_size: 0` = unlimited) →
+  definition parses (409 `workflow_invalid`) → job name (K3) → per-input validation (400 with
+  `fields`) → total upload size (413 `upload_too_large`). Then: workspace `jobs/<uuid>/`
+  (`input/ output/ logs/`), uploads written to `input/<param-id>/<sanitised name>` (ASCII, spaces →
+  `_`, de-duplicated; the original name is kept for display in `Job.uploads`), textarea `writeFile`
+  content to `input/<id>/<file>`, and a `waiting` Job row with the typed values in `Job.parameters`
+  (file values as paths relative to the workspace) plus a snapshot of the workflow YAML/app dir.
+  The workspace is removed if anything fails.
+- **Worker loop** (`manage.py run_worker`, ~1 s tick): heartbeat → read `settings.yaml` → reconcile
+  orphans (any `running` job this worker does not execute: its process group is killed if it still
+  belongs to the job, the job fails with "The worker was restarted…") → poll running executions
+  (stdout/trace progress, cancellation, exit) → cancel `waiting` jobs flagged for cancellation →
+  unless `queue.paused`, claim the oldest `waiting` jobs (atomic `status=waiting → running` UPDATE)
+  up to `server.max_running_jobs` and launch them. One instance per `CLOUDGENE_HOME` (`fcntl` lock
+  on `config/worker.lock`); SIGTERM/SIGINT stop it gracefully (running jobs are terminated and
+  marked failed); `--once` drains the queue and exits (tests).
+- **Execution** (`jobs/runner.py`, one step at a time, each a subprocess in its own process group):
+  `nextflow -log logs/[stepN-]nextflow.log run <script> [-r rev] -params-file [stepN-]params.json
+  -c <global nextflow.config> -c <app nextflow.config> -c <job>/cloudgene.config [-profile p]
+  -w <work> -with-trace logs/[stepN-]trace.txt -with-report … -with-timeline … -ansi-log false`,
+  cwd = the job workspace, stdout+stderr appended to `logs/stdout.txt`. `cloudgene.config` is
+  generated per job (trace fields incl. `process`/`workdir`, `overwrite = true`). `script` is
+  resolved against the app dir; if no such file exists it is passed through as a remote pipeline
+  name. Environment: the worker's env + `config/nextflow.env` + `apps/<id>/nextflow.env`
+  (`KEY=VALUE`, `${VAR}` expanded) + `CLOUDGENE_JOB_ID`, `CLOUDGENE_JOB_NAME`, `CLOUDGENE_USER_NAME`,
+  `CLOUDGENE_USER_EMAIL`, `CLOUDGENE_USER_FULL_NAME`, `CLOUDGENE_APP_ID`, `CLOUDGENE_APP_VERSION`,
+  `CLOUDGENE_APP_LOCATION`, `CLOUDGENE_SERVICE_NAME`, `CLOUDGENE_SERVICE_URL`,
+  `CLOUDGENE_CONTACT_EMAIL`. `params.json` = step `params` + serialisable inputs (numbers as
+  numbers, checkbox as its mapped value or bool, files/folders/`writeFile` as absolute paths) +
+  each serialisable output as `<job>/output/<output id>`. Steps that are not Nextflow steps
+  (`classname:`, `cmd:`, other `type:`) fail the job with the parser's message.
+- **Progress**: stdout task lines (`[PROCESS ab/123456] NAME (1)` / `… Submitted process > …`) and
+  the trace file (read incrementally) give per-process counts `{name, label, submitted, running,
+  completed, failed, total}` stored on `JobStep.processes`. Annotations `::message::`, `::notice::`,
+  `::warning::`, `::error::`, `::group type=…::`/`::endgroup::` become `JobMessage` rows (levels
+  `info|success|warning|error`); they are read from the Nextflow stdout **and** from each finished
+  task's `cloudgene.out`/`.command.out`, de-duplicated between the two sources. `::debug::`,
+  `::log::` and counter commands are ignored.
+- **Cancel**: the web process sets `cancel_requested` (a `waiting` job is cancelled immediately in
+  the same request). The worker sends SIGTERM to the process group, SIGKILL after a 10 s grace
+  period, then marks the job `cancelled`.
+- **Outputs**: after a run, every output with `download: true` is listed into `JobOutput` rows
+  (`output_id`, `path` relative to `output/`, `size`); symlinks are followed only inside the job
+  workspace and its work dir. Downloads are streamed by an authenticated view; paths come from the
+  DB and are re-validated (no `..`, no absolute paths, must resolve inside the job).
+- **Delete / retention**: users delete finished jobs (soft delete + workspace removed); deleting a
+  Job row (e.g. user deletion) removes the workspace via a `post_delete` signal; `manage.py
+  cleanup_jobs` removes workspaces of jobs finished more than `server.job_retention_days` ago
+  (0 = keep) and orphan workspace dirs without a Job row (older than 1 h). `expires_at` in the API
+  is `finished_at + job_retention_days`.
+- **Restart** (admin only): a `failed`/`cancelled` job with an intact workspace is re-queued with
+  the same inputs; steps/messages/outputs and `output/ logs/ work/` are reset and the **current**
+  workflow definition is snapshotted again. 409 if the workflow is gone or disabled.
+- Job name (K3): free text, trimmed, ≤255, control characters stripped, default
+  `<workflow name> <YYYY-MM-DD HH:MM>`. Never used in a path or command line.
 
 ### 3.4 Authentication **[D]**
 - SPA uses **Django session auth + CSRF** (cookie `csrftoken`, header `X-CSRFToken`). This makes
@@ -341,14 +380,14 @@ Server    GET /api/server  → {name, maintenance, maintenance_message, navbar[]
           GET /api/pages/{slug} → {slug, html}  (public; home, about, …)
 Workflows GET /api/workflows  GET /api/workflows/{id}  (id, name, version, description, website,
           category, inputs[] with full typed schema, outputs[])
-Jobs      GET /api/jobs?state=&page=   POST /api/jobs (multipart: workflow, name, <input ids>)
+Jobs      GET /api/jobs?state=&page=   POST /api/jobs (multipart: workflow, job_name, <input ids>)
           GET /api/jobs/{id}  GET /api/jobs/{id}/status (light, for polling)
           POST /api/jobs/{id}/cancel  DELETE /api/jobs/{id}
-          GET /api/jobs/{id}/log  (text/plain)   GET /api/jobs/{id}/outputs/{output_id}/{path}
+          GET /api/jobs/{id}/log  (text/plain)   GET /api/jobs/{id}/outputs/{file_id}
 Admin     GET /api/admin/dashboard  (queue: {paused, maintenance, running, waiting, max_running,
           max_queue}, counts, recent jobs)
           POST /api/admin/queue/{pause|resume}  POST /api/admin/maintenance/{enter|exit}
-          GET /api/admin/jobs?state=&user=&workflow=  POST /api/admin/jobs/{id}/cancel
+          GET /api/admin/jobs?state=&user=&workflow=&search=  POST /api/admin/jobs/{id}/cancel
           POST /api/admin/jobs/{id}/restart
           GET /api/admin/users?search=&group=&is_active=&page=&page_size= (paginated;
               row = User + is_superuser, activated_at; search: username/email/full name)
@@ -373,6 +412,63 @@ Health    GET /api/health → {status: ok|degraded|error, db: {ok}, worker: {ok,
 ```
 Exact request/response shapes are defined by the serializers and `schema.yaml`; this list is the
 scope. Slice owners may refine paths but must update this section.
+
+**Jobs & admin jobs (T03) — exact shapes.** Lists are paginated; every job payload uses `state`
+(never `status`).
+
+```jsonc
+// item of GET /api/jobs, GET /api/admin/jobs   (JobListSerializer)
+{"id": "<uuid>", "name": "My run 🚀", "state": "running",          // waiting|running|success|failed|cancelled
+ "workflow_id": "hello", "workflow_name": "Hello", "workflow_version": "1.0.0",
+ "user": "alice", "user_id": 2,
+ "submitted_at": "...", "started_at": "...|null", "finished_at": "...|null",
+ "duration_seconds": 12.5, "queue_position": null,                 // 1-based, only while waiting
+ "cancel_requested": false, "expires_at": "...|null", "purged_at": null,
+ "can_cancel": true, "can_delete": false, "can_restart": false}
+
+// GET /api/jobs/{id}/status  = the item above plus
+{"updated_at": "...", "error_message": "", "outputs_count": 2,
+ "steps": [{"id": 7, "order": 0, "name": "Say hello", "state": "running",
+            "started_at": "...", "finished_at": null,
+            "processes": [{"name": "SAY", "label": "Saying", "submitted": 3, "running": 1,
+                           "completed": 2, "failed": 0, "total": 3}]}],
+ "messages": [{"id": 1, "level": "info", "text": "…", "step": 7, "created_at": "..."}]}
+
+// GET /api/jobs/{id}, POST /api/jobs (201), POST .../cancel, POST /api/admin/jobs/{id}/{cancel,restart}
+// = the status payload plus
+{"inputs": [{"id": "message", "label": "Message", "type": "text", "value": "hi",
+             "files": [{"name": "my data ü.csv", "size": 36}]}],   // value = display value
+ "outputs": [{"id": 11, "output_id": "outdir", "label": "Output folder", "name": "hello.txt",
+              "path": "outdir/hello.txt", "size": 3, "download_count": 0,
+              "url": "/api/jobs/<uuid>/outputs/11/"}],
+ "log_url": "/api/jobs/<uuid>/log/"}
+```
+- `POST /api/jobs` (multipart or JSON): `workflow` (id, `workflow_id` also accepted), optional
+  `job_name` (`name` is accepted as an alias unless the workflow has an input called `name`), and
+  one field per input id (`folder` inputs repeat the field; checkboxes send `true`/`false`).
+  Errors: 400 `invalid` with `fields`, 404 `not_found` (unknown/forbidden workflow), 409
+  `workflow_disabled` / `workflow_invalid`, 429 `queue_full`, 503 `maintenance`, 413
+  `upload_too_large`.
+- `GET /api/jobs?state=` accepts a comma-separated list; unknown values → 400. The list shows the
+  caller's own jobs only (admins included); deleted jobs are never listed.
+- `POST /api/jobs/{id}/cancel` → 200 job (`cancelled` when it was waiting, otherwise `running` with
+  `cancel_requested: true`); 409 `invalid_state` when the job already finished.
+- `DELETE /api/jobs/{id}` → 204 (finished jobs only, else 409 `invalid_state`); removes the
+  workspace. Object access is owner-or-admin; everyone else gets **404** (jobs, status, log,
+  outputs, cancel, delete).
+- `GET /api/jobs/{id}/log` → `text/plain`: the worker/Nextflow stdout plus the tail of each
+  `nextflow.log`.
+- `GET /api/jobs/{id}/outputs/{file_id}` streams the file (`?inline=1` to display instead of
+  download); 404 for a foreign/missing/unsafe path.
+- `GET /api/admin/jobs` (admin only) lists **all** users' jobs with `?state=&user=<id|username>&
+  workflow=<id>&search=<name|user|workflow|id prefix>`; `POST /api/admin/jobs/{id}/cancel` and
+  `…/restart` return the job (restart: 409 `invalid_state`, `workspace_removed` or
+  `workflow_unavailable`).
+- Helper for the admin dashboard (T05): `jobs.services.queue_summary()` →
+  `{paused, maintenance, running, waiting, max_running, max_queue}`.
+- Workflows (public): `GET /api/workflows[/{id}]` returns `{id, name, description, version,
+  website, author, logo, category_name, status, public, inputs[], outputs[], definition_errors[],
+  max_upload_mb}`; `inputs`/`outputs` are `InputParam.to_dict()`/`OutputParam.to_dict()` (§4).
 
 ### 3.7 Frontend
 - Vue 3 + Vite 5/6 + Pinia + Bootstrap 5. `src/api/*.js` is the only HTTP layer.
@@ -472,6 +568,12 @@ stores a snapshot of the YAML it was submitted with (`Job.workflow_yaml`) and ru
 - Works with SQLite (dev/test) and Postgres (prod).
 
 ## 6. Changelog of spec decisions
+- 2026-09-20 (T03): job lifecycle, worker loop, Nextflow command/env/params, progress parsing,
+  outputs/downloads, retention and restart written out (§3.3); job + admin-job payload shapes and
+  error codes (§3.6); workflow definition parser rules and Python API (§4). State names are
+  `waiting/running/success/failed/cancelled`, exposed as `state`; job submission fields are
+  `workflow` + `job_name`; `WorkflowParameter`/`WorkflowExecution` are unused by T03 and should be
+  removed by T05's migration.
 - 2026-09-19 (T04): identity rules (case-insensitive username/e-mail, normalisation), shared
   field rules, login error codes + lockout, activation/reset token handling, profile/token and
   admin users/groups shapes (§3.4, §3.6); admin group managed via `is_admin` only; groups list
