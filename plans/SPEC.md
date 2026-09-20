@@ -205,7 +205,7 @@ by updating this section.
 | `server.name` | str | `Cloudgene` | Service name (navbar, e-mails) |
 | `server.url` | str | `''` | Public base URL for e-mail links (empty = request host) |
 | `server.max_running_jobs` | int ≥1 | 2 | Jobs the worker runs concurrently |
-| `server.max_queue_size` | int ≥0 | 50 | Max `waiting` jobs; further submissions rejected |
+| `server.max_queue_size` | int ≥0 | 50 | Max `waiting` jobs; further submissions rejected (429). `0` = unlimited |
 | `server.maintenance` | bool | false | Non-admin submissions blocked, banner shown |
 | `server.maintenance_message` | str | *(text)* | Banner / rejection message |
 | `server.job_retention_days` | int ≥0 | 7 | Workspace retention for `cleanup_jobs` (0 = keep) |
