@@ -2,14 +2,15 @@
 import json
 import time
 
-SPEC_TO_LEGACY = {'waiting': 'pending', 'success': 'completed'}
+# Legacy values that may still sit in an old database (jobs migration 0003 renames them).
+LEGACY_TO_SPEC = {'pending': 'waiting', 'completed': 'success'}
 
 
 def create_jobs(stack, specs):
     """Insert jobs directly (no worker needed). specs: [(username, workflow_id, state, name)].
 
-    Works before and after T03's state rename (field `state` or legacy `status`).
-    Returns the job ids in order.
+    States are the SPEC names (`waiting/running/success/failed/cancelled`), stored in
+    `Job.status`. Returns the job ids in order.
     """
     code = '''
 import json
@@ -18,15 +19,19 @@ from jobs.models import Job
 from workflows.models import Workflow
 names = {f.name for f in Job._meta.get_fields()}
 field = 'state' if 'state' in names else 'status'
-legacy = %r if field == 'status' else {}
+snapshot = {'app_id', 'app_name', 'workflow_yaml'} & names
 ids = []
 for username, wf, state, name in json.loads(%r):
+    workflow = Workflow.objects.get(pk=wf)
+    extra = {}
+    if snapshot:
+        extra = {'app_id': workflow.id, 'app_name': workflow.name,
+                 'app_version': workflow.version, 'workflow_yaml': workflow.yaml_config}
     job = Job.objects.create(user=get_user_model().objects.get(username=username),
-                             workflow=Workflow.objects.get(pk=wf), name=name,
-                             **{field: legacy.get(state, state)})
+                             workflow=workflow, name=name, **{field: state}, **extra)
     ids.append(str(job.pk))
 print(json.dumps(ids))
-''' % (SPEC_TO_LEGACY, json.dumps(specs))
+''' % json.dumps(specs)
     return json.loads(stack.django_shell(code).strip().splitlines()[-1])
 
 
@@ -47,7 +52,7 @@ for v, n in Job.objects.values_list(field).annotate(n=Count('pk')).order_by():
     k = m.get(v, v)
     out[k] = out.get(k, 0) + n
 print(json.dumps(out))
-''' % {v: k for k, v in SPEC_TO_LEGACY.items()}
+''' % LEGACY_TO_SPEC
     return json.loads(stack.django_shell(code).strip().splitlines()[-1])
 
 

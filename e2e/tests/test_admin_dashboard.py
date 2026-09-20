@@ -5,6 +5,7 @@ D7: the Logs page shows entries written by the app (admin actions; job failures/
 T03/T04 log them through `cloudgene.*` loggers).
 """
 import copy
+import time
 
 import pytest
 from playwright.sync_api import expect
@@ -23,6 +24,13 @@ def restore_settings(stack):
 
 @pytest.fixture
 def seeded_jobs(stack):
+    # The worker would claim the `waiting` job (and fail it: these rows have no definition
+    # snapshot), so pause the queue while the fixture jobs exist.
+    original = copy.deepcopy(stack.read_settings())
+    paused = copy.deepcopy(original)
+    paused.setdefault('queue', {})['paused'] = True
+    stack.write_settings(paused)
+    time.sleep(1.1)  # the config cache is mtime-based (1 s resolution)
     ids = create_jobs(stack, [
         ('alice', 'hello', 'failed', 'D-alice failed'),
         ('alice', 'hello', 'success', 'D-alice ok'),
@@ -31,6 +39,7 @@ def seeded_jobs(stack):
     ])
     yield ids
     delete_jobs(stack, ids)
+    stack.write_settings(original)
 
 
 def test_d1_dashboard_counts_match_db(page, login, stack, seeded_jobs):
