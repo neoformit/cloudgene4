@@ -255,10 +255,15 @@ class AppStatus:
     work_dir: str = ''
     meta: Meta | None = None
     errors: list[str] = field(default_factory=list)
+    group_warnings: list[str] = field(default_factory=list)
 
     @property
     def valid(self) -> bool:
         return not self.errors
+
+    @property
+    def warnings(self) -> list[str]:
+        return (self.meta.warnings if self.meta else []) + self.group_warnings
 
 
 def _scan(settings: dict) -> list[AppStatus]:
@@ -353,7 +358,12 @@ def _upsert(st: AppStatus, raw: str | None):
         for k, v in values.items():
             setattr(row, k, v)
         row.save()
-    groups = [Group.objects.get_or_create(name=name)[0] for name in st.groups if name]
+    # Unknown group names (e.g. a group deleted after it was assigned) are ignored with a
+    # warning; groups are only created by explicit admin writes (install / update_access).
+    names = [n for n in st.groups if n]
+    groups = list(Group.objects.filter(name__in=names))
+    missing = sorted(set(names) - {g.name for g in groups})
+    st.group_warnings = [f'Group "{n}" does not exist (ignored).' for n in missing]
     row.allowed_groups.set(groups)
     return row
 
@@ -433,6 +443,13 @@ def _entry_index(settings: dict, app_id: str) -> int:
     raise RegistryError(f'Workflow "{app_id}" is not installed.', status=404, code='not_found')
 
 
+def _ensure_groups(names):
+    from django.contrib.auth.models import Group
+    for name in names:
+        if name:
+            Group.objects.get_or_create(name=name)
+
+
 def install(path: str, *, enabled: bool = True, public: bool = False, groups=(),
             copy: bool = False, replace: bool = False):
     """Register the app at ``path`` (dir with cloudgene.yaml, or the yaml file).
@@ -471,6 +488,7 @@ def install(path: str, *, enabled: bool = True, public: bool = False, groups=(),
                 return
         apps.append({'path': stored, 'enabled': enabled, 'public': public, 'groups': groups})
 
+    _ensure_groups(groups)
     config.update_settings(apply)
     sync_all()
     logger.info('Workflow %s installed from %s', meta.id, stored)
@@ -500,11 +518,31 @@ def update_access(app_id: str, *, enabled=None, public=None, groups=None) -> App
         if groups is not None:
             entry['groups'] = sorted({str(g).strip() for g in groups if str(g).strip()})
 
+    if groups is not None:
+        _ensure_groups(str(g).strip() for g in groups)
     config.update_settings(apply)
     sync_all()
     logger.info('Workflow %s access updated (enabled=%s public=%s groups=%s)',
                 app_id, enabled, public, groups)
     return get_status(app_id)
+
+
+def prune_group(name: str) -> int:
+    """Remove a (deleted) group name from every apps[].groups; returns entries changed."""
+    changed = 0
+
+    def apply(doc):
+        nonlocal changed
+        for entry in doc.get('apps') or []:
+            if name in (entry.get('groups') or []):
+                entry['groups'] = [g for g in entry['groups'] if g != name]
+                changed += 1
+
+    if any(name in (e.get('groups') or []) for e in config.load_settings().get('apps') or []):
+        config.update_settings(apply)
+        sync_all()
+        logger.info('Group %s removed from %d workflow(s)', name, changed)
+    return changed
 
 
 def reload(app_id: str) -> AppStatus:

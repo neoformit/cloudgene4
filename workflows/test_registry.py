@@ -135,7 +135,9 @@ class RegistrySyncTest(TempHomeMixin, TestCase):
         self.assertFalse(statuses['missing-dir'].valid)
         self.assertEqual(Workflow.objects.get(pk='hello').status, 'enabled')
         self.assertEqual(Workflow.objects.get(pk='other').status, 'disabled')
-        self.assertEqual(Group.objects.filter(name='x').count(), 1)
+        # unknown group names are ignored (not created) and reported as warnings
+        self.assertFalse(Group.objects.filter(name='x').exists())
+        self.assertIn('Group "x" does not exist (ignored).', statuses['other'].warnings)
         # invalid apps never get a cache row (not runnable)
         self.assertFalse(Workflow.objects.filter(pk='invalid').exists())
 
@@ -211,6 +213,17 @@ class RegistryAccessTest(TempHomeMixin, TestCase):
         self.assertEqual(self.settings_on_disk()['apps'][0]['groups'], ['lab'])
         self.alice.groups.add(self.lab)
         self.assertTrue(Workflow.objects.get(pk='hello').can_access(self.alice))
+
+    def test_deleted_group_is_pruned_from_settings(self):
+        registry.update_access('hello', groups=['lab', 'other'])
+        self.assertEqual(self.settings_on_disk()['apps'][0]['groups'], ['lab', 'other'])
+        Group.objects.get(name='lab').delete()
+        self.assertEqual(self.settings_on_disk()['apps'][0]['groups'], ['other'])
+        wf = Workflow.objects.get(pk='hello')
+        self.assertEqual(list(wf.allowed_groups.values_list('name', flat=True)), ['other'])
+        # a sync never re-creates it
+        registry.sync_all()
+        self.assertFalse(Group.objects.filter(name='lab').exists())
 
     def test_enable_disable_public(self):
         registry.update_access('hello', enabled=False, public=True)

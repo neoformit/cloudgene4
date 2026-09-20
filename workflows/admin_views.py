@@ -115,7 +115,7 @@ def _row(st: registry.AppStatus, job_counts=None, with_yaml=False) -> dict:
         'groups': st.groups,
         'valid': st.valid,
         'errors': st.errors,
-        'warnings': meta.warnings if meta else [],
+        'warnings': st.warnings,
         'job_count': (job_counts or {}).get(st.id, 0),
     }
     if with_yaml:
