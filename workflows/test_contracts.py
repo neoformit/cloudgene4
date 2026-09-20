@@ -8,7 +8,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from rest_framework.test import APITestCase
 from rest_framework import status
-from .models import Workflow, WorkflowCategory, WorkflowParameter
+from .models import Workflow, WorkflowCategory
 
 User = get_user_model()
 
@@ -82,7 +82,7 @@ class WorkflowListContractTest(APITestCase):
         if workflows:
             workflow = workflows[0]
             required_fields = [
-                'id', 'name', 'status', 'parameters', 'inputs', 'outputs',
+                'id', 'name', 'status', 'inputs', 'outputs',
                 'description', 'version', 'public'
             ]
             for field in required_fields:
@@ -154,7 +154,7 @@ class WorkflowDetailContractTest(APITestCase):
         self.test_group = Group.objects.create(name='test-group')
         self.user.groups.add(self.test_group)
         
-        # Create workflow with parameters
+        # Inputs/outputs come from the definition (cloudgene.yaml), SPEC §4
         self.workflow = Workflow.objects.create(
             id='test-workflow',
             name='Test Workflow',
@@ -162,34 +162,15 @@ class WorkflowDetailContractTest(APITestCase):
             version='1.0.0',
             status='enabled',
             public=False,
-            yaml_config='workflow:\n  name: Test Workflow'
+            yaml_config=(
+                'id: test-workflow\nname: Test Workflow\nworkflow:\n'
+                '  steps: [{script: main.nf}]\n'
+                '  inputs:\n    - {id: input_param, description: Input Parameter, type: text}\n'
+                '  outputs:\n    - {id: output_param, description: Output Parameter, type: file}\n'
+            ),
         )
         self.workflow.allowed_groups.add(self.test_group)
-        
-        # Create input parameters
-        self.input_param = WorkflowParameter.objects.create(
-            workflow=self.workflow,
-            parameter_id='input_param',
-            name='Input Parameter',
-            parameter_type='text',
-            required=True,
-            is_input=True,
-            is_output=False,
-            order=1
-        )
-        
-        # Create output parameter
-        self.output_param = WorkflowParameter.objects.create(
-            workflow=self.workflow,
-            parameter_id='output_param',
-            name='Output Parameter',
-            parameter_type='file',
-            required=False,
-            is_input=False,
-            is_output=True,
-            order=2
-        )
-    
+
     def test_workflow_detail_response_has_required_fields(self):
         """Workflow detail should have all required fields"""
         self.client.force_authenticate(user=self.user)
@@ -200,8 +181,8 @@ class WorkflowDetailContractTest(APITestCase):
         response_data = response.json()
         
         required_fields = [
-            'id', 'name', 'description', 'version', 'parameters', 
-            'inputs', 'outputs', 'status', 'public', 'allowed_groups'
+            'id', 'name', 'description', 'version',
+            'inputs', 'outputs', 'status', 'public', 'definition_errors'
         ]
         
         for field in required_fields:

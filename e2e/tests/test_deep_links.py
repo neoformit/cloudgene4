@@ -64,9 +64,6 @@ def test_admin_route_forbidden_for_regular_user(page, login, base_url, route):
 
 @pytest.mark.parametrize('route', ADMIN_ROUTES)
 def test_admin_route_deep_link_and_refresh(page, login, route, expect_api_error):
-    if route == '/admin/jobs':
-        # TODO(T03): remove once GET /api/admin/jobs exists (SPEC §3.6).
-        expect_api_error(404, '/api/admin/jobs*')
     login(page, 'admin')
     page.goto(route)
     expect(page).to_have_url(_path_re(route))

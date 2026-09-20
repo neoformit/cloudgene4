@@ -1,346 +1,99 @@
 /**
- * Contract tests for jobs API endpoints
- * 
- * These tests validate that the frontend API client correctly handles
- * job submission, retrieval, and management responses from the backend.
+ * Jobs API module (src/api/jobs.js): endpoints, payloads and response fixtures (SPEC §3.6).
  */
-
-import { describe, it, expect, beforeAll, vi } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import Ajv from 'ajv'
 import addFormats from 'ajv-formats'
 import * as jobsApi from '@/api/jobs'
-import { jobSchema, jobCreateResponseSchema, validationErrorSchema } from '../schemas'
+import { jobSchema, jobStatusSchema, jobListItemSchema, validationErrorSchema } from '../schemas'
+import { jobDetailFixture, jobStatusFixture, jobListItemFixture } from '../fixtures/jobs'
 
-// Mock the HTTP client to avoid real network requests
 vi.mock('@/api/client', () => ({
-  default: {
-    get: vi.fn(),
-    post: vi.fn()
-  }
+  default: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
 }))
 
-const ajv = new Ajv()
+const ajv = new Ajv({ allowUnionTypes: true, strict: false })
 addFormats(ajv)
 global.ajv = ajv
 
-describe('Jobs API Contracts', () => {
-  beforeAll(() => {
-    vi.clearAllMocks()
+let client
+beforeEach(async () => {
+  client = (await import('@/api/client')).default
+  vi.clearAllMocks()
+})
+
+describe('jobs api endpoints', () => {
+  it('lists own jobs with params or a page number', async () => {
+    client.get.mockResolvedValue({ data: { count: 1, next: null, previous: null, results: [jobListItemFixture] } })
+    await jobsApi.listJobs({ state: 'running', page: 2 })
+    expect(client.get).toHaveBeenCalledWith('/jobs/', { params: { state: 'running', page: 2 } })
+    await jobsApi.listJobs(3)
+    expect(client.get).toHaveBeenLastCalledWith('/jobs/', { params: { page: 3 } })
   })
 
-  describe('Job Submission Contract', () => {
-    it('should handle successful JSON job submission', async () => {
-      const mockResponse = {
-        data: {
-          id: 'job-123',
-          name: 'test-job',
-          status: 'pending',
-          parameters: { input_param: 'value' },
-          workflow_name: 'Test Workflow',
-          user_username: 'testuser'
-        }
-      }
-
-      const client = await import('@/api/client')
-      client.default.post.mockResolvedValue(mockResponse)
-
-      const jobData = {
-        workflow_id: 'test-workflow',
-        name: 'test-job',
-        parameters: { input_param: 'value' }
-      }
-
-      const response = await jobsApi.submitJob(jobData)
-
-      expect(client.default.post).toHaveBeenCalledWith('/jobs/', jobData)
-      expect(response.data).toMatchApiSchema(jobCreateResponseSchema)
-    })
-
-    it('should handle successful FormData job submission', async () => {
-      const mockResponse = {
-        data: {
-          id: 'job-456',
-          name: 'formdata-job',
-          status: 'pending',
-          parameters: { file_param: 'uploaded_file.txt' },
-          workflow_name: 'File Workflow',
-          user_username: 'testuser'
-        }
-      }
-
-      const client = await import('@/api/client')
-      client.default.post.mockResolvedValue(mockResponse)
-
-      const formData = new FormData()
-      formData.append('workflow_id', 'test-workflow')
-      formData.append('job_name', 'formdata-job')
-      formData.append('file_param', new File(['content'], 'test.txt'))
-
-      const response = await jobsApi.submitJob(formData)
-
-      expect(client.default.post).toHaveBeenCalledWith('/jobs/', formData)
-      expect(response.data).toMatchApiSchema(jobCreateResponseSchema)
-    })
-
-    it('should handle job submission validation errors', async () => {
-      const mockError = {
-        response: {
-          status: 400,
-          data: {
-            error: {
-              message: 'Invalid input.',
-              code: 'invalid',
-              fields: {
-                workflow_id: ['This field is required.'],
-                parameters: ['Required parameter "input_param" is missing.']
-              }
-            }
-          }
-        }
-      }
-
-      const client = await import('@/api/client')
-      client.default.post.mockRejectedValue(mockError)
-
-      try {
-        await jobsApi.submitJob({ name: 'incomplete-job' })
-        expect.fail('Expected job submission to throw error')
-      } catch (error) {
-        expect(error.response.status).toBe(400)
-        expect(error.response.data).toMatchApiSchema(validationErrorSchema)
-        expect(error.response.data.error.fields).toHaveApiField('workflow_id')
-        expect(error.response.data.error.fields).toHaveApiField('parameters')
-      }
-    })
-
-    it('should handle unknown workflow error', async () => {
-      const mockError = {
-        response: {
-          status: 400,
-          data: {
-            error: {
-              message: 'Invalid input.',
-              code: 'invalid',
-              fields: {
-                workflow_id: ['Workflow does not exist or you do not have permission to access it.']
-              }
-            }
-          }
-        }
-      }
-
-      const client = await import('@/api/client')
-      client.default.post.mockRejectedValue(mockError)
-
-      try {
-        await jobsApi.submitJob({
-          workflow_id: 'nonexistent-workflow',
-          name: 'test-job',
-          parameters: {}
-        })
-        expect.fail('Expected job submission to throw error')
-      } catch (error) {
-        expect(error.response.status).toBe(400)
-        expect(error.response.data.error.fields).toHaveApiField('workflow_id')
-      }
-    })
+  it('uses the SPEC paths for detail, status, cancel, delete, log', async () => {
+    client.get.mockResolvedValue({ data: {} })
+    client.post.mockResolvedValue({ data: {} })
+    client.delete.mockResolvedValue({ data: null })
+    await jobsApi.getJob('abc')
+    expect(client.get).toHaveBeenCalledWith('/jobs/abc/')
+    await jobsApi.getJobStatus('abc')
+    expect(client.get).toHaveBeenLastCalledWith('/jobs/abc/status/')
+    await jobsApi.cancelJob('abc')
+    expect(client.post).toHaveBeenCalledWith('/jobs/abc/cancel/')
+    await jobsApi.deleteJob('abc')
+    expect(client.delete).toHaveBeenCalledWith('/jobs/abc/')
+    await jobsApi.getJobLog('abc')
+    expect(client.get.mock.calls.at(-1)[0]).toBe('/jobs/abc/log/')
+    expect(client.get.mock.calls.at(-1)[1].responseType).toBe('text')
+    expect(jobsApi.jobLogUrl('abc')).toBe('/api/jobs/abc/log/')
+    expect(jobsApi.jobOutputUrl('abc', 5)).toBe('/api/jobs/abc/outputs/5/')
   })
 
-  describe('Job Retrieval Contract', () => {
-    it('should handle successful job detail retrieval', async () => {
-      const mockResponse = {
-        data: {
-          id: 'job-123',
-          name: 'test-job',
-          status: 'completed',
-          parameters: { input_param: 'value' },
-          steps: [
-            { name: 'Step 1', status: 'completed' },
-            { name: 'Step 2', status: 'completed' }
-          ],
-          messages: [
-            { level: 'info', message: 'Job started' },
-            { level: 'info', message: 'Job completed' }
-          ],
-          downloads: [
-            { name: 'output.txt', url: '/download/output.txt' }
-          ],
-          can_cancel: false,
-          can_restart: true,
-          workflow_name: 'Test Workflow',
-          user_username: 'testuser',
-          submitted_at: '2023-01-01T12:00:00Z'
-        }
-      }
-
-      const client = await import('@/api/client')
-      client.default.get.mockResolvedValue(mockResponse)
-
-      const response = await jobsApi.getJob('job-123')
-
-      expect(client.default.get).toHaveBeenCalledWith('/jobs/job-123/')
-      expect(response.data).toMatchApiSchema(jobSchema)
-    })
-
-    it('should handle job not found error', async () => {
-      const mockError = {
-        response: {
-          status: 404,
-          data: {
-            error: { message: 'Not found.', code: 'error', fields: {} }
-          }
-        }
-      }
-
-      const client = await import('@/api/client')
-      client.default.get.mockRejectedValue(mockError)
-
-      try {
-        await jobsApi.getJob('nonexistent-job')
-        expect.fail('Expected job retrieval to throw error')
-      } catch (error) {
-        expect(error.response.status).toBe(404)
-        expect(error.response.data.error).toHaveApiField('message')
-      }
-    })
-
-    it('should handle job list retrieval', async () => {
-      const mockResponse = {
-        data: {
-          results: [
-            {
-              id: 'job-1',
-              name: 'job-1',
-              status: 'pending',
-              parameters: {},
-              steps: [],
-              messages: [],
-              downloads: [],
-              can_cancel: true,
-              can_restart: false,
-              workflow_name: 'Workflow 1',
-              user_username: 'user1',
-              submitted_at: '2023-01-01T12:00:00Z'
-            }
-          ],
-          count: 1,
-          next: null,
-          previous: null
-        }
-      }
-
-      const client = await import('@/api/client')
-      client.default.get.mockResolvedValue(mockResponse)
-
-      const response = await jobsApi.listJobs(1)
-
-      expect(client.default.get).toHaveBeenCalledWith('/jobs/', { params: { page: 1 } })
-      expect(response.data).toHaveApiField('results')
-      expect(response.data.results).toEqual(expect.any(Array))
-      
-      if (response.data.results.length > 0) {
-        expect(response.data.results[0]).toMatchApiSchema(jobSchema)
-      }
-    })
+  it('submits multipart FormData unchanged', async () => {
+    client.post.mockResolvedValue({ data: jobDetailFixture })
+    const fd = new FormData()
+    fd.append('workflow', 'hello')
+    fd.append('job_name', 'a b')
+    const res = await jobsApi.submitJob(fd)
+    expect(client.post).toHaveBeenCalledWith('/jobs/', fd)
+    expect(res.data).toMatchApiSchema(jobSchema)
   })
 
-  describe('Job Actions Contract', () => {
-    it('should handle successful job cancellation', async () => {
-      const mockResponse = {
-        data: { message: 'Job cancelled successfully.' }
-      }
-
-      const client = await import('@/api/client')
-      client.default.post.mockResolvedValue(mockResponse)
-
-      const response = await jobsApi.cancelJob('job-123')
-
-      expect(client.default.post).toHaveBeenCalledWith('/jobs/job-123/cancel/')
-      expect(response.data).toHaveApiField('message')
-    })
-
-    it('should handle job cancellation permission error', async () => {
-      const mockError = {
-        response: {
-          status: 403,
-          data: {
-            error: { message: 'You do not have permission to perform this action.', code: 'error', fields: {} }
-          }
-        }
-      }
-
-      const client = await import('@/api/client')
-      client.default.post.mockRejectedValue(mockError)
-
-      try {
-        await jobsApi.cancelJob('other-users-job')
-        expect.fail('Expected job cancellation to throw error')
-      } catch (error) {
-        expect(error.response.status).toBe(403)
-        expect(error.response.data.error).toHaveApiField('message')
-      }
-    })
-
-    it('should handle successful job restart', async () => {
-      const mockResponse = {
-        data: { 
-          message: 'Job restarted successfully.',
-          new_job_id: 'job-456'
-        }
-      }
-
-      const client = await import('@/api/client')
-      client.default.post.mockResolvedValue(mockResponse)
-
-      const response = await jobsApi.restartJob('job-123')
-
-      expect(client.default.post).toHaveBeenCalledWith('/jobs/job-123/restart/')
-      expect(response.data).toHaveApiField('message')
-    })
+  it('admin endpoints', async () => {
+    client.get.mockResolvedValue({ data: {} })
+    client.post.mockResolvedValue({ data: {} })
+    await jobsApi.adminListJobs({ state: 'failed', user: 'bob' })
+    expect(client.get).toHaveBeenCalledWith('/admin/jobs/', { params: { state: 'failed', user: 'bob' } })
+    await jobsApi.adminCancelJob('x')
+    expect(client.post).toHaveBeenCalledWith('/admin/jobs/x/cancel/')
+    await jobsApi.adminRestartJob('x')
+    expect(client.post).toHaveBeenLastCalledWith('/admin/jobs/x/restart/')
   })
 
-  describe('Job Logs Contract', () => {
-    it('should handle successful job logs retrieval', async () => {
-      const mockResponse = {
-        data: {
-          logs: [
-            { timestamp: '2023-01-01T12:00:00Z', level: 'info', message: 'Starting job' },
-            { timestamp: '2023-01-01T12:05:00Z', level: 'info', message: 'Job completed' }
-          ]
-        }
-      }
+  it('state helpers', () => {
+    expect(jobsApi.JOB_STATES).toEqual(['waiting', 'running', 'success', 'failed', 'cancelled'])
+    expect(jobsApi.isActiveState('waiting')).toBe(true)
+    expect(jobsApi.isActiveState('success')).toBe(false)
+  })
+})
 
-      const client = await import('@/api/client')
-      client.default.get.mockResolvedValue(mockResponse)
-
-      const response = await jobsApi.getJobLogs('job-123')
-
-      expect(client.default.get).toHaveBeenCalledWith('/jobs/job-123/logs/')
-      expect(response.data).toHaveApiField('logs')
-      expect(response.data.logs).toEqual(expect.any(Array))
-    })
+describe('job response fixtures match the contract', () => {
+  it('list item / status / detail', () => {
+    expect(jobListItemFixture).toMatchApiSchema(jobListItemSchema)
+    expect(jobStatusFixture).toMatchApiSchema(jobStatusSchema)
+    expect(jobDetailFixture).toMatchApiSchema(jobSchema)
   })
 
-  describe('Downloads Contract', () => {
-    it('should handle successful downloads listing', async () => {
-      const mockResponse = {
-        data: [
-          {
-            name: 'output.txt',
-            size: 1024,
-            url: '/api/jobs/job-123/download/output.txt',
-            type: 'output'
-          }
-        ]
-      }
+  it('rejects legacy shapes (F1–F3)', () => {
+    const legacy = { ...jobListItemFixture, state: 'completed' }
+    expect(ajv.compile(jobListItemSchema)(legacy)).toBe(false)
+    const { state, ...noState } = jobListItemFixture
+    expect(ajv.compile(jobListItemSchema)({ ...noState, status: state })).toBe(false)
+  })
 
-      const client = await import('@/api/client')
-      client.default.get.mockResolvedValue(mockResponse)
-
-      const response = await jobsApi.listDownloads('job-123')
-
-      expect(client.default.get).toHaveBeenCalledWith('/jobs/job-123/download/')
-      expect(response.data).toEqual(expect.any(Array))
-    })
+  it('field errors use the envelope', () => {
+    const err = { error: { message: 'count: Must be at most 10.', code: 'invalid', fields: { count: ['Must be at most 10.'] } } }
+    expect(err).toMatchApiSchema(validationErrorSchema)
   })
 })

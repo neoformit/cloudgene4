@@ -24,7 +24,7 @@ Public API::
 
 Errors raise :class:`RegistryError` (``message``, ``errors`` list, ``status`` hint).
 Workflow definitions are parsed/validated by ``workflows.definition.load_definition``
-(owned by T03) through the one adapter :func:`load_definition`.
+through the one adapter :func:`load_definition`.
 """
 from __future__ import annotations
 
@@ -74,58 +74,6 @@ class Meta:
     warnings: list = field(default_factory=list)
 
 
-# Minimal SPEC §4 checks used only while workflows/definition.py is unavailable.
-_INPUT_TYPES = {
-    'text', 'string', 'number', 'textarea', 'list', 'radio', 'checkbox', 'file', 'folder',
-    'local-file', 'local-folder', 'separator', 'info', 'label', 'terms_checkbox',
-    'agb_checkbox',
-}
-_OUTPUT_TYPES = {'file', 'folder', 'local-file', 'local-folder'}
-
-
-def _fallback_validate(doc: Any) -> list[str]:
-    errors: list[str] = []
-    if not isinstance(doc, dict):
-        return ['The workflow file must be a YAML mapping.']
-    app_id = doc.get('id')
-    if not isinstance(app_id, str) or not config.SLUG_RE.match(app_id):
-        errors.append('id: required; lower-case letters, digits, "-" and "_" only.')
-    if not isinstance(doc.get('name'), str) or not doc.get('name', '').strip():
-        errors.append('name: required.')
-    wf = doc.get('workflow')
-    if not isinstance(wf, dict):
-        return errors + ['workflow: required mapping with steps/inputs/outputs.']
-    steps = wf.get('steps')
-    if not isinstance(steps, list) or not steps:
-        errors.append('workflow.steps: at least one step is required.')
-    else:
-        for i, step in enumerate(steps):
-            if not isinstance(step, dict):
-                errors.append(f'workflow.steps[{i}]: must be a mapping.')
-            elif 'classname' in step:
-                errors.append(f'workflow.steps[{i}]: "classname" steps are not supported.')
-            elif not step.get('script'):
-                errors.append(f'workflow.steps[{i}].script: required.')
-    for kind, types in (('inputs', _INPUT_TYPES), ('outputs', _OUTPUT_TYPES)):
-        items = wf.get(kind) or []
-        if not isinstance(items, list):
-            errors.append(f'workflow.{kind}: must be a list.')
-            continue
-        seen = set()
-        for i, item in enumerate(items):
-            if not isinstance(item, dict):
-                errors.append(f'workflow.{kind}[{i}]: must be a mapping.')
-                continue
-            if not item.get('id'):
-                errors.append(f'workflow.{kind}[{i}].id: required.')
-            elif item['id'] in seen:
-                errors.append(f'workflow.{kind}[{i}].id: duplicate id "{item["id"]}".')
-            seen.add(item.get('id'))
-            if item.get('type') not in types:
-                errors.append(f'workflow.{kind}[{i}].type: unknown type "{item.get("type")}".')
-    return errors
-
-
 def _normalise_errors(errors: Any) -> list[str]:
     if errors is None:
         return []
@@ -148,8 +96,8 @@ def _normalise_errors(errors: Any) -> list[str]:
 def load_definition(yaml_path: Path):
     """Parse + validate one cloudgene.yaml. Returns (Meta, raw_text); raises RegistryError.
 
-    The single seam to T03's ``workflows.definition.load_definition(path) ->
-    WorkflowDefinition`` (raises ``DefinitionError(errors)``).
+    The single seam to ``workflows.definition.load_definition(path) -> WorkflowDefinition``
+    (raises ``DefinitionError(errors)``, SPEC §4).
     """
     try:
         raw = Path(yaml_path).read_text(encoding='utf-8')
@@ -160,24 +108,14 @@ def load_definition(yaml_path: Path):
     except yaml.YAMLError as exc:
         raise RegistryError('Invalid YAML.', [f'Invalid YAML: {exc}'])
 
-    try:
-        from workflows import definition as definition_module  # T03
-    except ImportError:
-        definition_module = None
+    from workflows.definition import DefinitionError, load_definition as parse_definition  # T03
 
-    if definition_module is not None and hasattr(definition_module, 'load_definition'):
-        error_cls = getattr(definition_module, 'DefinitionError', ValueError)
-        try:
-            defn = definition_module.load_definition(Path(yaml_path))
-        except error_cls as exc:  # type: ignore[misc]
-            errors = _normalise_errors(getattr(exc, 'errors', None) or str(exc))
-            raise RegistryError(errors[0] if errors else 'Invalid workflow.', errors)
-        get = (lambda k: getattr(defn, k, None) if not isinstance(defn, dict) else defn.get(k))
-    else:
-        errors = _fallback_validate(doc)
-        if errors:
-            raise RegistryError(errors[0], errors)
-        get = doc.get
+    try:
+        defn = parse_definition(Path(yaml_path))
+    except DefinitionError as exc:
+        errors = _normalise_errors(exc.errors or str(exc))
+        raise RegistryError(errors[0] if errors else 'Invalid workflow.', errors)
+    get = lambda k: getattr(defn, k, None)  # noqa: E731
 
     def text(key):
         value = get(key)
@@ -401,7 +339,7 @@ def sync_all() -> list[AppStatus]:
 
 
 def _has_jobs(row) -> bool:
-    related = getattr(row, 'job_set', None)
+    related = getattr(row, 'jobs', None) or getattr(row, 'job_set', None)  # jobs.Job.workflow
     try:
         return bool(related is not None and related.exists())
     except Exception:

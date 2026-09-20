@@ -68,6 +68,17 @@ class RunPage:
     def fill(self, input_id, value):
         self.field(input_id).fill(str(value))
 
+    def set_files(self, input_id, paths):
+        """Choose file(s) for a file/folder input."""
+        self.page.get_by_test_id('input-%s' % input_id).locator('input[type=file]').set_input_files(
+            [str(p) for p in paths])
+
+    def set_checked(self, input_id, checked=True):
+        self.page.get_by_test_id('input-%s' % input_id).locator('input[type=checkbox]').set_checked(checked)
+
+    def field_error(self, input_id):
+        return self.page.get_by_test_id('error-%s' % input_id)
+
     def submit(self):
         """Submit and wait for the job page; returns the job id from the URL."""
         self.submit_button.click()
@@ -96,3 +107,22 @@ class JobPage:
 
     def open_results(self):
         self.page.get_by_test_id('job-tab-results').click()
+
+    def open_logs(self):
+        self.page.get_by_test_id('job-tab-logs').click()
+        return self.page.get_by_test_id('job-log')
+
+    def messages(self, level=None):
+        sel = '[data-testid="job-message"]' + ('[data-level="%s"]' % level if level else '')
+        return self.page.locator(sel)
+
+    def process(self, name):
+        return self.page.locator('[data-testid="job-process"][data-process="%s"]' % name)
+
+    def cancel(self):
+        self.cancel_button.click()
+        self.page.get_by_test_id('confirm-ok').click()
+
+    def delete(self):
+        self.page.get_by_test_id('job-delete').click()
+        self.page.get_by_test_id('confirm-ok').click()

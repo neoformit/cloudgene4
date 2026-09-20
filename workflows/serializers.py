@@ -2,7 +2,9 @@
 Serializers for workflow-related API endpoints
 """
 from rest_framework import serializers
-from .models import Workflow, WorkflowCategory, WorkflowParameter
+from drf_spectacular.utils import extend_schema_field
+
+from .models import Workflow, WorkflowCategory
 
 
 class WorkflowCategorySerializer(serializers.ModelSerializer):
@@ -11,43 +13,87 @@ class WorkflowCategorySerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'description', 'created_at']
 
 
-class WorkflowParameterSerializer(serializers.ModelSerializer):
-    # Frontend compatibility fields
-    id = serializers.CharField(source='parameter_id', read_only=True)
-    type = serializers.CharField(source='parameter_type', read_only=True)
-    label = serializers.CharField(source='name', read_only=True)
-    value = serializers.CharField(source='default_value', read_only=True)
-    
-    class Meta:
-        model = WorkflowParameter
-        fields = ['parameter_id', 'name', 'description', 'parameter_type', 
-                 'required', 'default_value', 'values', 'is_input', 'is_output', 'order',
-                 'id', 'type', 'label', 'value']
+class InputValueSerializer(serializers.Serializer):
+    key = serializers.CharField()
+    label = serializers.CharField()
+
+
+class WorkflowInputSerializer(serializers.Serializer):
+    """One run-form input (SPEC §4); built from the parsed definition, not a DB table."""
+    id = serializers.CharField()
+    type = serializers.CharField()
+    label = serializers.CharField()
+    value = serializers.JSONField(allow_null=True, help_text='Typed default')
+    values = InputValueSerializer(many=True)
+    checkbox_values = serializers.DictField(allow_null=True)
+    required = serializers.BooleanField()
+    visible = serializers.BooleanField()
+    help = serializers.CharField(allow_blank=True)
+    details = serializers.CharField(allow_blank=True)
+    accept = serializers.CharField(allow_blank=True)
+    min = serializers.FloatField(allow_null=True)
+    max = serializers.FloatField(allow_null=True)
+    write_file = serializers.CharField(allow_blank=True)
+    serialize = serializers.BooleanField()
+
+
+class WorkflowOutputSerializer(serializers.Serializer):
+    id = serializers.CharField()
+    type = serializers.CharField()
+    label = serializers.CharField()
+    download = serializers.BooleanField()
+    serialize = serializers.BooleanField()
 
 
 class WorkflowSerializer(serializers.ModelSerializer):
-    category_name = serializers.CharField(source='category.name', read_only=True)
-    parameters = WorkflowParameterSerializer(many=True, read_only=True)
+    """Public workflow (list/detail) incl. the typed run-form schema from cloudgene.yaml."""
+    category_name = serializers.CharField(source='category.name', read_only=True, default=None)
+    author = serializers.SerializerMethodField()
+    logo = serializers.SerializerMethodField()
     inputs = serializers.SerializerMethodField()
     outputs = serializers.SerializerMethodField()
-    allowed_groups = serializers.StringRelatedField(many=True, read_only=True)
-    
+    definition_errors = serializers.SerializerMethodField()
+    max_upload_mb = serializers.SerializerMethodField()
+
     class Meta:
         model = Workflow
-        fields = ['id', 'name', 'description', 'version', 'website', 'category_name',
-                 'status', 'public', 'created_at', 'updated_at', 'parameters', 'inputs', 'outputs', 'allowed_groups']
-        read_only_fields = ['created_at', 'updated_at']
-    
+        fields = ['id', 'name', 'description', 'version', 'website', 'author', 'logo',
+                  'category_name', 'status', 'public', 'inputs', 'outputs', 'definition_errors',
+                  'max_upload_mb']
+        read_only_fields = fields
+
+    def _definition(self, obj):
+        cache = self.context.setdefault('_definitions', {})
+        if obj.pk not in cache:
+            from jobs import workflow_bridge
+            from .definition import DefinitionError
+            try:
+                cache[obj.pk] = (workflow_bridge.get_definition(obj), [])
+            except DefinitionError as exc:
+                cache[obj.pk] = (None, exc.errors)
+        return cache[obj.pk]
+
+    def get_author(self, obj) -> str:
+        d, _ = self._definition(obj)
+        return d.author if d else ''
+
+    def get_logo(self, obj) -> str:
+        d, _ = self._definition(obj)
+        return d.logo if d else ''
+
+    @extend_schema_field(WorkflowInputSerializer(many=True))
     def get_inputs(self, obj):
-        """Get input parameters only"""
-        return WorkflowParameterSerializer(
-            obj.parameters.filter(is_input=True),
-            many=True
-        ).data
-    
+        d, _ = self._definition(obj)
+        return [p.to_dict() for p in d.inputs] if d else []
+
+    @extend_schema_field(WorkflowOutputSerializer(many=True))
     def get_outputs(self, obj):
-        """Get output parameters only"""
-        return WorkflowParameterSerializer(
-            obj.parameters.filter(is_output=True),
-            many=True
-        ).data
+        d, _ = self._definition(obj)
+        return [o.to_dict() for o in d.outputs] if d else []
+
+    def get_definition_errors(self, obj) -> list[str]:
+        return self._definition(obj)[1]
+
+    def get_max_upload_mb(self, obj) -> int:
+        from core import config as cloudgene_config
+        return int(cloudgene_config.get('server.max_upload_mb', 1024) or 1024)

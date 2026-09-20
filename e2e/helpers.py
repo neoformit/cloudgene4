@@ -181,3 +181,33 @@ def extract_link(msg_or_text, fragment):
 
 def absolute(base_url, path):
     return urljoin(base_url.rstrip('/') + '/', path.lstrip('/'))
+
+
+# -- processes (J6 / Q3) ---------------------------------------------------------------------------
+
+def job_processes(job_id):
+    """PIDs of live processes that belong to a job (job id in their command line or environment,
+    e.g. CLOUDGENE_JOB_ID inherited by Nextflow and its tasks). Linux /proc only."""
+    needle = str(job_id).encode()
+    pids = []
+    for entry in Path('/proc').iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            state = (entry / 'stat').read_text().rsplit(')', 1)[1].split()[0]
+            if state == 'Z':
+                continue
+            if needle in (entry / 'cmdline').read_bytes() or needle in (entry / 'environ').read_bytes():
+                pids.append(int(entry.name))
+        except (OSError, IndexError):
+            continue
+    return pids
+
+
+def wait_no_job_processes(job_id, timeout=20):
+    deadline = time.monotonic() + timeout
+    pids = job_processes(job_id)
+    while pids and time.monotonic() < deadline:
+        time.sleep(0.5)
+        pids = job_processes(job_id)
+    return pids

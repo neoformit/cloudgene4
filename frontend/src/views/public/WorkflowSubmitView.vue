@@ -1,9 +1,11 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getWorkflow } from '@/api/workflows'
 import { submitJob } from '@/api/jobs'
+import { apiErrorMessage, apiFieldErrors } from '@/api/client'
 import DynamicForm from '@/components/workflows/form/DynamicForm.vue'
+import { buildFormData, initialValues, validate, MAX_JOB_NAME } from '@/components/workflows/form/formModel'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import AlertMessage from '@/components/common/AlertMessage.vue'
 
@@ -12,41 +14,46 @@ const router = useRouter()
 
 const workflow = ref(null)
 const loading = ref(true)
+const loadError = ref('')
 const submitting = ref(false)
 const error = ref('')
+const errors = ref({})
 const jobName = ref('')
+const values = ref({})
+
+const params = computed(() => workflow.value?.inputs ?? [])
 
 onMounted(async () => {
   try {
     const { data } = await getWorkflow(route.params.workflowId)
     workflow.value = data
-    jobName.value = data.name
-  } catch {
-    error.value = 'Workflow not found.'
+    values.value = initialValues(data.inputs)
+  } catch (e) {
+    loadError.value = e.response?.status === 404 ? 'Workflow not found.' : apiErrorMessage(e)
   } finally {
     loading.value = false
   }
 })
 
-const inputParams = () => workflow.value?.inputs ?? []
-
-async function handleSubmit(formData) {
+async function handleSubmit() {
   error.value = ''
+  errors.value = validate(params.value, values.value, {
+    maxUploadMb: workflow.value?.max_upload_mb,
+    jobName: jobName.value,
+  })
+  if (Object.keys(errors.value).length) {
+    error.value = errors.value._uploads || 'Please correct the highlighted fields.'
+    return
+  }
   submitting.value = true
-  
   try {
-    const { data } = await submitJob(formData)
+    const fd = buildFormData(workflow.value.id, jobName.value, params.value, values.value)
+    const { data } = await submitJob(fd)
     router.push(`/jobs/${data.id}`)
   } catch (e) {
-    const data = e.response?.data
-    if (data?.error) {
-      error.value = data.error
-    } else if (data && typeof data === 'object') {
-      const firstKey = Object.keys(data)[0]
-      error.value = firstKey ? `${firstKey}: ${data[firstKey]}` : 'Job submission failed.'
-    } else {
-      error.value = 'Job submission failed.'
-    }
+    const fields = apiFieldErrors(e)
+    errors.value = Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, v.join(' ')]))
+    error.value = apiErrorMessage(e, 'Job submission failed.')
   } finally {
     submitting.value = false
   }
@@ -61,8 +68,8 @@ async function handleSubmit(formData) {
       <div class="page-header">
         <div class="py-1 container">
           <h2 data-testid="workflow-title">{{ workflow.name }}</h2>
-          <small class="text-muted">{{ workflow.version }}</small>
-          <p v-if="workflow.description" class="mt-1 mb-0">{{ workflow.description }}</p>
+          <small class="text-muted" data-testid="workflow-version">{{ workflow.version }}</small>
+          <p v-if="workflow.description" class="mt-1 mb-0" v-html="workflow.description"></p>
         </div>
       </div>
 
@@ -73,28 +80,28 @@ async function handleSubmit(formData) {
           </li>
         </ul>
 
-        <AlertMessage :message="error" data-testid="run-error" />
+        <AlertMessage v-if="workflow.definition_errors?.length" data-testid="workflow-definition-error"
+          :message="`This workflow is misconfigured: ${workflow.definition_errors.join('; ')}`" />
 
-        <form data-testid="run-form" @submit.prevent="$refs.dynForm.onSubmit()">
+        <form data-testid="run-form" novalidate @submit.prevent="handleSubmit">
           <div class="mb-4">
-            <label for="job-name" class="form-label fw-semibold">Job Name:</label>
+            <label for="job-name" class="form-label fw-semibold">Job name <span class="text-muted fw-normal">(optional)</span></label>
             <input
               id="job-name"
               data-testid="job-name"
               v-model="jobName"
               type="text"
-              class="form-control col-sm-3"
-              required
+              class="form-control"
+              :class="{ 'is-invalid': errors.job_name }"
+              :maxlength="MAX_JOB_NAME"
+              :placeholder="`${workflow.name} <date>`"
             />
+            <div v-if="errors.job_name" class="invalid-feedback d-block" data-testid="error-job_name">{{ errors.job_name }}</div>
           </div>
 
-          <DynamicForm
-            ref="dynForm"
-            :params="inputParams()"
-            :workflow-id="route.params.workflowId"
-            :job-name="jobName"
-            @submit="handleSubmit"
-          />
+          <DynamicForm v-model="values" :params="params" :errors="errors" :disabled="submitting" />
+
+          <AlertMessage :message="error" data-testid="run-error" />
 
           <div class="mt-4">
             <button class="btn btn-primary" type="submit" data-testid="job-submit" :disabled="submitting">
@@ -107,7 +114,7 @@ async function handleSubmit(formData) {
     </template>
 
     <div v-else class="container my-5">
-      <AlertMessage :message="error || 'Workflow not found.'" />
+      <AlertMessage :message="loadError || 'Workflow not found.'" data-testid="run-error" />
     </div>
   </div>
 </template>

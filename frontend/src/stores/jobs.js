@@ -6,14 +6,19 @@ export const useJobsStore = defineStore('jobs', {
     jobs: [],
     total: 0,
     currentPage: 1,
+    stateFilter: '',
   }),
 
   actions: {
-    async fetchJobs(page = 1) {
-      const { data } = await listJobs(page)
+    async fetchJobs(page = 1, stateFilter = this.stateFilter) {
+      const params = { page }
+      if (stateFilter) params.state = stateFilter
+      const { data } = await listJobs(params)
       this.jobs = data.results ?? data
-      this.total = data.count ?? data.length
+      this.total = data.count ?? this.jobs.length
       this.currentPage = page
+      this.stateFilter = stateFilter
+      return this.jobs
     },
 
     async refreshJob(id) {

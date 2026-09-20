@@ -13,7 +13,7 @@ cloudgene_django/   Django project (settings from environment variables)
 core/               platform: config service, auth helpers, error envelope, health, create_admin
 accounts/           users, registration, groups
 workflows/          workflow definitions and registry
-jobs/               jobs, queue and (from T03) the worker
+jobs/               jobs, queue, worker (run_worker) and the Nextflow runner
 admin_panel/        admin API
 frontend/           Vue 3 SPA (Vite); `npm run build` writes to static/frontend/
 home/               default CLOUDGENE_HOME: config/settings.yaml, pages/*.html, apps/, jobs/ (ignored)
@@ -21,8 +21,8 @@ scripts/test.sh     runs every test suite
 ```
 
 Processes: **web** (Django; serves `/api/*` and the built SPA) and **worker**
-(`python manage.py run_worker` — *provided by T03, not available yet*: until then submitted jobs
-stay `pending`). There is no Redis, Celery or WebSocket server.
+(`python manage.py run_worker` — schedules the queue and runs Nextflow; without it jobs stay
+`waiting`). There is no Redis, Celery or WebSocket server.
 
 ## Development quick start
 
@@ -47,12 +47,16 @@ python manage.py create_admin --username admin --email admin@example.org --passw
 # 5. Web server → http://127.0.0.1:8000/
 python manage.py runserver
 
-# 6. Worker (separate terminal) — provided by T03
-# python manage.py run_worker
+# 6. Install a workflow (an app dir with cloudgene.yaml) and run the worker
+python manage.py install_workflow e2e/fixtures/apps/hello --public
+python manage.py run_worker          # separate terminal; Ctrl+C stops it gracefully
 ```
 
 For frontend work with hot reload run `npm run dev` in `frontend/` (http://localhost:5173) next to
 `runserver`; Vite proxies `/api` to port 8000.
+
+Job workspaces live in `$CLOUDGENE_HOME/jobs/<job-uuid>/`; `python manage.py cleanup_jobs`
+(schedule it daily) removes them after `server.job_retention_days`.
 
 `create_admin` is idempotent: it creates the user or updates an existing one (password only if
 given; also via `$CLOUDGENE_ADMIN_PASSWORD`; a random one is printed if a new user gets none), and

@@ -10,7 +10,7 @@ from rest_framework.test import APITestCase
 from rest_framework import status
 from django.urls import reverse
 
-from .models import Workflow, WorkflowCategory, WorkflowParameter
+from .models import Workflow, WorkflowCategory
 
 User = get_user_model()
 
@@ -198,39 +198,6 @@ class WorkflowTest(TestCase):
         anonymous_user = AnonymousUser()
         
         self.assertFalse(workflow.can_access(anonymous_user))
-
-
-class WorkflowParameterTest(TestCase):
-    """Test cases for WorkflowParameter model"""
-    
-    def setUp(self):
-        self.workflow = Workflow.objects.create(
-            id='test-workflow',
-            name='Test Workflow',
-            yaml_config='test: config'
-        )
-    
-    def test_create_parameter(self):
-        """Test creating a workflow parameter"""
-        param = WorkflowParameter.objects.create(
-            workflow=self.workflow,
-            parameter_id='test_param',
-            name='Test Parameter',
-            description='A test parameter',
-            parameter_type='text',
-            required=True,
-            default_value='default',
-            is_input=True,
-            order=1
-        )
-        
-        self.assertEqual(param.workflow, self.workflow)
-        self.assertEqual(param.parameter_id, 'test_param')
-        self.assertEqual(param.parameter_type, 'text')
-        self.assertTrue(param.required)
-        self.assertTrue(param.is_input)
-        self.assertFalse(param.is_output)
-        self.assertEqual(str(param), 'Test Workflow - Test Parameter')
 
 
 class WorkflowAPITest(APITestCase):
