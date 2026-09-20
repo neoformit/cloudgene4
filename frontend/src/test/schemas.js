@@ -59,6 +59,69 @@ export const workflowInputSchema = {
   },
 }
 
+// --- Accounts (T04): groups are a list of names
+const accountUserProps = {
+  ...userSchema.properties,
+  is_active: { type: 'boolean' },
+  groups: { type: 'array', items: { type: 'string' } },
+  date_joined: { type: 'string', format: 'date-time' },
+  last_login: { type: ['string', 'null'] },
+}
+
+// GET/PATCH /api/me → user + api_token metadata (never the key)
+export const profileSchema = {
+  type: 'object',
+  required: [...userSchema.required, 'groups', 'api_token'],
+  properties: {
+    ...accountUserProps,
+    api_token: {
+      oneOf: [
+        { type: 'null' },
+        {
+          type: 'object',
+          required: ['created'],
+          additionalProperties: false,
+          properties: { created: { type: 'string', format: 'date-time' } },
+        },
+      ],
+    },
+  },
+}
+
+// POST /api/me/token → {token, created}
+export const apiTokenSchema = {
+  type: 'object',
+  required: ['token', 'created'],
+  properties: { token: { type: 'string' }, created: { type: 'string', format: 'date-time' } },
+}
+
+// GET /api/admin/users → paginated
+export const adminUserListSchema = {
+  type: 'object',
+  required: ['count', 'results'],
+  properties: {
+    count: { type: 'integer' },
+    results: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: [...userSchema.required, 'groups', 'is_active', 'is_superuser'],
+        properties: { ...accountUserProps, is_superuser: { type: 'boolean' } },
+      },
+    },
+  },
+}
+
+// GET /api/admin/groups → plain array
+export const adminGroupListSchema = {
+  type: 'array',
+  items: {
+    type: 'object',
+    required: ['id', 'name', 'member_count'],
+    properties: { id: { type: 'integer' }, name: { type: 'string' }, member_count: { type: 'integer' } },
+  },
+}
+
 export const workflowSchema = {
   type: 'object',
   required: ['id', 'name', 'version', 'description', 'status', 'public', 'inputs', 'outputs',

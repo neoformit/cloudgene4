@@ -1,188 +1,113 @@
+<script setup>
+import { ref, onMounted } from 'vue'
+import { listUsers, updateUser } from '@/api/users'
+import { apiErrorMessage } from '@/api/client'
+import { avatarHue, initials } from '@/utils/avatar'
+import AlertMessage from '@/components/common/AlertMessage.vue'
+
+const props = defineProps({
+  group: { type: Object, required: true },
+})
+const emit = defineEmits(['close', 'members-changed'])
+
+const members = ref([])
+const loading = ref(true)
+const error = ref('')
+const removing = ref(null)
+
+async function refresh() {
+  loading.value = true
+  try {
+    const { data } = await listUsers({ group: props.group.name, page_size: 200 })
+    members.value = data.results
+  } catch (e) {
+    error.value = apiErrorMessage(e, 'Could not load members.')
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(refresh)
+
+async function remove(user) {
+  removing.value = user.id
+  error.value = ''
+  try {
+    if (props.group.name === 'admin') {
+      await updateUser(user.id, { is_admin: false })
+    } else {
+      await updateUser(user.id, { groups: user.groups.filter((g) => g !== props.group.name && g !== 'admin') })
+    }
+    await refresh()
+    emit('members-changed')
+  } catch (e) {
+    error.value = apiErrorMessage(e, 'Removing the member failed.')
+  } finally {
+    removing.value = null
+  }
+}
+</script>
+
 <template>
-  <div class="modal fade show" style="display: block; background-color: rgba(0, 0, 0, 0.5);" @click="closeIfBackdrop">
-    <div class="modal-dialog modal-md">
+  <div
+    class="modal d-block"
+    tabindex="-1"
+    style="background: rgba(0,0,0,0.5); z-index: 1060;"
+    data-testid="group-members-modal"
+    @click.self="emit('close')"
+  >
+    <div class="modal-dialog modal-dialog-scrollable">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title">
-            <i class="fas fa-users me-2"></i>
-            Members of "{{ group.name }}"
-          </h5>
-          <button type="button" class="btn-close" @click="$emit('close')"></button>
+          <h5 class="modal-title">Members of <strong>{{ group.name }}</strong></h5>
+          <button type="button" class="btn-close" aria-label="Close" @click="emit('close')"></button>
         </div>
-        
         <div class="modal-body">
-          <AlertMessage :message="error" />
-          
-          <div v-if="success" class="alert alert-success">
-            {{ success }}
-          </div>
-          
-          <!-- Current Members -->
-          <div class="mb-4">
-            <h6>Current Members ({{ groupMembers.length }})</h6>
-            <div v-if="groupMembers.length" class="list-group">
-              <div 
-                v-for="user in groupMembers" 
-                :key="user.id"
-                class="list-group-item d-flex justify-content-between align-items-center"
-              >
-                <div class="d-flex align-items-center">
-                  <img :src="avatarUrl(user.email)" class="rounded-circle me-2" width="24" height="24" />
-                  <div>
-                    <div class="fw-medium">{{ user.username }}</div>
-                    <small class="text-muted">{{ user.email }}</small>
-                  </div>
-                </div>
-                <button
-                  class="btn btn-sm btn-outline-danger"
-                  @click="removeFromGroup(user)"
-                  title="Remove from group"
-                  :disabled="updating"
-                >
-                  <i class="fas fa-times"></i>
-                </button>
+          <AlertMessage :message="error" data-testid="group-members-error" />
+          <div v-if="loading" class="text-muted">Loading…</div>
+          <ul v-else-if="members.length" class="list-group">
+            <li
+              v-for="user in members"
+              :key="user.id"
+              class="list-group-item d-flex align-items-center gap-2"
+              data-testid="group-member"
+              :data-username="user.username"
+            >
+              <span
+                class="avatar rounded-circle d-inline-flex align-items-center justify-content-center text-white fw-bold"
+                :style="{ background: `hsl(${avatarHue(user)}, 45%, 45%)` }"
+                aria-hidden="true"
+              >{{ initials(user) }}</span>
+              <div class="flex-grow-1">
+                <div class="fw-semibold">{{ user.username }}</div>
+                <small class="text-muted">{{ user.full_name }}</small>
               </div>
-            </div>
-            <p v-else class="text-muted text-center py-3">
-              No members in this group yet.
-            </p>
-          </div>
-          
-          <!-- Add Members -->
-          <div>
-            <h6>Add Members</h6>
-            <div v-if="availableUsers.length" class="list-group">
-              <div 
-                v-for="user in availableUsers" 
-                :key="user.id"
-                class="list-group-item d-flex justify-content-between align-items-center"
+              <button
+                class="btn btn-sm btn-outline-danger"
+                :disabled="removing === user.id || user.is_superuser"
+                data-testid="group-member-remove"
+                @click="remove(user)"
               >
-                <div class="d-flex align-items-center">
-                  <img :src="avatarUrl(user.email)" class="rounded-circle me-2" width="24" height="24" />
-                  <div>
-                    <div class="fw-medium">{{ user.username }}</div>
-                    <small class="text-muted">{{ user.email }}</small>
-                  </div>
-                </div>
-                <button
-                  class="btn btn-sm btn-outline-primary"
-                  @click="addToGroup(user)"
-                  title="Add to group"
-                  :disabled="updating"
-                >
-                  <i class="fas fa-plus"></i>
-                </button>
-              </div>
-            </div>
-            <p v-else class="text-muted text-center py-3">
-              All users are already members of this group.
-            </p>
-          </div>
+                Remove
+              </button>
+            </li>
+          </ul>
+          <p v-else class="text-muted mb-0" data-testid="group-members-empty">
+            No members. Add users to this group from the user list.
+          </p>
         </div>
-        
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" @click="$emit('close')">
-            Close
-          </button>
+          <button class="btn btn-secondary" data-testid="group-members-close" @click="emit('close')">Close</button>
         </div>
       </div>
     </div>
   </div>
 </template>
 
-<script setup>
-import { ref, computed } from 'vue'
-import { updateUser } from '@/api/users'
-import AlertMessage from '@/components/common/AlertMessage.vue'
-
-const props = defineProps({
-  group: {
-    type: Object,
-    required: true
-  },
-  users: {
-    type: Array,
-    default: () => []
-  }
-})
-
-const emit = defineEmits(['close', 'update'])
-
-const updating = ref(false)
-const error = ref('')
-const success = ref('')
-
-const groupMembers = computed(() => {
-  return props.users.filter(user => 
-    (user.groups || []).includes(props.group.name)
-  )
-})
-
-const availableUsers = computed(() => {
-  return props.users.filter(user => 
-    !(user.groups || []).includes(props.group.name)
-  )
-})
-
-const avatarUrl = (email) => {
-  return `https://www.gravatar.com/avatar/${email}?d=identicon&s=24`
+<style scoped>
+.avatar {
+  width: 24px;
+  height: 24px;
+  font-size: 0.6rem;
 }
-
-const closeIfBackdrop = (event) => {
-  if (event.target === event.currentTarget) {
-    emit('close')
-  }
-}
-
-const addToGroup = async (user) => {
-  updating.value = true
-  error.value = ''
-  success.value = ''
-  
-  try {
-    const updatedGroups = [...(user.groups || []), props.group.name]
-    await updateUser(user.id, { groups: updatedGroups })
-    
-    // Update local user object
-    user.groups = updatedGroups
-    
-    success.value = `Added ${user.username} to ${props.group.name}`
-    emit('update')
-    
-    // Clear success message after 2 seconds
-    setTimeout(() => {
-      success.value = ''
-    }, 2000)
-  } catch (err) {
-    error.value = err.response?.data?.message || 'Failed to add user to group'
-  } finally {
-    updating.value = false
-  }
-}
-
-const removeFromGroup = async (user) => {
-  updating.value = true
-  error.value = ''
-  success.value = ''
-  
-  try {
-    const updatedGroups = (user.groups || []).filter(g => g !== props.group.name)
-    await updateUser(user.id, { groups: updatedGroups })
-    
-    // Update local user object
-    user.groups = updatedGroups
-    
-    success.value = `Removed ${user.username} from ${props.group.name}`
-    emit('update')
-    
-    // Clear success message after 2 seconds
-    setTimeout(() => {
-      success.value = ''
-    }, 2000)
-  } catch (err) {
-    error.value = err.response?.data?.message || 'Failed to remove user from group'
-  } finally {
-    updating.value = false
-  }
-}
-</script>
+</style>

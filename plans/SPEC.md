@@ -4,7 +4,7 @@
 > When you change behaviour, contracts, or architecture, update this file in the same commit.
 > Status of work items lives in `plans/TASKS.md`; the E2E strategy lives in `plans/E2E_TEST_PLAN.md`.
 
-Last reviewed: 2026-09-19 (initial audit; T01 platform foundations).
+Last reviewed: 2026-09-19 (initial audit; T01 platform foundations; T04 accounts).
 
 ---
 
@@ -29,7 +29,8 @@ Cloudgene 3 (Java, in `./cloudgene3/`, read-only reference). Core capabilities:
    editable from admin. Navbar items configured in YAML.
 
 ### Known bugs from the original that MUST be fixed (acceptance criteria)
-- **K1 Duplicate users** after register → activate → assign group. Root causes in this port:
+- **K1 Duplicate users** (✅ T04: DB constraints on `Lower(username)`/`Lower(email)`, regression
+  test `accounts.tests.K1RegressionTest` + E2E A2/D3) after register → activate → assign group. Root causes in this port:
   username/email uniqueness is case-sensitive (`Bob` vs `bob`, `A@x.com` vs `a@x.com`); group edits
   from the admin UI are silently dropped (`UserSerializer.groups` is read-only) so admins re-create
   users; no DB-level case-insensitive constraint. Fix: normalise (lower-case) email, case-insensitive
@@ -91,15 +92,15 @@ IDs are referenced from `TASKS.md`. Sev: **B**locker / **H**igh / **M**edium / *
 **Accounts (accounts/)**
 | ID | Sev | Issue |
 |----|-----|-------|
-| A1 | H | K1 duplicate users: case-sensitive uniqueness; group membership not writable via API (`groups` read-only) → admin UI changes silently ignored. |
+| A1 ✅ T04 | H | K1 duplicate users: case-sensitive uniqueness; group membership not writable via API (`groups` read-only) → admin UI changes silently ignored. |
 | A2 ✅ T01 | H | Auth is DRF token in `localStorage`; plain `<a href>` links to logs/downloads carry no token → 401 → interceptor redirects to login. |
-| A3 | H | Profile page: password change/email change payload fields ignored by serializer; `api_token` field doesn't exist on serializer; "Create API token" calls `GET /api/auth/token/` which is a POST-only obtain-token view. |
-| A4 | M | Frontend and backend validation rules disagree (username: FE allows `_ -` and 3 chars, BE requires `[A-Za-z0-9]{4,}`; password lowercase rule missing in FE). |
-| A5 | M | Password reset endpoint reveals whether an e-mail exists (FE text implies it doesn't). Reset link `/recover/<token>` fine; activation link fine. |
-| A6 | M | Login lockout (`max_login_attempts`, `lockout_duration`) configured but not implemented. |
-| A7 | M | Non-admin users can `PUT/PATCH/DELETE` themselves with arbitrary fields incl. `is_staff`, `is_active` (UserSerializer only protects id/dates). Privilege escalation. |
-| A8 ◐ T01: groups endpoint admin-only; counts → T04 | M | Groups endpoint: any authenticated user can POST (create) groups; group member counts unavailable. |
-| A9 ◐ T01: one `is_admin()`/`IsAdmin`; unused models → T04 | L | Unused models `UserGroup`, `UserToken`; mixed `is_staff` / `admin` group / `is_superuser` admin semantics. `IsAdminUser` (DRF, checks `is_staff`) vs custom `IsAdminUser` (admin group) used inconsistently. |
+| A3 ✅ T04 | H | Profile page: password change/email change payload fields ignored by serializer; `api_token` field doesn't exist on serializer; "Create API token" calls `GET /api/auth/token/` which is a POST-only obtain-token view. |
+| A4 ✅ T04 | M | Frontend and backend validation rules disagree (username: FE allows `_ -` and 3 chars, BE requires `[A-Za-z0-9]{4,}`; password lowercase rule missing in FE). |
+| A5 ✅ T04 | M | Password reset endpoint reveals whether an e-mail exists (FE text implies it doesn't). Reset link `/recover/<token>` fine; activation link fine. |
+| A6 ✅ T04 | M | Login lockout (`max_login_attempts`, `lockout_duration`) configured but not implemented. |
+| A7 ✅ T04 | M | Non-admin users can `PUT/PATCH/DELETE` themselves with arbitrary fields incl. `is_staff`, `is_active` (UserSerializer only protects id/dates). Privilege escalation. |
+| A8 ✅ T01/T04 | M | Groups endpoint: any authenticated user can POST (create) groups; group member counts unavailable. |
+| A9 ✅ T01/T04 | L | Unused models `UserGroup`, `UserToken`; mixed `is_staff` / `admin` group / `is_superuser` admin semantics. `IsAdminUser` (DRF, checks `is_staff`) vs custom `IsAdminUser` (admin group) used inconsistently. |
 
 **Workflows (workflows/)**
 | ID | Sev | Issue |
@@ -271,7 +272,32 @@ flag: `deleted` (soft) for user-deleted jobs.
   (`User.is_admin_user()` delegates to it).
 - Frontend: one 401 hook (`onUnauthorized` in `api/client.js`) resets the store and leaves only
   protected pages; there is no hard redirect.
-- Lockout after `max_login_attempts` for `lockout_duration` seconds.
+- **Login errors** (T04): 400 `invalid_credentials` (unknown user and wrong password look the
+  same), 403 `account_inactive` (only after a correct password), 429 `account_locked` with
+  `Retry-After`. Failed logins are counted per user (`User.login_attempts`); reaching
+  `security.max_login_attempts` locks the account for `security.lockout_duration` s (0 = off);
+  a correct password during the lock is refused; success or a password reset resets the counter.
+  Usernames are matched ignoring case. Login updates `last_login`.
+- **Identity** (T04, K1): username unique ignoring case (stored stripped, case preserved), e-mail
+  stored stripped + lower-cased and unique; DB constraints `users_username_ci_unique`,
+  `users_email_ci_unique` on `Lower(...)`. Migration `accounts.0003` aborts with a list of
+  existing case-duplicates (nothing merged automatically).
+- **Field rules** (A4): `accounts/validation.py` is the source; username `^[A-Za-z0-9]{4,150}$`,
+  e-mail `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$` (≤254), password 6–128 chars with a
+  digit, a lower- and an upper-case letter (Cloudgene rules; Django's `AUTH_PASSWORD_VALIDATORS`
+  are not applied), full name required (≤255), group name `^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$`.
+  Mirrored in `frontend/src/utils/validation.js`; both test suites run
+  `accounts/validation_cases.json`.
+- **Registration**: with `security.require_activation` the account is inactive and an activation
+  link `<server.url or request host>/activate/<key>` is mailed (mail failure → 503 `mail_failed`,
+  nothing created); otherwise active at once. Activation `POST /api/auth/activate/{key}` is
+  idempotent: `{status: activated|already_active, message}`; re-using the link never re-activates
+  an account an admin deactivated. Keys and reset tokens are random (`secrets.token_urlsafe`) and
+  stored only as sha256.
+- **Password reset**: request always 200 with the same message (mail only for active accounts);
+  link `/recover/<token>`, single use, expires after 24 h; confirm validates the password rules.
+- **API tokens**: one DRF token per user, created/regenerated with `POST /api/me/token` (key shown
+  once), revoked with `DELETE /api/me/token`. `/api/auth/token/` (obtain_auth_token) is removed.
 
 ### 3.5 API conventions (the contract) **[D]**
 - All endpoints under `/api/`. JSON in/out except job submission (`multipart/form-data`) and file
@@ -301,9 +327,15 @@ flag: `deleted` (soft) for user-deleted jobs.
 ```
 Auth      POST /api/auth/login  POST /api/auth/logout  GET /api/auth/me
           POST /api/auth/register  POST /api/auth/activate/{key}
-          POST /api/auth/password-reset  POST /api/auth/password-reset/{token}
-Profile   GET/PATCH /api/me  (full_name, email, password+current_password)
-          POST /api/me/token  DELETE /api/me/token  DELETE /api/me
+          POST /api/auth/password-reset {email}  POST /api/auth/password-reset/{token}
+                {password, password_confirm?}
+Profile   GET/PATCH /api/me → User + api_token: {created}|null
+            PATCH {full_name?, email?, password?, password_confirm?, current_password?}
+            (current_password required when email or password changes; other keys ignored)
+          POST /api/me/token → 201 {token, created}   DELETE /api/me/token → {message}
+          DELETE /api/me {password} → {message}; logs out (400 last_admin for the only admin)
+          User = {id, username, email, full_name, is_active, is_admin, groups: [names],
+                  date_joined, last_login}
 Server    GET /api/server  → {name, maintenance, maintenance_message, navbar[], footer_html,
                               user?} (public)
           GET /api/pages/{slug} → {slug, html}  (public; home, about, …)
@@ -318,9 +350,18 @@ Admin     GET /api/admin/dashboard  (queue: {paused, maintenance, running, waiti
           POST /api/admin/queue/{pause|resume}  POST /api/admin/maintenance/{enter|exit}
           GET /api/admin/jobs?state=&user=&workflow=  POST /api/admin/jobs/{id}/cancel
           POST /api/admin/jobs/{id}/restart
-          GET /api/admin/users?search=  PATCH /api/admin/users/{id} (groups[], is_active)
-          DELETE /api/admin/users/{id}
-          GET/POST /api/admin/groups  DELETE /api/admin/groups/{id}
+          GET /api/admin/users?search=&group=&is_active=&page=&page_size= (paginated;
+              row = User + is_superuser, activated_at; search: username/email/full name)
+          GET /api/admin/users/{id}
+          PATCH /api/admin/users/{id} {groups: [names], is_active, is_admin} → row. `groups`
+              replaces membership by **name**; the `admin` group is ignored there and managed
+              only by `is_admin` (admin group + is_staff together). Cannot deactivate/un-admin
+              yourself; superusers stay admin (400).
+          DELETE /api/admin/users/{id} → 204 (400 cannot_delete_self)
+          GET /api/admin/groups → plain array [{id, name, member_count}] (not paginated)
+          POST /api/admin/groups {name} → 201 (name unique ignoring case)
+          DELETE /api/admin/groups/{id} → 204 (400 protected_group for `admin`)
+          (old /api/users/ and /api/groups/ are removed)
           GET /api/admin/workflows  PATCH /api/admin/workflows/{id} (enabled, groups[], public)
           POST /api/admin/workflows/{id}/reload  POST /api/admin/workflows/install {path}
           GET/PUT /api/admin/workflows/{id}/nextflow (profile, work_dir, config, env)
@@ -431,6 +472,10 @@ stores a snapshot of the YAML it was submitted with (`Job.workflow_yaml`) and ru
 - Works with SQLite (dev/test) and Postgres (prod).
 
 ## 6. Changelog of spec decisions
+- 2026-09-19 (T04): identity rules (case-insensitive username/e-mail, normalisation), shared
+  field rules, login error codes + lockout, activation/reset token handling, profile/token and
+  admin users/groups shapes (§3.4, §3.6); admin group managed via `is_admin` only; groups list
+  unpaginated.
 - 2026-09-19 (T01): config service API + `settings.yaml` key table (§3.2); auth details (login
   returns `{user}`, CSRF on login, 401 for unauthenticated, admin incl. superuser) (§3.4); error
   codes, optional trailing slash, pagination limits (§3.5); health payload (§3.6); worker
