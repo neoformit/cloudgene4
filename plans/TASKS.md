@@ -99,7 +99,7 @@ users/groups endpoints under `/api/admin/` with writable groups & is_active, no 
 group member counts; mail sending uses mail settings from config service.
 E2E: A1–A7, D3, X1 (profile/admin parts).
 
-### T05 Server config, workflows admin & admin panel ◐ (code complete on `worktree-agent-abae60ae3ae8457c1`; D2 E2E xfail until T03's admin job endpoints)
+### T05 Server config, workflows admin & admin panel ☑ (merged 055f079) (code complete on `worktree-agent-abae60ae3ae8457c1`; D2 E2E xfail until T03's admin job endpoints)
 Owned: `admin_panel/`, `workflows/` except `definition.py` and public endpoints, `core/` pages/navbar
 views, `frontend/src/views/admin/**` except AdminUsersView, `frontend/src/components/layout/`,
 `frontend/src/views/public/{Home,StaticPage}View.vue`, `frontend/src/stores/server.js`,
@@ -200,4 +200,8 @@ upload size limits, `docs/` rewritten (admin guide, workflow YAML reference, dep
   `INSECURE_FAST_PASSWORD_HASHING` env switch used only by the E2E stack (`E2E_REAL_HASHING=1`
   restores the production hasher). NOTE for T09: ~3 s per login on this class of host is a real
   production concern — review hasher/iterations and consider caching.
+- 2026-09-20: T05 merged and re-verified by orchestrator on `rebuild`: 244 Django + 152 vitest OK;
+  e2e 90 passed / 2 xfailed / 1 skipped (5m32s). The 2 e2e failures T05 reported were the pre-fix
+  hashing/lockout interference (e80c5ad), not T05 regressions — they do not reproduce on `rebuild`.
+  Remaining xfail/skip are all T03-dependent: D2 admin jobs, J1 unicode job name, Q1 queue (no worker).
 
