@@ -143,6 +143,8 @@ Created by orchestrator from QA findings.
 
 ## Phase 4 — Production readiness
 
+> **HOLD (user instruction, 2026-09-20): do not start Phase 4 until the user has reviewed Phase 3.**
+
 ### T09 Deployment & ops ☐
 Postgres support verified (run unit suite against Postgres via docker-less local install or skip
 with clear note), gunicorn + whitenoise static serving, systemd unit examples for web & worker,
