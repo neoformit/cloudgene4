@@ -51,6 +51,16 @@ print(json.dumps(out))
     return json.loads(stack.django_shell(code).strip().splitlines()[-1])
 
 
+def db_counts(stack):
+    """(users, enabled workflows) straight from the DB — other tests add users/workflows."""
+    code = ('import json\n'
+            'from django.contrib.auth import get_user_model\n'
+            'from workflows.models import Workflow\n'
+            'print(json.dumps([get_user_model().objects.count(),\n'
+            '                  Workflow.objects.filter(status="enabled").count()]))')
+    return json.loads(stack.django_shell(code).strip().splitlines()[-1])
+
+
 def wait_until(predicate, timeout=10, what='condition'):
     deadline = time.monotonic() + timeout
     last = None

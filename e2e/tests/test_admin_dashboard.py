@@ -9,7 +9,7 @@ import copy
 import pytest
 from playwright.sync_api import expect
 
-from e2e.admin_helpers import create_jobs, delete_jobs, job_state_counts
+from e2e.admin_helpers import create_jobs, db_counts, delete_jobs, job_state_counts
 
 pytestmark = pytest.mark.serial
 
@@ -36,14 +36,15 @@ def seeded_jobs(stack):
 def test_d1_dashboard_counts_match_db(page, login, stack, seeded_jobs):
     counts = job_state_counts(stack)
     total = sum(counts.values())
+    users, workflows = db_counts(stack)  # other tests may have registered users
     login(page, 'admin')
     page.goto('/admin')
     expect(page.get_by_test_id('count-jobs-total')).to_have_text(str(total))
     expect(page.get_by_test_id('count-jobs-failed')).to_contain_text(str(counts.get('failed', 0)))
     expect(page.get_by_test_id('count-jobs-success')).to_contain_text(str(counts.get('success', 0)))
     expect(page.get_by_test_id('queue-waiting')).to_have_text(str(counts.get('waiting', 0)))
-    expect(page.get_by_test_id('count-users-total')).to_have_text('3')
-    expect(page.get_by_test_id('count-workflows-enabled')).to_have_text('5')
+    expect(page.get_by_test_id('count-users-total')).to_have_text(str(users))
+    expect(page.get_by_test_id('count-workflows-enabled')).to_have_text(str(workflows))
     expect(page.locator('[data-testid="recent-job"]').filter(has_text='D-bob waiting')).to_have_count(1)
     expect(page.get_by_test_id('worker-status')).to_have_attribute(
         'data-worker', 'ok' if stack.worker_available else 'down')
