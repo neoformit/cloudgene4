@@ -315,6 +315,10 @@ def start_stack(name='main'):
         'LOG_LEVEL': os.environ.get('E2E_LOG_LEVEL', 'INFO'),
         'DJANGO_SECRET_KEY': 'e2e-not-secret-' + name,
         'DEBUG': os.environ.get('E2E_DEBUG', 'False'),
+        # PBKDF2 costs ~3 s per check here: it dominates the suite runtime and makes a short
+        # lockout window expire during the login it is supposed to block. Set E2E_REAL_HASHING=1
+        # to exercise the production hasher instead.
+        'INSECURE_FAST_PASSWORD_HASHING': '0' if os.environ.get('E2E_REAL_HASHING') == '1' else '1',
         'ALLOWED_HOSTS': '127.0.0.1,localhost',
         'CSRF_TRUSTED_ORIGINS': base_url,
         'PYTHONUNBUFFERED': '1',

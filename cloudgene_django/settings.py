@@ -149,6 +149,11 @@ if DATABASES['default']['ENGINE'] == 'django.db.backends.sqlite3':
     DATABASES['default'].setdefault('OPTIONS', {}).setdefault('timeout', 20)
 
 
+# Test-only escape hatch: PBKDF2 costs ~3 s per check on small hosts, which slows the E2E
+# suite and makes short lockout windows untestable. Never set this outside a test stack.
+if os.environ.get('INSECURE_FAST_PASSWORD_HASHING') == '1':
+    PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
+
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
