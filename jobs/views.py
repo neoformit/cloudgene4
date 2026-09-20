@@ -14,7 +14,7 @@ Admin endpoints:
     GET  /api/admin/jobs/?state=&user=&workflow=&search=
     POST /api/admin/jobs/{id}/cancel/   POST /api/admin/jobs/{id}/restart/
 """
-from django.db.models import Q
+from django.db.models import F, Q
 from django.http import FileResponse, HttpResponse
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
@@ -133,7 +133,7 @@ class JobViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.Gene
         path = resolve_output_file(job, output) if output else None
         if path is None:
             return error_response('File not found.', 'not_found', status.HTTP_404_NOT_FOUND)
-        JobOutput.objects.filter(pk=output.pk).update(download_count=output.download_count + 1)
+        JobOutput.objects.filter(pk=output.pk).update(download_count=F('download_count') + 1)
         inline = request.query_params.get('inline') in ('1', 'true')
         return FileResponse(open(path, 'rb'), as_attachment=not inline, filename=output.name)
 
