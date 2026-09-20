@@ -11,7 +11,6 @@ from rest_framework import status
 from django.urls import reverse
 
 from .models import Workflow, WorkflowCategory, WorkflowParameter
-from .config_loader import CloudgeneConfigLoader
 
 User = get_user_model()
 
@@ -232,128 +231,6 @@ class WorkflowParameterTest(TestCase):
         self.assertTrue(param.is_input)
         self.assertFalse(param.is_output)
         self.assertEqual(str(param), 'Test Workflow - Test Parameter')
-
-
-class CloudgeneConfigLoaderTest(TestCase):
-    """Test cases for CloudgeneConfigLoader"""
-    
-    def setUp(self):
-        self.loader = CloudgeneConfigLoader()
-        self.valid_workflow_config = {
-            'id': 'test-workflow',
-            'name': 'Test Workflow',
-            'description': 'A test workflow',
-            'version': '1.0.0',
-            'workflow': {
-                'steps': [
-                    {'name': 'TestStep', 'classname': 'test.TestStep'}
-                ],
-                'inputs': [
-                    {
-                        'id': 'input_text',
-                        'description': 'Input text',
-                        'type': 'text',
-                        'required': True
-                    }
-                ],
-                'outputs': [
-                    {
-                        'id': 'output_file',
-                        'description': 'Output file',
-                        'type': 'file',
-                        'download': True
-                    }
-                ]
-            }
-        }
-    
-    def test_validate_workflow_config_valid(self):
-        """Test validation of valid workflow config"""
-        result = self.loader.validate_workflow_config(self.valid_workflow_config)
-        self.assertTrue(result)
-    
-    def test_validate_workflow_config_missing_id(self):
-        """Test validation with missing ID"""
-        config = self.valid_workflow_config.copy()
-        del config['id']
-        
-        with self.assertRaises(ValidationError) as context:
-            self.loader.validate_workflow_config(config)
-        
-        self.assertIn('Missing required field: id', str(context.exception))
-    
-    def test_validate_workflow_config_missing_steps(self):
-        """Test validation with missing steps"""
-        config = self.valid_workflow_config.copy()
-        del config['workflow']['steps']
-        
-        with self.assertRaises(ValidationError) as context:
-            self.loader.validate_workflow_config(config)
-        
-        self.assertIn("Workflow must have 'steps' section", str(context.exception))
-    
-    def test_validate_parameters(self):
-        """Test parameter validation"""
-        # Test valid parameter
-        valid_params = [
-            {
-                'id': 'test_param',
-                'type': 'text',
-                'description': 'Test parameter'
-            }
-        ]
-        
-        # Should not raise exception
-        self.loader._validate_parameters(valid_params, 'input')
-        
-        # Test invalid parameter type
-        invalid_params = [
-            {
-                'id': 'test_param',
-                'type': 'invalid_type',
-                'description': 'Test parameter'
-            }
-        ]
-        
-        with self.assertRaises(ValidationError) as context:
-            self.loader._validate_parameters(invalid_params, 'input')
-        
-        self.assertIn('Invalid parameter type', str(context.exception))
-    
-    def test_load_workflow_from_yaml(self):
-        """Test loading workflow from YAML content"""
-        yaml_content = yaml.dump(self.valid_workflow_config)
-        
-        workflow = self.loader.load_workflow_from_yaml(yaml_content)
-        
-        self.assertEqual(workflow.id, 'test-workflow')
-        self.assertEqual(workflow.name, 'Test Workflow')
-        self.assertEqual(workflow.version, '1.0.0')
-        
-        # Check parameters were created
-        inputs = workflow.parameters.filter(is_input=True)
-        outputs = workflow.parameters.filter(is_output=True)
-        
-        self.assertEqual(inputs.count(), 1)
-        self.assertEqual(outputs.count(), 1)
-        
-        input_param = inputs.first()
-        self.assertEqual(input_param.parameter_id, 'input_text')
-        self.assertEqual(input_param.parameter_type, 'text')
-    
-    def test_get_default_config(self):
-        """Test getting default configuration"""
-        config = self.loader._get_default_config()
-        
-        self.assertIn('server', config)
-        self.assertIn('navbar', config)
-        self.assertIn('templates', config)
-        self.assertIn('mail', config)
-        self.assertIn('nextflow', config)
-        
-        # Check server defaults
-        self.assertEqual(config['server']['name'], 'Cloudgene Server')
-        self.assertEqual(config['server']['port'], 8080)
 
 
 class WorkflowAPITest(APITestCase):

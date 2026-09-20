@@ -33,6 +33,10 @@ class CloudgeneTestRunner(DiscoverRunner):
         config.clear_cache()
         # Expected 4xx/5xx responses are asserted by tests; don't flood the output.
         logging.getLogger('django.request').setLevel(logging.CRITICAL)
+        # cloudgene.* INFO records still reach the DB handler (SystemLog); keep stdout quiet.
+        for handler in logging.getLogger('cloudgene').handlers:
+            if type(handler) is logging.StreamHandler:
+                handler.setLevel(logging.CRITICAL)
 
     def teardown_test_environment(self, **kwargs):
         from core import config

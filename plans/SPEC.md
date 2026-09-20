@@ -4,7 +4,7 @@
 > When you change behaviour, contracts, or architecture, update this file in the same commit.
 > Status of work items lives in `plans/TASKS.md`; the E2E strategy lives in `plans/E2E_TEST_PLAN.md`.
 
-Last reviewed: 2026-09-19 (initial audit; T01 platform foundations; T04 accounts).
+Last reviewed: 2026-09-19 (initial audit; T01 platform foundations; T04 accounts; T05 server config & admin).
 
 ---
 
@@ -105,22 +105,22 @@ IDs are referenced from `TASKS.md`. Sev: **B**locker / **H**igh / **M**edium / *
 **Workflows (workflows/)**
 | ID | Sev | Issue |
 |----|-----|-------|
-| W1 | H | No workflow registry: brief requires installed workflows declared in YAML config; today only a `load_sample_workflow` command writes one DB row. No reload, no install from path. |
+| W1 ✅ T05 | H | No workflow registry: brief requires installed workflows declared in YAML config; today only a `load_sample_workflow` command writes one DB row. No reload, no install from path. |
 | W2 | H | Parameter model loses YAML attributes (`label`, `help`, `min/max`, `writeFile`, `serialize`, `visible`, `details`, `accept`…). Input type set too small vs Cloudgene (`local-file`, `local-folder`, `app_list`, `separator`, `info`, `agb_checkbox`, `terms_checkbox`, `radio`, `binded_list`, `string`). `label` is populated from `description`. |
-| W3 | M | Admin workflow list uses the public list endpoint (enabled-only), so disabled workflows vanish from admin. Status (enable/disable) not editable in UI. |
-| W4 | M | `template_utils` reads Django settings that don't exist; global Nextflow config/env not applied; per-job variables (`CLOUDGENE_JOB_ID`, `USER_*`) missing. |
+| W3 ✅ T05 | M | Admin workflow list uses the public list endpoint (enabled-only), so disabled workflows vanish from admin. Status (enable/disable) not editable in UI. |
+| W4 ◐ T05: variable list + values in `workflows.template_utils` (`VARIABLES`, `cloudgene_variables()`), global/per-app files admin-editable; export into the Nextflow env → T03 | M | `template_utils` reads Django settings that don't exist; global Nextflow config/env not applied; per-job variables (`CLOUDGENE_JOB_ID`, `USER_*`) missing. |
 | W5 | L | Categories endpoint unused. |
 
 **Admin/config (admin_panel/, config)**
 | ID | Sev | Issue |
 |----|-----|-------|
-| C1 | B | Settings pages are wired to `/api/admin/server-settings/` (a CRUD list of key/value rows) but read/write shaped objects (`data.mail`, `data.nextflow`, `{mail:{...}}` via POST = create row). Every settings page is broken. |
-| C2 ◐ T01: `settings.yaml` via `core.config` is the store, Django settings infra-only, `core.mail` reads mail config; `ServerSettings` removal & admin wiring → T05 | H | Three competing sources of truth: `cloudgene_config.yaml`, `ServerSettings` DB rows, Django `settings`. Mail settings in admin do not affect Django e-mail. |
-| C3 | H | Templates: brief wants HTML template files in the codebase; implemented as DB rows seeded by a command. Static page route `/pages/:slug` only works for DB rows. |
-| C4 | M | Navbar: YAML navbar is never loaded; frontend hard-codes Home/Jobs and appends DB items. |
-| C5 | M | Dashboard fields mismatch (`stats` shape vs template); logs page reads `created_at` but API returns `timestamp`; level filter uppercase vs lowercase choices. Nothing writes `SystemLog`. |
-| C6 | M | Admin jobs status filter never sent (`listJobs(page)` ignores params). |
-| C7 | L | `Counter`, `CounterHistory` unused. |
+| C1 ✅ T05 | B | Settings pages are wired to `/api/admin/server-settings/` (a CRUD list of key/value rows) but read/write shaped objects (`data.mail`, `data.nextflow`, `{mail:{...}}` via POST = create row). Every settings page is broken. |
+| C2 ✅ T01+T05 (`ServerSettings` removed; admin settings APIs write settings.yaml) | H | Three competing sources of truth: `cloudgene_config.yaml`, `ServerSettings` DB rows, Django `settings`. Mail settings in admin do not affect Django e-mail. |
+| C3 ✅ T05 | H | Templates: brief wants HTML template files in the codebase; implemented as DB rows seeded by a command. Static page route `/pages/:slug` only works for DB rows. |
+| C4 ✅ T05 | M | Navbar: YAML navbar is never loaded; frontend hard-codes Home/Jobs and appends DB items. |
+| C5 ✅ T05 | M | Dashboard fields mismatch (`stats` shape vs template); logs page reads `created_at` but API returns `timestamp`; level filter uppercase vs lowercase choices. Nothing writes `SystemLog`. |
+| C6 ✅ T05 (UI sends state/user/workflow; endpoint → T03) | M | Admin jobs status filter never sent (`listJobs(page)` ignores params). |
+| C7 ✅ T05 | L | `Counter`, `CounterHistory` unused. |
 
 **Frontend ↔ API contract mismatches (examples, non-exhaustive)**
 | ID | Sev | Issue |
@@ -131,7 +131,7 @@ IDs are referenced from `TASKS.md`. Sev: **B**locker / **H**igh / **M**edium / *
 | F4 | M | Checkbox inputs default to `false` ignoring YAML default; unchecked checkbox not sent at all → backend "required" error. `number` sent as string. |
 | F5 ✅ T01 (backend handler + `apiErrorMessage`; views migrate as slices touch them) | M | Error envelope inconsistent: backend returns `{message}`, `{error}`, `{detail}`, or field dicts; frontend guesses. |
 | F6 ✅ T01 | M | 401 interceptor hard-redirects to `/login` even for anonymous-allowed calls; `requiresAdmin` guard uses stale `localStorage` user. |
-| F7 | L | Admin sidebar/navbar link to routes that don't exist; admin layout hides public navbar entirely. |
+| F7 ✅ T05 | L | Admin sidebar/navbar link to routes that don't exist; admin layout hides public navbar entirely. |
 
 **Platform / production readiness**
 | ID | Sev | Issue |
@@ -220,11 +220,44 @@ by updating this section.
 | `nextflow.profile` | str | `''` | Default `-profile` |
 | `nextflow.work_dir` | str | `''` | Work dir (empty = `<job>/work`) |
 | `navbar[]` | list | `[]` | `{title*, url*, icon, admin_only: false, auth_only: false}` |
-| `apps[]` | list | `[]` | `{path*, enabled: true, public: false, groups: []}`; `path` = app dir or its `cloudgene.yaml`, relative to `$CLOUDGENE_HOME/apps` or absolute |
-- DB holds only runtime state: users, groups, jobs (+steps/messages/outputs), and a `Workflow` cache
-  row per installed app (synced from YAML on start-up and on admin "reload").
-- Remove `ServerSettings`, `Template`, `NavbarItem`, `Counter*`, `UserGroup`, `UserToken`,
-  `WorkflowExecution`, `JobValue` models (migration).
+| `apps[]` | list | `[]` | `{path*, enabled: true, public: false, groups: [], profile: '', work_dir: ''}`; `path` = app dir or its `cloudgene.yaml`, relative to `$CLOUDGENE_HOME/apps` (then `$CLOUDGENE_HOME`) or absolute; `profile`/`work_dir` = per-app Nextflow overrides ('' = global) |
+- DB holds only runtime state: users, groups, jobs (+steps/messages/outputs), `SystemLog`, and a
+  `Workflow` cache row per installed app (see *Workflow registry* below).
+- Removed (T05): `ServerSettings`, `Template`, `NavbarItem`, `Counter`, `CounterHistory`, the
+  `Workflow` columns `nextflow_profile/working_directory/env_vars/nextflow_config` (now read-only
+  properties backed by settings.yaml + files). Still to remove: `UserGroup`, `UserToken` (T04),
+  `WorkflowParameter`, `WorkflowExecution`, `JobValue` (T03, which parses the definition at request
+  time).
+
+**Workflow registry [D] (T05, `workflows/registry.py`)**
+- `settings.yaml apps[]` is the source of truth for *which* apps are installed and their access
+  (`enabled`, `public`, `groups` by name) + per-app `profile`/`work_dir`. Each app is a directory
+  with `cloudgene.yaml`; install **references it in place** (stored relative to `apps/` when inside
+  it, else absolute); `copy=True` / `install_workflow --copy` copies it to `apps/<id>/` first.
+  Uninstall removes the `apps[]` entry only — files are never deleted.
+- The `Workflow` row is a cache: `id, name, version, description, website, category, yaml_config`
+  (raw YAML), `status` (`enabled`/`disabled`; kept for T03 querysets, `enabled` property),
+  `public`, `allowed_groups` (auth.Group M2M; groups named in YAML are created), `app_path`
+  (resolved yaml; empty = row not managed by the registry, e.g. created in tests — never touched by
+  a sync), `errors` (list; non-empty ⇒ status disabled), `installed` (False once removed from
+  `apps[]` but kept because jobs reference it; rows without jobs are deleted), `synced_at`.
+  `app_location` property = app dir (`CLOUDGENE_APP_LOCATION`). `can_access(user)` unchanged.
+- Sync (`registry.sync_all()`, idempotent): parses every entry through
+  `workflows.definition.load_definition` (T03) via the single adapter `registry.load_definition`;
+  invalid / unreadable / duplicate-id entries are reported (admin list shows `valid: false` +
+  `errors`) and never get a runnable row. Triggers: `manage.py sync_workflows` (deploy, worker
+  start-up — T03's `run_worker` should call `registry.sync_all()` on start), lazily from
+  `workflows.middleware.WorkflowSyncMiddleware` on any `/api/` request when settings.yaml or an
+  installed cloudgene.yaml changed (mtime/size), and after every admin write. Not in
+  `AppConfig.ready` (unsafe during migrate).
+- CLI: `manage.py install_workflow <path> [--public] [--groups a,b] [--disabled] [--copy]
+  [--replace]`, `manage.py sync_workflows`.
+- Per-app Nextflow files: `$CLOUDGENE_HOME/apps/<id>/nextflow.config` and `nextflow.env`
+  (`registry.get_nextflow_settings(id)` → `{profile, work_dir, config, env, config_path,
+  env_path}`); when the app itself lives in `apps/<id>/` these are the app's own files. The worker
+  applies global config then this one (T03).
+- Pages: `home` and `footer` are required (not deletable); any `^[a-z0-9][a-z0-9_-]{0,63}$` slug
+  is served at `/pages/<slug>` from `pages/<slug>.html`; invalid slugs → 404 (public) / 400 (admin).
 
 ### 3.3 Job lifecycle & queue **[D]**
 States: `waiting` (queued) → `running` → `success` | `failed` | `cancelled`.
@@ -336,18 +369,23 @@ Profile   GET/PATCH /api/me → User + api_token: {created}|null
           DELETE /api/me {password} → {message}; logs out (400 last_admin for the only admin)
           User = {id, username, email, full_name, is_active, is_admin, groups: [names],
                   date_joined, last_login}
-Server    GET /api/server  → {name, maintenance, maintenance_message, navbar[], footer_html,
-                              user?} (public)
-          GET /api/pages/{slug} → {slug, html}  (public; home, about, …)
+Server    GET /api/server  → {name, url, maintenance, maintenance_message, navbar[{title, url,
+          icon, admin_only, auth_only}] (already filtered for the viewer), footer_html} (public)
+          GET /api/pages/{slug} → {slug, html}  (public; home, about, …; 404 missing/unsafe slug)
 Workflows GET /api/workflows  GET /api/workflows/{id}  (id, name, version, description, website,
           category, inputs[] with full typed schema, outputs[])
 Jobs      GET /api/jobs?state=&page=   POST /api/jobs (multipart: workflow, name, <input ids>)
           GET /api/jobs/{id}  GET /api/jobs/{id}/status (light, for polling)
           POST /api/jobs/{id}/cancel  DELETE /api/jobs/{id}
           GET /api/jobs/{id}/log  (text/plain)   GET /api/jobs/{id}/outputs/{output_id}/{path}
-Admin     GET /api/admin/dashboard  (queue: {paused, maintenance, running, waiting, max_running,
-          max_queue}, counts, recent jobs)
-          POST /api/admin/queue/{pause|resume}  POST /api/admin/maintenance/{enter|exit}
+Admin     GET /api/admin/dashboard → {queue: {paused, maintenance, maintenance_message, running,
+          waiting, max_running, max_queue, worker: {ok, last_seen, age_seconds, pid}},
+          jobs: {total, waiting, running, success, failed, cancelled},
+          users: {total, active, admins}, workflows: {total, enabled, disabled, invalid},
+          recent_jobs: [{id, name, state, workflow{id,name}, user{id,username}, submitted_at,
+          started_at, finished_at}]}  (legacy pending/completed counted as waiting/success)
+          POST /api/admin/queue/{pause|resume}  POST /api/admin/maintenance/{enter {message?}|exit}
+          → queue block; they write `queue.paused` / `server.maintenance(_message)`
           GET /api/admin/jobs?state=&user=&workflow=  POST /api/admin/jobs/{id}/cancel
           POST /api/admin/jobs/{id}/restart
           GET /api/admin/users?search=&group=&is_active=&page=&page_size= (paginated;
@@ -362,12 +400,29 @@ Admin     GET /api/admin/dashboard  (queue: {paused, maintenance, running, waiti
           POST /api/admin/groups {name} → 201 (name unique ignoring case)
           DELETE /api/admin/groups/{id} → 204 (400 protected_group for `admin`)
           (old /api/users/ and /api/groups/ are removed)
-          GET /api/admin/workflows  PATCH /api/admin/workflows/{id} (enabled, groups[], public)
-          POST /api/admin/workflows/{id}/reload  POST /api/admin/workflows/install {path}
-          GET/PUT /api/admin/workflows/{id}/nextflow (profile, work_dir, config, env)
-          GET/PUT /api/admin/settings/general|mail|nextflow   POST /api/admin/settings/mail/test
-          GET /api/admin/pages  GET/PUT /api/admin/pages/{slug}
-          GET /api/admin/logs?level=  (from Python logging → DB handler or log file tail)
+          GET /api/admin/workflows → [{id, name, version, description, category, path, yaml_path,
+          index, enabled, public, groups[], valid, errors[], warnings[], job_count}] (unpaginated;
+          all apps incl. disabled + invalid)   GET /api/admin/workflows/{id} (+ yaml)
+          PATCH /api/admin/workflows/{id} {enabled?, public?, groups[]? (names)}
+          DELETE /api/admin/workflows/{id} (uninstall)   POST /api/admin/workflows/{id}/reload
+          POST /api/admin/workflows/install {path, enabled?, public?, groups?, copy?} → 201;
+          400 fields.path = definition errors; 409 id already installed
+          POST /api/admin/workflows/sync
+          GET/PUT /api/admin/workflows/{id}/nextflow {profile, work_dir, config, env} (+ read-only
+          config_path, env_path, variables[{name, scope, description}])
+          GET/PUT /api/admin/settings/general {name, url, max_running_jobs, max_queue_size,
+          job_retention_days, max_upload_mb, maintenance, maintenance_message} (PUT = any subset)
+          GET/PUT /api/admin/settings/mail {backend, file_path, host, port, user, use_tls, use_ssl,
+          from_email, password_set (read)}; `password` write-only (''/absent = unchanged),
+          `clear_password: true` removes it   POST /api/admin/settings/mail/test {to?} → {message,
+          to} (default: the admin's e-mail; 502 `mail_failed` on SMTP errors)
+          GET/PUT /api/admin/settings/nextflow {binary, profile, work_dir, config, env} (+ variables)
+          GET/PUT /api/admin/settings/navbar {navbar: [...]} (errors keyed `navbar[i].title`)
+          GET /api/admin/pages → [{slug, size, updated_at, deletable}]
+          GET/PUT/DELETE /api/admin/pages/{slug} {html} (PUT creates → 201; home/footer → 400
+          `protected` on DELETE)
+          GET /api/admin/logs?level=&min_level=&component=&search=&page= → paginated
+          [{id, timestamp, level (lower-case), component, logger, message, username, metadata}]
 Health    GET /api/health → {status: ok|degraded|error, db: {ok}, worker: {ok, last_seen,
           age_seconds, pid}}; 200 unless the DB is down (503); no/stale worker = "degraded"
 ```
@@ -382,6 +437,16 @@ scope. Slice owners may refine paths but must update this section.
 - Dynamic form supports every input type in §4, client-side validation mirrors server rules, sends
   `multipart/form-data`, displays field-level errors from the envelope.
 - Every interactive element that E2E tests need has a stable `data-testid`.
+
+### 3.8 Application logging → Admin → Logs (T05)
+- Log through `logging.getLogger('cloudgene.<area>')` (`cloudgene.jobs`, `cloudgene.auth`,
+  `cloudgene.workflows`, `cloudgene.admin`, `cloudgene.api`, …). Records at INFO+ are stored in
+  `admin_panel.SystemLog` by `admin_panel.logging.DatabaseLogHandler` (configured in
+  `settings.LOGGING`), `component` = `<area>`. Pass `extra={'user': user, 'data': {...}}` to attach
+  the acting user and JSON metadata. The handler never raises.
+- What to log: logins/failed logins/lockouts (T04), job state changes and failures (T03), admin
+  actions (T05: settings, pages, workflows, queue, maintenance).
+- Retention: `manage.py cleanup_logs [--days 30]` (schedule with `cleanup_jobs`).
 
 ---
 
@@ -438,6 +503,9 @@ Unknown `type` → validation error at install/reload. `classname:` steps (Java)
 - Works with SQLite (dev/test) and Postgres (prod).
 
 ## 6. Changelog of spec decisions
+- 2026-09-19 (T05): workflow registry decisions (§3.2), per-app `apps[].profile/work_dir`, pages
+  rules, admin/server endpoint shapes (§3.6), logging convention + SystemLog (§3.8); obsolete
+  admin models removed.
 - 2026-09-19 (T04): identity rules (case-insensitive username/e-mail, normalisation), shared
   field rules, login error codes + lockout, activation/reset token handling, profile/token and
   admin users/groups shapes (§3.4, §3.6); admin group managed via `is_admin` only; groups list

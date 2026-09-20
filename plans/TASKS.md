@@ -99,7 +99,7 @@ users/groups endpoints under `/api/admin/` with writable groups & is_active, no 
 group member counts; mail sending uses mail settings from config service.
 E2E: A1–A7, D3, X1 (profile/admin parts).
 
-### T05 Server config, workflows admin & admin panel ◐
+### T05 Server config, workflows admin & admin panel ◐ (code complete on `worktree-agent-abae60ae3ae8457c1`; D2 E2E xfail until T03's admin job endpoints)
 Owned: `admin_panel/`, `workflows/` except `definition.py` and public endpoints, `core/` pages/navbar
 views, `frontend/src/views/admin/**` except AdminUsersView, `frontend/src/components/layout/`,
 `frontend/src/views/public/{Home,StaticPage}View.vue`, `frontend/src/stores/server.js`,
@@ -152,6 +152,20 @@ upload size limits, `docs/` rewritten (admin guide, workflow YAML reference, dep
 ---
 
 ## Log
+- 2026-09-20 T05 (branch `worktree-agent-abae60ae3ae8457c1`): workflow registry
+  (`workflows/registry.py`: settings.yaml `apps[]` → `Workflow` cache rows; install by path
+  (reference in place, `--copy` optional), uninstall, reload, access, per-app Nextflow settings;
+  adapter to T03's `definition.load_definition` with a built-in fallback validator; lazy sync
+  middleware + `sync_workflows` / `install_workflow` commands; unknown group names ignored with a
+  warning and pruned when a Group is deleted). Public `GET /api/server` + `/api/pages/{slug}`;
+  admin dashboard/queue/maintenance, settings general|mail(+test)|nextflow|navbar, pages CRUD,
+  logs, workflows API. `SystemLog` DB log handler for `cloudgene.*` (SPEC §3.8) + `cleanup_logs`.
+  SPA: server store from `/api/server`, YAML navbar, footer, maintenance banner, Home/StaticPage,
+  all admin views rewritten (dashboard controls, jobs filters, workflows, pages editor, logs),
+  admin keeps the top navbar, sidebar only links real routes. Removed `ServerSettings`, `Template`,
+  `NavbarItem`, `Counter*`, `config_loader`, `load_sample_workflow`, `WorkflowGroupModal`,
+  `TemplateEditorView`. Issues W1, W3, C1–C7, F7 fixed; W4 partly (variable list/values; export →
+  T03). Results: `manage.py test` 244 OK, vitest 152 OK, `npm run build` OK, `pytest e2e` see report.
 - 2026-09-19 T04 (branch `worktree-agent-a6b97498ae34ab06e`): case-insensitive unique
   username/e-mail with `Lower()` constraints + normalisation (migration 0003 aborts listing
   existing duplicates; drops `UserGroup`/`UserToken`/unused fields); shared validation rules

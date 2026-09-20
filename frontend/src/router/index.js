@@ -78,10 +78,11 @@ const router = createRouter({
       meta: { requiresAdmin: true },
     },
     {
-      path: '/admin/settings/templates',
-      component: () => import('@/views/admin/settings/TemplateEditorView.vue'),
+      path: '/admin/settings/pages',
+      component: () => import('@/views/admin/settings/PagesView.vue'),
       meta: { requiresAdmin: true },
     },
+    { path: '/admin/settings/templates', redirect: '/admin/settings/pages' },
     {
       path: '/admin/settings/logs',
       component: () => import('@/views/admin/settings/LogsView.vue'),

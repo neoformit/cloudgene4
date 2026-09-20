@@ -1,0 +1,25 @@
+id: other
+name: Other Workflow
+version: 2.0.0
+workflow:
+  steps:
+    - name: Run
+      script: main.nf
+  inputs:
+    - id: count
+      description: Count
+      type: number
+      value: 3
+      min: 1
+      max: 10
+    - id: mode
+      description: Mode
+      type: list
+      values:
+        fast: Fast
+        slow: Slow
+      value: fast
+  outputs:
+    - id: result
+      description: Result
+      type: file

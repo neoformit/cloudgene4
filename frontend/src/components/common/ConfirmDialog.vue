@@ -11,7 +11,7 @@ const emit = defineEmits(['confirm', 'cancel'])
 </script>
 
 <template>
-  <div class="modal d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
+  <div class="modal d-block" data-testid="confirm-dialog" tabindex="-1" style="background: rgba(0,0,0,0.5);">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content">
         <div class="modal-header">
@@ -20,8 +20,8 @@ const emit = defineEmits(['confirm', 'cancel'])
         </div>
         <div class="modal-body" v-html="message"></div>
         <div class="modal-footer">
-          <button class="btn btn-secondary" :disabled="loading" @click="$emit('cancel')">Cancel</button>
-          <button :class="`btn ${confirmClass}`" :disabled="loading" @click="$emit('confirm')">
+          <button class="btn btn-secondary" data-testid="confirm-cancel" :disabled="loading" @click="$emit('cancel')">Cancel</button>
+          <button :class="`btn ${confirmClass}`" data-testid="confirm-ok" :disabled="loading" @click="$emit('confirm')">
             <span v-if="loading" class="spinner-border spinner-border-sm me-1"></span>
             {{ loading ? 'Please wait...' : confirmText }}
           </button>

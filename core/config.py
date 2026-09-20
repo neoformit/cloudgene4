@@ -172,6 +172,8 @@ SCHEMA: dict[str, Any] = {
         'enabled': Field(bool, True),
         'public': Field(bool, False),
         'groups': Field(list, []),
+        'profile': Field(str, '', help='Per-app Nextflow -profile (overrides nextflow.profile)'),
+        'work_dir': Field(str, '', help='Per-app Nextflow work dir (overrides nextflow.work_dir)'),
     }, required=('path',)),
 }
 

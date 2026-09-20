@@ -46,12 +46,18 @@ class Workflow(models.Model):
     nextflow_script = models.TextField(blank=True, help_text="Path to the Nextflow script")
     config_file = models.TextField(blank=True, help_text="Path to the Nextflow config file")
     
-    # Nextflow runtime configuration
-    nextflow_profile = models.CharField(max_length=255, blank=True, help_text="Nextflow profile to use")
-    working_directory = models.TextField(blank=True, help_text="Working directory for Nextflow execution")
-    env_vars = models.TextField(blank=True, help_text="Environment variables (written to nextflow.env)")
-    nextflow_config = models.TextField(blank=True, help_text="Nextflow configuration (written to nextflow.config)")
-    
+    # Registry bookkeeping (workflows/registry.py). The row is a *cache* of the app's
+    # cloudgene.yaml + its settings.yaml `apps[]` entry, which is the source of truth for
+    # enabled/public/groups. Rows with an empty app_path were not created by the registry
+    # (e.g. in tests) and are never touched by a sync.
+    app_path = models.TextField(blank=True, default='',
+                                help_text="Resolved path of the app's cloudgene.yaml")
+    errors = models.JSONField(default=list, blank=True,
+                              help_text='Validation errors from the last sync (empty = valid)')
+    installed = models.BooleanField(default=True,
+                                    help_text='False once removed from settings.yaml apps[]')
+    synced_at = models.DateTimeField(null=True, blank=True)
+
     # Status and permissions
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='enabled')
     allowed_groups = models.ManyToManyField('auth.Group', blank=True, 
@@ -70,6 +76,40 @@ class Workflow(models.Model):
     def __str__(self):
         return f"{self.name} (v{self.version})"
     
+    # --- compatibility / convenience -------------------------------------------------
+
+    @property
+    def enabled(self):
+        return self.status == 'enabled'
+
+    @property
+    def app_location(self):
+        """Directory of the app (where cloudgene.yaml and the scripts live)."""
+        from pathlib import Path
+        return str(Path(self.app_path).parent) if self.app_path else ''
+
+    def nextflow_settings(self):
+        """Per-app Nextflow settings (see workflows.registry.get_nextflow_settings)."""
+        from . import registry
+        return registry.get_nextflow_settings(self.id)
+
+    # Former DB columns, now stored in settings.yaml apps[] / $CLOUDGENE_HOME/apps/<id>/.
+    @property
+    def nextflow_profile(self):
+        return self.nextflow_settings()['profile']
+
+    @property
+    def working_directory(self):
+        return self.nextflow_settings()['work_dir']
+
+    @property
+    def nextflow_config(self):
+        return self.nextflow_settings()['config']
+
+    @property
+    def env_vars(self):
+        return self.nextflow_settings()['env']
+
     def get_config(self):
         """Parse and return the YAML configuration"""
         if not self.yaml_config.strip():

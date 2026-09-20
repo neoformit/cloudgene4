@@ -1,0 +1,10 @@
+id: invalid
+name: Invalid Workflow
+workflow:
+  steps:
+    - name: Run
+      script: main.nf
+  inputs:
+    - id: x
+      description: X
+      type: no-such-type

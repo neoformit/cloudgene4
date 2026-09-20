@@ -3,71 +3,9 @@ info:
   title: Cloudgene API
   version: 1.0.0
 paths:
-  /api/admin/counters/:
-    get:
-      operationId: admin_counters_list
-      parameters:
-      - name: page
-        required: false
-        in: query
-        description: A page number within the paginated result set.
-        schema:
-          type: integer
-      - name: page_size
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
-      tags:
-      - admin
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedCounterList'
-          description: ''
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-  /api/admin/counters/{id}/:
-    get:
-      operationId: admin_counters_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this counter.
-        required: true
-      tags:
-      - admin
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Counter'
-          description: ''
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
   /api/admin/dashboard/:
     get:
-      operationId: admin_dashboard_retrieve
+      operationId: admin_dashboard
       tags:
       - admin
       security:
@@ -75,7 +13,11 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dashboard'
+          description: ''
         default:
           description: Error envelope (SPEC §3.5)
           content:
@@ -167,11 +109,25 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-  /api/admin/navbar-items/:
+  /api/admin/logs/:
     get:
-      operationId: admin_navbar_items_list
-      description: Readable by anyone; writable by admins only.
+      operationId: admin_logs_list
       parameters:
+      - in: query
+        name: component
+        schema:
+          type: string
+        description: e.g. jobs, auth, admin
+      - in: query
+        name: level
+        schema:
+          type: string
+        description: Exact level (debug…critical)
+      - in: query
+        name: min_level
+        schema:
+          type: string
+        description: This level and above
       - name: page
         required: false
         in: query
@@ -184,399 +140,11 @@ paths:
         description: Number of results to return per page.
         schema:
           type: integer
-      tags:
-      - admin
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedNavbarItemList'
-          description: ''
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-    post:
-      operationId: admin_navbar_items_create
-      description: Readable by anyone; writable by admins only.
-      tags:
-      - admin
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/NavbarItemRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/NavbarItemRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/NavbarItemRequest'
-        required: true
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NavbarItem'
-          description: ''
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-  /api/admin/navbar-items/{id}/:
-    get:
-      operationId: admin_navbar_items_retrieve
-      description: Readable by anyone; writable by admins only.
-      parameters:
-      - in: path
-        name: id
+      - in: query
+        name: search
         schema:
-          type: integer
-        description: A unique integer value identifying this navbar item.
-        required: true
-      tags:
-      - admin
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NavbarItem'
-          description: ''
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-    put:
-      operationId: admin_navbar_items_update
-      description: Readable by anyone; writable by admins only.
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this navbar item.
-        required: true
-      tags:
-      - admin
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/NavbarItemRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/NavbarItemRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/NavbarItemRequest'
-        required: true
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NavbarItem'
-          description: ''
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-    patch:
-      operationId: admin_navbar_items_partial_update
-      description: Readable by anyone; writable by admins only.
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this navbar item.
-        required: true
-      tags:
-      - admin
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedNavbarItemRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedNavbarItemRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedNavbarItemRequest'
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NavbarItem'
-          description: ''
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-    delete:
-      operationId: admin_navbar_items_destroy
-      description: Readable by anyone; writable by admins only.
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this navbar item.
-        required: true
-      tags:
-      - admin
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '204':
-          description: No response body
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-  /api/admin/server-settings/:
-    get:
-      operationId: admin_server_settings_list
-      parameters:
-      - name: page
-        required: false
-        in: query
-        description: A page number within the paginated result set.
-        schema:
-          type: integer
-      - name: page_size
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
-      tags:
-      - admin
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedServerSettingsList'
-          description: ''
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-    post:
-      operationId: admin_server_settings_create
-      tags:
-      - admin
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ServerSettingsRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/ServerSettingsRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/ServerSettingsRequest'
-        required: true
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ServerSettings'
-          description: ''
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-  /api/admin/server-settings/{id}/:
-    get:
-      operationId: admin_server_settings_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this server settings.
-        required: true
-      tags:
-      - admin
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ServerSettings'
-          description: ''
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-    put:
-      operationId: admin_server_settings_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this server settings.
-        required: true
-      tags:
-      - admin
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ServerSettingsRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/ServerSettingsRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/ServerSettingsRequest'
-        required: true
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ServerSettings'
-          description: ''
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-    patch:
-      operationId: admin_server_settings_partial_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this server settings.
-        required: true
-      tags:
-      - admin
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedServerSettingsRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedServerSettingsRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedServerSettingsRequest'
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ServerSettings'
-          description: ''
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-    delete:
-      operationId: admin_server_settings_destroy
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this server settings.
-        required: true
-      tags:
-      - admin
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '204':
-          description: No response body
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-  /api/admin/system-logs/:
-    get:
-      operationId: admin_system_logs_list
-      parameters:
-      - name: page
-        required: false
-        in: query
-        description: A page number within the paginated result set.
-        schema:
-          type: integer
-      - name: page_size
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
+          type: string
+        description: Substring of the message
       tags:
       - admin
       security:
@@ -595,95 +163,31 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-  /api/admin/system-logs/{id}/:
-    get:
-      operationId: admin_system_logs_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this system log.
-        required: true
-      tags:
-      - admin
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SystemLog'
-          description: ''
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-  /api/admin/templates/:
-    get:
-      operationId: admin_templates_list
-      description: Readable by anyone; writable by admins only.
-      parameters:
-      - name: page
-        required: false
-        in: query
-        description: A page number within the paginated result set.
-        schema:
-          type: integer
-      - name: page_size
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
-      tags:
-      - admin
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedTemplateList'
-          description: ''
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+  /api/admin/maintenance/enter/:
     post:
-      operationId: admin_templates_create
-      description: Readable by anyone; writable by admins only.
+      operationId: admin_maintenance_enter
       tags:
       - admin
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/TemplateRequest'
+              $ref: '#/components/schemas/MaintenanceRequestRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/TemplateRequest'
+              $ref: '#/components/schemas/MaintenanceRequestRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/TemplateRequest'
-        required: true
+              $ref: '#/components/schemas/MaintenanceRequestRequest'
       security:
       - tokenAuth: []
       - cookieAuth: []
       responses:
-        '201':
+        '200':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Template'
+                $ref: '#/components/schemas/QueueStatus'
           description: ''
         default:
           description: Error envelope (SPEC §3.5)
@@ -691,16 +195,58 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-  /api/admin/templates/{id}/:
+  /api/admin/maintenance/exit/:
+    post:
+      operationId: admin_maintenance_exit
+      tags:
+      - admin
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueueStatus'
+          description: ''
+        default:
+          description: Error envelope (SPEC §3.5)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/admin/pages/:
     get:
-      operationId: admin_templates_retrieve
-      description: Readable by anyone; writable by admins only.
+      operationId: admin_pages_list
+      tags:
+      - admin
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PageSummary'
+          description: ''
+        default:
+          description: Error envelope (SPEC §3.5)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/admin/pages/{slug}/:
+    get:
+      operationId: admin_pages_retrieve
       parameters:
       - in: path
-        name: id
+        name: slug
         schema:
-          type: integer
-        description: A unique integer value identifying this template.
+          type: string
         required: true
       tags:
       - admin
@@ -712,7 +258,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Template'
+                $ref: '#/components/schemas/Page'
           description: ''
         default:
           description: Error envelope (SPEC §3.5)
@@ -721,14 +267,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
     put:
-      operationId: admin_templates_update
-      description: Readable by anyone; writable by admins only.
+      operationId: admin_pages_update
       parameters:
       - in: path
-        name: id
+        name: slug
         schema:
-          type: integer
-        description: A unique integer value identifying this template.
+          type: string
         required: true
       tags:
       - admin
@@ -736,13 +280,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/TemplateRequest'
+              $ref: '#/components/schemas/PageRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/TemplateRequest'
+              $ref: '#/components/schemas/PageRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/TemplateRequest'
+              $ref: '#/components/schemas/PageRequest'
         required: true
       security:
       - tokenAuth: []
@@ -752,46 +296,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Template'
+                $ref: '#/components/schemas/Page'
           description: ''
-        default:
-          description: Error envelope (SPEC §3.5)
+        '201':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-    patch:
-      operationId: admin_templates_partial_update
-      description: Readable by anyone; writable by admins only.
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: A unique integer value identifying this template.
-        required: true
-      tags:
-      - admin
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedTemplateRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedTemplateRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedTemplateRequest'
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Template'
+                $ref: '#/components/schemas/Page'
           description: ''
         default:
           description: Error envelope (SPEC §3.5)
@@ -800,14 +311,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
     delete:
-      operationId: admin_templates_destroy
-      description: Readable by anyone; writable by admins only.
+      operationId: admin_pages_destroy
       parameters:
       - in: path
-        name: id
+        name: slug
         schema:
-          type: integer
-        description: A unique integer value identifying this template.
+          type: string
         required: true
       tags:
       - admin
@@ -817,6 +326,289 @@ paths:
       responses:
         '204':
           description: No response body
+        default:
+          description: Error envelope (SPEC §3.5)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/admin/queue/pause/:
+    post:
+      operationId: admin_queue_pause
+      tags:
+      - admin
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueueStatus'
+          description: ''
+        default:
+          description: Error envelope (SPEC §3.5)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/admin/queue/resume/:
+    post:
+      operationId: admin_queue_resume
+      tags:
+      - admin
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueueStatus'
+          description: ''
+        default:
+          description: Error envelope (SPEC §3.5)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/admin/settings/general/:
+    get:
+      operationId: admin_settings_general_retrieve
+      tags:
+      - admin
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeneralSettings'
+          description: ''
+        default:
+          description: Error envelope (SPEC §3.5)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      operationId: admin_settings_general_update
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GeneralSettingsRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GeneralSettingsRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GeneralSettingsRequest'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GeneralSettings'
+          description: ''
+        default:
+          description: Error envelope (SPEC §3.5)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/admin/settings/mail/:
+    get:
+      operationId: admin_settings_mail_retrieve
+      tags:
+      - admin
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MailSettings'
+          description: ''
+        default:
+          description: Error envelope (SPEC §3.5)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      operationId: admin_settings_mail_update
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MailSettingsRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MailSettingsRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MailSettingsRequest'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MailSettings'
+          description: ''
+        default:
+          description: Error envelope (SPEC §3.5)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/admin/settings/mail/test/:
+    post:
+      operationId: admin_settings_mail_test
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MailTestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MailTestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MailTestRequest'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MailTestResult'
+          description: ''
+        default:
+          description: Error envelope (SPEC §3.5)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/admin/settings/navbar/:
+    get:
+      operationId: admin_settings_navbar_retrieve
+      tags:
+      - admin
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Navbar'
+          description: ''
+        default:
+          description: Error envelope (SPEC §3.5)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      operationId: admin_settings_navbar_update
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NavbarRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/NavbarRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/NavbarRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Navbar'
+          description: ''
+        default:
+          description: Error envelope (SPEC §3.5)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/admin/settings/nextflow/:
+    get:
+      operationId: admin_settings_nextflow_retrieve
+      tags:
+      - admin
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NextflowSettings'
+          description: ''
+        default:
+          description: Error envelope (SPEC §3.5)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      operationId: admin_settings_nextflow_update
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NextflowSettingsRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/NextflowSettingsRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/NextflowSettingsRequest'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NextflowSettings'
+          description: ''
         default:
           description: Error envelope (SPEC §3.5)
           content:
@@ -1009,20 +801,6 @@ paths:
   /api/admin/workflows/:
     get:
       operationId: admin_workflows_list
-      description: Admin ViewSet for managing workflow settings
-      parameters:
-      - name: page
-        required: false
-        in: query
-        description: A page number within the paginated result set.
-        schema:
-          type: integer
-      - name: page_size
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
       tags:
       - admin
       security:
@@ -1033,7 +811,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedWorkflowSettingsList'
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdminWorkflow'
           description: ''
         default:
           description: Error envelope (SPEC §3.5)
@@ -1041,49 +821,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-    post:
-      operationId: admin_workflows_create
-      description: Admin ViewSet for managing workflow settings
-      tags:
-      - admin
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/WorkflowSettingsRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/WorkflowSettingsRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/WorkflowSettingsRequest'
-        required: true
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowSettings'
-          description: ''
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-  /api/admin/workflows/{id}/:
+  /api/admin/workflows/{workflow_id}/:
     get:
       operationId: admin_workflows_retrieve
-      description: Admin ViewSet for managing workflow settings
       parameters:
       - in: path
-        name: id
+        name: workflow_id
         schema:
           type: string
-        description: A unique value identifying this workflow.
         required: true
       tags:
       - admin
@@ -1095,47 +840,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/WorkflowSettings'
-          description: ''
-        default:
-          description: Error envelope (SPEC §3.5)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-    put:
-      operationId: admin_workflows_update
-      description: Admin ViewSet for managing workflow settings
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        description: A unique value identifying this workflow.
-        required: true
-      tags:
-      - admin
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/WorkflowSettingsRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/WorkflowSettingsRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/WorkflowSettingsRequest'
-        required: true
-      security:
-      - tokenAuth: []
-      - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowSettings'
+                $ref: '#/components/schemas/AdminWorkflowDetail'
           description: ''
         default:
           description: Error envelope (SPEC §3.5)
@@ -1144,14 +849,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
     patch:
-      operationId: admin_workflows_partial_update
-      description: Admin ViewSet for managing workflow settings
+      operationId: admin_workflows_update
       parameters:
       - in: path
-        name: id
+        name: workflow_id
         schema:
           type: string
-        description: A unique value identifying this workflow.
         required: true
       tags:
       - admin
@@ -1159,13 +862,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PatchedWorkflowSettingsRequest'
+              $ref: '#/components/schemas/PatchedAdminWorkflowPatchRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/PatchedWorkflowSettingsRequest'
+              $ref: '#/components/schemas/PatchedAdminWorkflowPatchRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/PatchedWorkflowSettingsRequest'
+              $ref: '#/components/schemas/PatchedAdminWorkflowPatchRequest'
       security:
       - tokenAuth: []
       - cookieAuth: []
@@ -1174,7 +877,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/WorkflowSettings'
+                $ref: '#/components/schemas/AdminWorkflowDetail'
           description: ''
         default:
           description: Error envelope (SPEC §3.5)
@@ -1183,14 +886,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
     delete:
-      operationId: admin_workflows_destroy
-      description: Admin ViewSet for managing workflow settings
+      operationId: admin_workflows_uninstall
       parameters:
       - in: path
-        name: id
+        name: workflow_id
         schema:
           type: string
-        description: A unique value identifying this workflow.
         required: true
       tags:
       - admin
@@ -1206,10 +907,9 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-  /api/admin/workflows/{workflow_id}/settings/:
+  /api/admin/workflows/{workflow_id}/nextflow/:
     get:
-      operationId: admin_workflows_settings_retrieve
-      description: Get workflow settings
+      operationId: admin_workflows_nextflow_retrieve
       parameters:
       - in: path
         name: workflow_id
@@ -1223,16 +923,57 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppNextflow'
+          description: ''
         default:
           description: Error envelope (SPEC §3.5)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-    patch:
-      operationId: admin_workflows_settings_partial_update
-      description: Update workflow settings
+    put:
+      operationId: admin_workflows_nextflow_update
+      parameters:
+      - in: path
+        name: workflow_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppNextflowRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AppNextflowRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AppNextflowRequest'
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppNextflow'
+          description: ''
+        default:
+          description: Error envelope (SPEC §3.5)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/admin/workflows/{workflow_id}/reload/:
+    post:
+      operationId: admin_workflows_reload
       parameters:
       - in: path
         name: workflow_id
@@ -1246,7 +987,67 @@ paths:
       - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminWorkflowDetail'
+          description: ''
+        default:
+          description: Error envelope (SPEC §3.5)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/admin/workflows/install/:
+    post:
+      operationId: admin_workflows_install
+      tags:
+      - admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstallRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/InstallRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/InstallRequest'
+        required: true
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminWorkflowDetail'
+          description: ''
+        default:
+          description: Error envelope (SPEC §3.5)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/admin/workflows/sync/:
+    post:
+      operationId: admin_workflows_sync
+      tags:
+      - admin
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdminWorkflow'
+          description: ''
         default:
           description: Error envelope (SPEC §3.5)
           content:
@@ -2162,6 +1963,56 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /api/pages/{slug}/:
+    get:
+      operationId: pages_retrieve
+      parameters:
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - pages
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicPage'
+          description: ''
+        default:
+          description: Error envelope (SPEC §3.5)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/server/:
+    get:
+      operationId: server_info
+      tags:
+      - server
+      security:
+      - tokenAuth: []
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServerInfo'
+          description: ''
+        default:
+          description: Error envelope (SPEC §3.5)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /api/workflows/:
     get:
       operationId: workflows_list
@@ -2345,6 +2196,126 @@ components:
       - is_superuser
       - last_login
       - username
+    AdminWorkflow:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        version:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        path:
+          type: string
+          description: apps[].path as written in settings.yaml
+        yaml_path:
+          type: string
+          description: Resolved cloudgene.yaml
+        index:
+          type: integer
+          description: Position in settings.yaml apps[]
+        enabled:
+          type: boolean
+        public:
+          type: boolean
+        groups:
+          type: array
+          items:
+            type: string
+        valid:
+          type: boolean
+        errors:
+          type: array
+          items:
+            type: string
+        warnings:
+          type: array
+          items:
+            type: string
+        job_count:
+          type: integer
+      required:
+      - category
+      - description
+      - enabled
+      - errors
+      - groups
+      - id
+      - index
+      - job_count
+      - name
+      - path
+      - public
+      - valid
+      - version
+      - warnings
+      - yaml_path
+    AdminWorkflowDetail:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        version:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        path:
+          type: string
+          description: apps[].path as written in settings.yaml
+        yaml_path:
+          type: string
+          description: Resolved cloudgene.yaml
+        index:
+          type: integer
+          description: Position in settings.yaml apps[]
+        enabled:
+          type: boolean
+        public:
+          type: boolean
+        groups:
+          type: array
+          items:
+            type: string
+        valid:
+          type: boolean
+        errors:
+          type: array
+          items:
+            type: string
+        warnings:
+          type: array
+          items:
+            type: string
+        job_count:
+          type: integer
+        yaml:
+          type: string
+          description: Raw cloudgene.yaml
+      required:
+      - category
+      - description
+      - enabled
+      - errors
+      - groups
+      - id
+      - index
+      - job_count
+      - name
+      - path
+      - public
+      - valid
+      - version
+      - warnings
+      - yaml
+      - yaml_path
     ApiToken:
       type: object
       description: '``POST /api/me/token`` — the key is only ever returned here, once.'
@@ -2357,43 +2328,141 @@ components:
       required:
       - created
       - token
-    CategoryEnum:
-      enum:
-      - general
-      - nextflow
-      - mail
-      - security
-      - queue
-      type: string
-      description: |-
-        * `general` - General
-        * `nextflow` - Nextflow
-        * `mail` - Mail
-        * `security` - Security
-        * `queue` - Queue
-    Counter:
+    AppNextflow:
       type: object
       properties:
-        id:
-          type: integer
-          readOnly: true
-        name:
+        profile:
           type: string
+          description: ''''' = use the global nextflow.profile'
           maxLength: 255
-        value:
-          type: integer
+        work_dir:
+          type: string
+          description: ''''' = use the global nextflow.work_dir'
+        config:
+          type: string
+          description: Contents of apps/<id>/nextflow.config
+        env:
+          type: string
+          description: Contents of apps/<id>/nextflow.env (KEY=VALUE)
+        config_path:
+          type: string
           readOnly: true
-        description:
+        env_path:
           type: string
-        last_updated:
-          type: string
-          format: date-time
+          readOnly: true
+        variables:
+          type: array
+          items:
+            $ref: '#/components/schemas/TemplateVariable'
           readOnly: true
       required:
-      - id
-      - last_updated
-      - name
-      - value
+      - config_path
+      - env_path
+      - variables
+    AppNextflowRequest:
+      type: object
+      properties:
+        profile:
+          type: string
+          description: ''''' = use the global nextflow.profile'
+          maxLength: 255
+        work_dir:
+          type: string
+          description: ''''' = use the global nextflow.work_dir'
+        config:
+          type: string
+          description: Contents of apps/<id>/nextflow.config
+        env:
+          type: string
+          description: Contents of apps/<id>/nextflow.env (KEY=VALUE)
+    BackendEnum:
+      enum:
+      - smtp
+      - file
+      - console
+      type: string
+      description: |-
+        * `smtp` - smtp
+        * `file` - file
+        * `console` - console
+    Dashboard:
+      type: object
+      properties:
+        queue:
+          $ref: '#/components/schemas/QueueStatus'
+        jobs:
+          $ref: '#/components/schemas/JobCounts'
+        users:
+          $ref: '#/components/schemas/UserCounts'
+        workflows:
+          $ref: '#/components/schemas/WorkflowCounts'
+        recent_jobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecentJob'
+      required:
+      - jobs
+      - queue
+      - recent_jobs
+      - users
+      - workflows
+    GeneralSettings:
+      type: object
+      description: '``server.*`` keys of settings.yaml. PUT accepts any subset (others
+        unchanged).'
+      properties:
+        name:
+          type: string
+          maxLength: 100
+        url:
+          type: string
+          maxLength: 500
+        max_running_jobs:
+          type: integer
+          minimum: 1
+        max_queue_size:
+          type: integer
+          minimum: 0
+        job_retention_days:
+          type: integer
+          minimum: 0
+        max_upload_mb:
+          type: integer
+          minimum: 1
+        maintenance:
+          type: boolean
+        maintenance_message:
+          type: string
+          maxLength: 2000
+    GeneralSettingsRequest:
+      type: object
+      description: '``server.*`` keys of settings.yaml. PUT accepts any subset (others
+        unchanged).'
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        url:
+          type: string
+          maxLength: 500
+        max_running_jobs:
+          type: integer
+          minimum: 1
+        max_queue_size:
+          type: integer
+          minimum: 0
+        job_retention_days:
+          type: integer
+          minimum: 0
+        max_upload_mb:
+          type: integer
+          minimum: 1
+        maintenance:
+          type: boolean
+        maintenance_message:
+          type: string
+          maxLength: 2000
     Health:
       type: object
       properties:
@@ -2445,6 +2514,53 @@ components:
       - last_seen
       - ok
       - pid
+    InstallRequest:
+      type: object
+      properties:
+        path:
+          type: string
+          minLength: 1
+          description: App dir or cloudgene.yaml (absolute, or relative to $CLOUDGENE_HOME/apps)
+        enabled:
+          type: boolean
+          default: true
+        public:
+          type: boolean
+          default: false
+        groups:
+          type: array
+          items:
+            type: string
+            minLength: 1
+            maxLength: 150
+        copy:
+          type: boolean
+          default: false
+          description: Copy the app into $CLOUDGENE_HOME/apps/<id>/
+      required:
+      - path
+    JobCounts:
+      type: object
+      properties:
+        total:
+          type: integer
+        waiting:
+          type: integer
+        running:
+          type: integer
+        success:
+          type: integer
+        failed:
+          type: integer
+        cancelled:
+          type: integer
+      required:
+      - cancelled
+      - failed
+      - running
+      - success
+      - total
+      - waiting
     JobDetail:
       type: object
       properties:
@@ -2819,6 +2935,102 @@ components:
           $ref: '#/components/schemas/User'
       required:
       - user
+    MailSettings:
+      type: object
+      description: |-
+        ``mail.*``. ``password`` is write-only: never returned; empty/absent = unchanged
+        (use ``clear_password: true`` to remove it). ``password_set`` tells whether one exists.
+      properties:
+        backend:
+          $ref: '#/components/schemas/BackendEnum'
+        file_path:
+          type: string
+          maxLength: 500
+        host:
+          type: string
+          maxLength: 255
+        port:
+          type: integer
+          maximum: 65535
+          minimum: 1
+        user:
+          type: string
+          maxLength: 255
+        password_set:
+          type: boolean
+          readOnly: true
+        use_tls:
+          type: boolean
+        use_ssl:
+          type: boolean
+        from_email:
+          type: string
+          format: email
+      required:
+      - password_set
+    MailSettingsRequest:
+      type: object
+      description: |-
+        ``mail.*``. ``password`` is write-only: never returned; empty/absent = unchanged
+        (use ``clear_password: true`` to remove it). ``password_set`` tells whether one exists.
+      properties:
+        backend:
+          $ref: '#/components/schemas/BackendEnum'
+        file_path:
+          type: string
+          minLength: 1
+          maxLength: 500
+        host:
+          type: string
+          maxLength: 255
+        port:
+          type: integer
+          maximum: 65535
+          minimum: 1
+        user:
+          type: string
+          maxLength: 255
+        password:
+          type: string
+          writeOnly: true
+          maxLength: 255
+        clear_password:
+          type: boolean
+          writeOnly: true
+        use_tls:
+          type: boolean
+        use_ssl:
+          type: boolean
+        from_email:
+          type: string
+          format: email
+          minLength: 1
+    MailTestRequest:
+      type: object
+      properties:
+        to:
+          type: string
+          format: email
+          minLength: 1
+          description: 'Recipient (default: the admin''s own e-mail)'
+    MailTestResult:
+      type: object
+      properties:
+        message:
+          type: string
+        to:
+          type: string
+          format: email
+      required:
+      - message
+      - to
+    MaintenanceRequestRequest:
+      type: object
+      properties:
+        message:
+          type: string
+          description: New banner text (optional)
+          maxLength: 2000
     Me:
       type: object
       properties:
@@ -2851,36 +3063,35 @@ components:
         * `warning` - Warning
         * `error` - Error
         * `success` - Success
+    Navbar:
+      type: object
+      properties:
+        navbar:
+          type: array
+          items:
+            $ref: '#/components/schemas/NavbarItem'
+      required:
+      - navbar
     NavbarItem:
       type: object
       properties:
-        id:
-          type: integer
-          readOnly: true
         title:
           type: string
-          maxLength: 255
+          maxLength: 100
         url:
           type: string
           maxLength: 500
         icon:
           type: string
+          default: ''
           maxLength: 100
-        order:
-          type: integer
-          maximum: 9223372036854775807
-          minimum: -9223372036854775808
-          format: int64
-        visible:
-          type: boolean
-        required_groups:
-          type: array
-          items:
-            type: integer
         admin_only:
           type: boolean
+          default: false
+        auth_only:
+          type: boolean
+          default: false
       required:
-      - id
       - title
       - url
     NavbarItemRequest:
@@ -2889,30 +3100,119 @@ components:
         title:
           type: string
           minLength: 1
-          maxLength: 255
+          maxLength: 100
         url:
           type: string
           minLength: 1
           maxLength: 500
         icon:
           type: string
+          default: ''
           maxLength: 100
-        order:
-          type: integer
-          maximum: 9223372036854775807
-          minimum: -9223372036854775808
-          format: int64
-        visible:
-          type: boolean
-        required_groups:
-          type: array
-          items:
-            type: integer
         admin_only:
           type: boolean
+          default: false
+        auth_only:
+          type: boolean
+          default: false
       required:
       - title
       - url
+    NavbarRequest:
+      type: object
+      properties:
+        navbar:
+          type: array
+          items:
+            $ref: '#/components/schemas/NavbarItemRequest'
+      required:
+      - navbar
+    NextflowSettings:
+      type: object
+      description: '``nextflow.*`` plus the global config files.'
+      properties:
+        binary:
+          type: string
+          maxLength: 500
+        profile:
+          type: string
+          maxLength: 255
+        work_dir:
+          type: string
+          maxLength: 1000
+        config:
+          type: string
+          description: Contents of config/nextflow.config
+        env:
+          type: string
+          description: Contents of config/nextflow.env (KEY=VALUE lines)
+        variables:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+          readOnly: true
+      required:
+      - variables
+    NextflowSettingsRequest:
+      type: object
+      description: '``nextflow.*`` plus the global config files.'
+      properties:
+        binary:
+          type: string
+          minLength: 1
+          maxLength: 500
+        profile:
+          type: string
+          maxLength: 255
+        work_dir:
+          type: string
+          maxLength: 1000
+        config:
+          type: string
+          description: Contents of config/nextflow.config
+        env:
+          type: string
+          description: Contents of config/nextflow.env (KEY=VALUE lines)
+    Page:
+      type: object
+      properties:
+        slug:
+          type: string
+          readOnly: true
+        html:
+          type: string
+        deletable:
+          type: boolean
+          readOnly: true
+      required:
+      - deletable
+      - html
+      - slug
+    PageRequest:
+      type: object
+      properties:
+        html:
+          type: string
+      required:
+      - html
+    PageSummary:
+      type: object
+      properties:
+        slug:
+          type: string
+        size:
+          type: integer
+        updated_at:
+          type: string
+          format: date-time
+        deletable:
+          type: boolean
+      required:
+      - deletable
+      - size
+      - slug
+      - updated_at
     PaginatedAdminUserList:
       type: object
       required:
@@ -2936,29 +3236,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AdminUser'
-    PaginatedCounterList:
-      type: object
-      required:
-      - count
-      - results
-      properties:
-        count:
-          type: integer
-          example: 123
-        next:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=4
-        previous:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=2
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/Counter'
     PaginatedJobListList:
       type: object
       required:
@@ -2982,52 +3259,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/JobList'
-    PaginatedNavbarItemList:
-      type: object
-      required:
-      - count
-      - results
-      properties:
-        count:
-          type: integer
-          example: 123
-        next:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=4
-        previous:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=2
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/NavbarItem'
-    PaginatedServerSettingsList:
-      type: object
-      required:
-      - count
-      - results
-      properties:
-        count:
-          type: integer
-          example: 123
-        next:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=4
-        previous:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=2
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/ServerSettings'
     PaginatedSystemLogList:
       type: object
       required:
@@ -3051,29 +3282,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/SystemLog'
-    PaginatedTemplateList:
-      type: object
-      required:
-      - count
-      - results
-      properties:
-        count:
-          type: integer
-          example: 123
-        next:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=4
-        previous:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=2
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/Template'
     PaginatedWorkflowCategoryList:
       type: object
       required:
@@ -3120,29 +3328,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Workflow'
-    PaginatedWorkflowSettingsList:
-      type: object
-      required:
-      - count
-      - results
-      properties:
-        count:
-          type: integer
-          example: 123
-        next:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=4
-        previous:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=2
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/WorkflowSettings'
     ParameterTypeEnum:
       enum:
       - file
@@ -3196,6 +3381,20 @@ components:
           type: boolean
         is_admin:
           type: boolean
+    PatchedAdminWorkflowPatchRequest:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        public:
+          type: boolean
+        groups:
+          type: array
+          items:
+            type: string
+            minLength: 1
+            maxLength: 150
+          description: Group names (created if missing)
     PatchedJobDetailRequest:
       type: object
       properties:
@@ -3205,33 +3404,6 @@ components:
           maxLength: 255
         parameters:
           description: Input parameters for the job
-    PatchedNavbarItemRequest:
-      type: object
-      properties:
-        title:
-          type: string
-          minLength: 1
-          maxLength: 255
-        url:
-          type: string
-          minLength: 1
-          maxLength: 500
-        icon:
-          type: string
-          maxLength: 100
-        order:
-          type: integer
-          maximum: 9223372036854775807
-          minimum: -9223372036854775808
-          format: int64
-        visible:
-          type: boolean
-        required_groups:
-          type: array
-          items:
-            type: integer
-        admin_only:
-          type: boolean
     PatchedProfileUpdateRequest:
       type: object
       description: '``PATCH /api/me``. Changing ``email`` or ``password`` requires
@@ -3250,80 +3422,6 @@ components:
         current_password:
           type: string
           writeOnly: true
-    PatchedServerSettingsRequest:
-      type: object
-      properties:
-        name:
-          type: string
-          minLength: 1
-          maxLength: 255
-        value:
-          type: string
-        description:
-          type: string
-        setting_type:
-          $ref: '#/components/schemas/SettingTypeEnum'
-        category:
-          $ref: '#/components/schemas/CategoryEnum'
-    PatchedTemplateRequest:
-      type: object
-      properties:
-        name:
-          type: string
-          minLength: 1
-          maxLength: 255
-        content:
-          type: string
-        description:
-          type: string
-        template_type:
-          $ref: '#/components/schemas/TemplateTypeEnum'
-        updated_by:
-          type: integer
-          nullable: true
-    PatchedWorkflowSettingsRequest:
-      type: object
-      description: Serializer for admin workflow settings, including Nextflow configuration
-      properties:
-        name:
-          type: string
-          minLength: 1
-          maxLength: 255
-        description:
-          type: string
-        version:
-          type: string
-          minLength: 1
-          maxLength: 50
-        website:
-          type: string
-          format: uri
-          maxLength: 200
-        status:
-          $ref: '#/components/schemas/WorkflowStatusEnum'
-        public:
-          type: boolean
-          description: Publicly accessible to all users
-        allowed_group_names:
-          type: array
-          items:
-            type: string
-            minLength: 1
-          writeOnly: true
-          description: List of group names to assign to this workflow
-        nextflow_profile:
-          type: string
-          description: Nextflow profile to use
-          maxLength: 255
-        working_directory:
-          type: string
-          description: Working directory for Nextflow execution
-        env_vars:
-          type: string
-          description: Environment variables (written to nextflow.env)
-        nextflow_config:
-          type: string
-          description: Nextflow configuration (written to nextflow.config)
     Profile:
       type: object
       description: '``GET /api/me`` — the user plus API-token metadata (never the
@@ -3384,6 +3482,88 @@ components:
       - is_admin
       - last_login
       - username
+    PublicPage:
+      type: object
+      properties:
+        slug:
+          type: string
+        html:
+          type: string
+      required:
+      - html
+      - slug
+    QueueStatus:
+      type: object
+      properties:
+        paused:
+          type: boolean
+        maintenance:
+          type: boolean
+        maintenance_message:
+          type: string
+        running:
+          type: integer
+        waiting:
+          type: integer
+        max_running:
+          type: integer
+        max_queue:
+          type: integer
+        worker:
+          $ref: '#/components/schemas/WorkerStatus'
+      required:
+      - maintenance
+      - maintenance_message
+      - max_queue
+      - max_running
+      - paused
+      - running
+      - waiting
+      - worker
+    RecentJob:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        state:
+          type: string
+        workflow:
+          $ref: '#/components/schemas/Ref'
+        user:
+          $ref: '#/components/schemas/UserRef'
+        submitted_at:
+          type: string
+          format: date-time
+          nullable: true
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        finished_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - finished_at
+      - id
+      - name
+      - started_at
+      - state
+      - submitted_at
+      - user
+      - workflow
+    Ref:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+      required:
+      - id
+      - name
     RegisterResponse:
       type: object
       properties:
@@ -3417,55 +3597,59 @@ components:
       - full_name
       - password
       - username
-    ServerSettings:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        name:
-          type: string
-          maxLength: 255
-        value:
-          type: string
-        description:
-          type: string
-        setting_type:
-          $ref: '#/components/schemas/SettingTypeEnum'
-        category:
-          $ref: '#/components/schemas/CategoryEnum'
-      required:
-      - id
-      - name
-    ServerSettingsRequest:
-      type: object
-      properties:
-        name:
-          type: string
-          minLength: 1
-          maxLength: 255
-        value:
-          type: string
-        description:
-          type: string
-        setting_type:
-          $ref: '#/components/schemas/SettingTypeEnum'
-        category:
-          $ref: '#/components/schemas/CategoryEnum'
-      required:
-      - name
-    SettingTypeEnum:
+    ScopeEnum:
       enum:
-      - string
-      - integer
-      - boolean
-      - json
+      - global
+      - app
+      - job
       type: string
       description: |-
-        * `string` - String
-        * `integer` - Integer
-        * `boolean` - Boolean
-        * `json` - JSON
+        * `global` - global
+        * `app` - app
+        * `job` - job
+    ServerInfo:
+      type: object
+      properties:
+        name:
+          type: string
+        url:
+          type: string
+        maintenance:
+          type: boolean
+        maintenance_message:
+          type: string
+        navbar:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServerNavbarItem'
+        footer_html:
+          type: string
+      required:
+      - footer_html
+      - maintenance
+      - maintenance_message
+      - name
+      - navbar
+      - url
+    ServerNavbarItem:
+      type: object
+      properties:
+        title:
+          type: string
+        url:
+          type: string
+        icon:
+          type: string
+        admin_only:
+          type: boolean
+        auth_only:
+          type: boolean
+      required:
+      - admin_only
+      - auth_only
+      - icon
+      - title
+      - url
     SystemLog:
       type: object
       properties:
@@ -3480,84 +3664,58 @@ components:
           allOf:
           - $ref: '#/components/schemas/LevelEnum'
           readOnly: true
-        message:
-          type: string
-          readOnly: true
         component:
           type: string
           readOnly: true
-        user_username:
+        logger:
           type: string
           readOnly: true
+        message:
+          type: string
+          readOnly: true
+        username:
+          type: string
+          readOnly: true
+          nullable: true
         metadata:
           readOnly: true
       required:
       - component
       - id
       - level
+      - logger
       - message
       - metadata
       - timestamp
-      - user_username
-    Template:
+      - username
+    TemplateVariable:
       type: object
       properties:
-        id:
-          type: integer
-          readOnly: true
         name:
           type: string
-          maxLength: 255
-        content:
-          type: string
+        scope:
+          $ref: '#/components/schemas/ScopeEnum'
         description:
           type: string
-        template_type:
-          $ref: '#/components/schemas/TemplateTypeEnum'
-        created_at:
-          type: string
-          format: date-time
-          readOnly: true
-        updated_at:
-          type: string
-          format: date-time
-          readOnly: true
-        updated_by:
-          type: integer
-          nullable: true
       required:
-      - created_at
-      - id
+      - description
       - name
-      - updated_at
-    TemplateRequest:
+      - scope
+    TemplateVariableRequest:
       type: object
       properties:
         name:
           type: string
           minLength: 1
-          maxLength: 255
-        content:
-          type: string
+        scope:
+          $ref: '#/components/schemas/ScopeEnum'
         description:
           type: string
-        template_type:
-          $ref: '#/components/schemas/TemplateTypeEnum'
-        updated_by:
-          type: integer
-          nullable: true
+          minLength: 1
       required:
+      - description
       - name
-    TemplateTypeEnum:
-      enum:
-      - page
-      - email
-      - partial
-      type: string
-      description: |-
-        * `page` - Page
-        * `email` - Email
-        * `partial` - Partial
+      - scope
     User:
       type: object
       description: The user as seen by themselves (login, /auth/me, /me).
@@ -3608,6 +3766,50 @@ components:
       - is_admin
       - last_login
       - username
+    UserCounts:
+      type: object
+      properties:
+        total:
+          type: integer
+        active:
+          type: integer
+        admins:
+          type: integer
+      required:
+      - active
+      - admins
+      - total
+    UserRef:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+      required:
+      - id
+      - username
+    WorkerStatus:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        last_seen:
+          type: string
+          format: date-time
+          nullable: true
+        age_seconds:
+          type: number
+          format: double
+          nullable: true
+        pid:
+          type: integer
+          nullable: true
+      required:
+      - age_seconds
+      - last_seen
+      - ok
+      - pid
     Workflow:
       type: object
       properties:
@@ -3658,19 +3860,6 @@ components:
           items:
             type: string
           readOnly: true
-        nextflow_profile:
-          type: string
-          description: Nextflow profile to use
-          maxLength: 255
-        working_directory:
-          type: string
-          description: Working directory for Nextflow execution
-        env_vars:
-          type: string
-          description: Environment variables (written to nextflow.env)
-        nextflow_config:
-          type: string
-          description: Nextflow configuration (written to nextflow.config)
       required:
       - allowed_groups
       - category_name
@@ -3700,6 +3889,22 @@ components:
       - created_at
       - id
       - name
+    WorkflowCounts:
+      type: object
+      properties:
+        total:
+          type: integer
+        enabled:
+          type: integer
+        disabled:
+          type: integer
+        invalid:
+          type: integer
+      required:
+      - disabled
+      - enabled
+      - invalid
+      - total
     WorkflowParameter:
       type: object
       properties:
@@ -3747,111 +3952,6 @@ components:
       - parameter_type
       - type
       - value
-    WorkflowSettings:
-      type: object
-      description: Serializer for admin workflow settings, including Nextflow configuration
-      properties:
-        id:
-          type: string
-          readOnly: true
-        name:
-          type: string
-          maxLength: 255
-        description:
-          type: string
-        version:
-          type: string
-          maxLength: 50
-        website:
-          type: string
-          format: uri
-          maxLength: 200
-        category_name:
-          type: string
-          readOnly: true
-        status:
-          $ref: '#/components/schemas/WorkflowStatusEnum'
-        public:
-          type: boolean
-          description: Publicly accessible to all users
-        created_at:
-          type: string
-          format: date-time
-          readOnly: true
-        updated_at:
-          type: string
-          format: date-time
-          readOnly: true
-        allowed_groups:
-          type: array
-          items:
-            type: string
-          readOnly: true
-        nextflow_profile:
-          type: string
-          description: Nextflow profile to use
-          maxLength: 255
-        working_directory:
-          type: string
-          description: Working directory for Nextflow execution
-        env_vars:
-          type: string
-          description: Environment variables (written to nextflow.env)
-        nextflow_config:
-          type: string
-          description: Nextflow configuration (written to nextflow.config)
-      required:
-      - allowed_groups
-      - category_name
-      - created_at
-      - id
-      - name
-      - updated_at
-    WorkflowSettingsRequest:
-      type: object
-      description: Serializer for admin workflow settings, including Nextflow configuration
-      properties:
-        name:
-          type: string
-          minLength: 1
-          maxLength: 255
-        description:
-          type: string
-        version:
-          type: string
-          minLength: 1
-          maxLength: 50
-        website:
-          type: string
-          format: uri
-          maxLength: 200
-        status:
-          $ref: '#/components/schemas/WorkflowStatusEnum'
-        public:
-          type: boolean
-          description: Publicly accessible to all users
-        allowed_group_names:
-          type: array
-          items:
-            type: string
-            minLength: 1
-          writeOnly: true
-          description: List of group names to assign to this workflow
-        nextflow_profile:
-          type: string
-          description: Nextflow profile to use
-          maxLength: 255
-        working_directory:
-          type: string
-          description: Working directory for Nextflow execution
-        env_vars:
-          type: string
-          description: Environment variables (written to nextflow.env)
-        nextflow_config:
-          type: string
-          description: Nextflow configuration (written to nextflow.config)
-      required:
-      - name
     WorkflowStatusEnum:
       enum:
       - enabled

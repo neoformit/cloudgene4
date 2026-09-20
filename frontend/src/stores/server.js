@@ -1,33 +1,37 @@
 import { defineStore } from 'pinia'
-import { getNavbarItems, getTemplates } from '@/api/admin'
+import { getServerInfo } from '@/api/server'
 
+/**
+ * Public server info from GET /api/server (SPEC §3.6). The navbar list is already filtered
+ * by the server for the current viewer, so `load(true)` after login/logout.
+ */
 export const useServerStore = defineStore('server', {
   state: () => ({
-    navbarItems: [],
-    templates: {},
+    name: 'Cloudgene',
+    url: '',
+    maintenance: false,
+    maintenanceMessage: '',
+    navbar: [],
+    footerHtml: '',
     loaded: false,
+    error: null,
   }),
 
   actions: {
-    async load() {
-      if (this.loaded) return
+    async load(force = false) {
+      if (this.loaded && !force) return
       try {
-        const [navRes, tmplRes] = await Promise.all([
-          getNavbarItems(),
-          getTemplates(),
-        ])
-        this.navbarItems = navRes.data.results || []
-        const map = {}
-        const templates = tmplRes.data.results || []
-        for (const t of templates) {
-          map[t.name] = t.content
-        }
-        this.templates = map
+        const { data } = await getServerInfo()
+        this.name = data.name
+        this.url = data.url
+        this.maintenance = data.maintenance
+        this.maintenanceMessage = data.maintenance_message
+        this.navbar = data.navbar || []
+        this.footerHtml = data.footer_html || ''
         this.loaded = true
-      } catch (error) {
-        console.warn('Failed to load server data:', error)
-        // Ensure navbarItems is always an array
-        this.navbarItems = this.navbarItems || []
+        this.error = null
+      } catch (err) {
+        this.error = err
       }
     },
   },

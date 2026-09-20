@@ -112,6 +112,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'workflows.middleware.WorkflowSyncMiddleware',  # T05: lazy registry sync on /api/
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -263,6 +264,12 @@ LOGGING = {
         'console': {
             'class': 'logging.StreamHandler',
             'formatter': 'standard',
+            'level': LOG_LEVEL,
+        },
+        # T05: cloudgene.* records at INFO+ → SystemLog (Admin → Logs), SPEC §3.8
+        'db': {
+            'class': 'admin_panel.logging.DatabaseLogHandler',
+            'level': 'INFO',
         },
     },
     'root': {
@@ -272,6 +279,7 @@ LOGGING = {
     'loggers': {
         'django': {'handlers': ['console'], 'level': LOG_LEVEL, 'propagate': False},
         'django.db.backends': {'level': 'INFO'},
+        'cloudgene': {'handlers': ['console', 'db'], 'level': 'INFO', 'propagate': False},
     },
 }
 
