@@ -289,16 +289,19 @@ Soft delete: `Job.deleted_at` (user-deleted jobs are hidden everywhere and their
   marked failed); `--once` drains the queue and exits (tests).
 - **Execution** (`jobs/runner.py`, one step at a time, each a subprocess in its own process group):
   `nextflow -log logs/[stepN-]nextflow.log run <script> [-r rev] -params-file [stepN-]params.json
-  -c <global nextflow.config> -c <app nextflow.config> -c <job>/cloudgene.config [-profile p]
+  -c <config/nextflow.config> -c <apps/<id>/nextflow.config> -c <job>/cloudgene.config [-profile p]
   -w <work> -with-trace logs/[stepN-]trace.txt -with-report … -with-timeline … -ansi-log false`,
   cwd = the job workspace, stdout+stderr appended to `logs/stdout.txt`. `cloudgene.config` is
   generated per job (trace fields incl. `process`/`workdir`, `overwrite = true`). `script` is
   resolved against the app dir; if no such file exists it is passed through as a remote pipeline
-  name. Environment: the worker's env + `config/nextflow.env` + `apps/<id>/nextflow.env`
+  name. `-profile` and the work dir come from the app's `apps[].profile` / `apps[].work_dir`
+  (`workflows.registry.get_nextflow_settings`), else from `nextflow.profile` / `nextflow.work_dir`.
+  Environment: the worker's env + `config/nextflow.env` + `apps/<id>/nextflow.env`
   (`KEY=VALUE`, `${VAR}` expanded) + `CLOUDGENE_JOB_ID`, `CLOUDGENE_JOB_NAME`, `CLOUDGENE_USER_NAME`,
   `CLOUDGENE_USER_EMAIL`, `CLOUDGENE_USER_FULL_NAME`, `CLOUDGENE_APP_ID`, `CLOUDGENE_APP_VERSION`,
-  `CLOUDGENE_APP_LOCATION`, `CLOUDGENE_SERVICE_NAME`, `CLOUDGENE_SERVICE_URL`,
-  `CLOUDGENE_CONTACT_EMAIL`. `params.json` = step `params` + serialisable inputs (numbers as
+  `CLOUDGENE_APP_LOCATION` and the service/SMTP variables — the names and values come from
+  `workflows.template_utils.VARIABLES` / `cloudgene_variables()` (W4), so the admin "template
+  variables" list is what the pipeline really gets. `params.json` = step `params` + serialisable inputs (numbers as
   numbers, checkbox as its mapped value or bool, files/folders/`writeFile` as absolute paths) +
   each serialisable output as `<job>/output/<output id>`. Steps that are not Nextflow steps
   (`classname:`, `cmd:`, other `type:`) fail the job with the parser's message.
@@ -474,8 +477,11 @@ scope. Slice owners may refine paths but must update this section.
 ```jsonc
 // item of GET /api/jobs, GET /api/admin/jobs   (JobListSerializer)
 {"id": "<uuid>", "name": "My run 🚀", "state": "running",          // waiting|running|success|failed|cancelled
+ "workflow": {"id": "hello", "name": "Hello", "version": "1.0.0"},
+ "user": {"id": 2, "username": "alice"},
+ // flat aliases of the two objects above
  "workflow_id": "hello", "workflow_name": "Hello", "workflow_version": "1.0.0",
- "user": "alice", "user_id": 2,
+ "user_username": "alice", "user_id": 2,
  "submitted_at": "...", "started_at": "...|null", "finished_at": "...|null",
  "duration_seconds": 12.5, "queue_position": null,                 // 1-based, only while waiting
  "cancel_requested": false, "expires_at": "...|null", "purged_at": null,
