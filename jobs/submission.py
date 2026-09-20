@@ -210,7 +210,10 @@ def validate_inputs(definition: WorkflowDefinition, data, files):
 
         text = '' if raw is None else str(raw)
         if p.type in ('text', 'string', 'textarea'):
-            if p.type != 'textarea':
+            if p.type == 'textarea':
+                # browsers submit textarea content with CRLF line endings
+                text = text.replace('\r\n', '\n').replace('\r', '\n')
+            else:
                 text = text.strip()
             if not text.strip():
                 if p.required:

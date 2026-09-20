@@ -90,7 +90,7 @@ class SubmissionTest(ApiTestBase):
     def test_all_input_types_are_resolved_and_stored(self):
         files = [upload('ä b.txt', b'1'), upload('../../etc/passwd.txt', b'2'), upload('ä b.txt', b'3')]
         res = self.submit(self.alice, self.valid(
-            job_name='  Run #1 — ünïcode 🚀 with  spaces ', notes='line1\nline2', plain_notes=' keep ',
+            job_name='  Run #1 — ünïcode 🚀 with  spaces ', notes='line1\r\nline2', plain_notes=' keep ',
             ratio='0.5', flavour='b', flag='false', plain_flag='on', many=files, hidden='hacked'),
             app='all-inputs')
         self.assertEqual(res.status_code, 201, res.content)
