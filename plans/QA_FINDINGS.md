@@ -95,3 +95,62 @@ raise/configure the limit, and translate those exceptions into a 400/413 envelop
 **Red test:** `test_a02_many_files_in_folder_input_is_a_client_error`
 
 ---
+
+### A-03 — SQLite write contention: 500s on admin pages and failed worker ticks
+
+**Severity:** High
+
+**What happens:** `GET /api/admin/workflows/` runs a **full registry sync inside the request**
+(`workflows/registry.list_apps()` → `sync_all()` → `_upsert()` → `row.save()` +
+`allowed_groups.set()` for *every* app, with `synced_at=now`). So a read-only admin list
+writes to the DB on every single call, while the worker writes its heartbeat and job
+progress every ~1 s. On SQLite the two processes collide.
+
+**Steps (observed twice, two different runs, both unprovoked by the test body):**
+1. Start the stack with the worker and submit a couple of jobs so the worker is busy.
+2. Browse to `/admin/jobs` (loads `/api/admin/workflows/` for the filter dropdown), or issue
+   a few concurrent `GET /api/admin/workflows/` while jobs run
+   (`e2e/exploratory/probe_lock.py`).
+
+**Expected:** 200. A read-only endpoint should not write; two processes sharing the DB must
+not produce 5xx or break the worker loop.
+
+**Actual, symptom 1 (web):** `GET /api/admin/workflows/` → **500** `server_error`.
+`e2e/.artifacts/stack-main/logs/server.log`:
+```
+File ".../workflows/registry.py", line 362, in list_apps  -> sync_all()
+File ".../workflows/registry.py", line 298, in _upsert    -> row.save()
+django.db.utils.OperationalError: database is locked
+ERROR django.request Internal Server Error: /api/admin/workflows/
+```
+This failed `e2e/exploratory/probe_ui.py::test_xss_job_name_admin` through the browser-error
+guard — i.e. it is exactly the kind of flake that will randomly redden the scripted suite.
+
+**Actual, symptom 2 (worker):** the worker tick aborts, 6× in one 25 s window
+(`e2e/.artifacts/stack-main/logs/worker.log`):
+```
+ERROR cloudgene.worker Worker tick failed
+  ... core/models.py WorkerHeartbeat.beat -> update_or_create
+django.db.utils.OperationalError: database is locked
+```
+`Worker.tick()` does heartbeat → reconcile → `poll_executions()` → `claim()` in one method
+and the whole tick is abandoned on the exception, so a lock storm also stalls progress
+updates and job scheduling, and `/api/health` can report the worker as stale/degraded.
+
+**Suspected cause:**
+* `workflows/registry.list_apps()` calls `sync_all()` unconditionally instead of
+  `sync_if_changed()` (SPEC §3.2 says the API only syncs "when settings.yaml or an installed
+  cloudgene.yaml changed"), so every admin read is a write transaction.
+* `cloudgene_django/settings.py:150` sets `OPTIONS['timeout'] = 20`, but SQLite's busy
+  handler is **not** invoked when a connection that already holds a read transaction tries to
+  upgrade to a write (`transaction.atomic()` in `sync_all()` reads first, then writes) — it
+  fails immediately with "database is locked". Journal mode is the default (no WAL).
+  Fix direction: `sync_if_changed()` in read paths, plus WAL +
+  `OPTIONS['transaction_mode'] = 'IMMEDIATE'` (Django ≥5.1), and a per-statement retry or a
+  narrower `tick()` so one lock does not abandon the whole worker tick.
+
+**Red test:** `test_a03_admin_workflow_list_does_not_write_on_every_read` (deterministic:
+asserts the registry is not rewritten by a plain GET — the write amplification that causes
+the contention; the 500 itself is a race and is documented by the log excerpts above).
+
+---

@@ -57,3 +57,26 @@ def test_a02_many_files_in_folder_input_is_a_client_error(api):
     _cancel(client, r.json() if r.ok else None)
     assert r.status_code < 500, 'submitting 121 file parts returned %s: %s' % (
         r.status_code, r.text[:200])
+
+
+# --------------------------------------------------------------------------------------------
+# A-03
+# --------------------------------------------------------------------------------------------
+
+@pytest.mark.xfail(strict=True, reason='A-03: GET /api/admin/workflows/ rewrites every Workflow '
+                                       'row on each request (SQLite lock contention -> 500s)')
+def test_a03_admin_workflow_list_does_not_write_on_every_read(api, stack):
+    """A read-only list must not run a full registry sync (a DB write per row) on every call.
+
+    SPEC §3.2 triggers a sync from the API only "when settings.yaml or an installed
+    cloudgene.yaml changed". Writing on every read is what puts the web process in write
+    contention with the worker on SQLite (observed: `OperationalError: database is locked`
+    -> 500 on the admin pages and failed worker ticks).
+    """
+    client = api('admin')
+    read = ("from workflows.models import Workflow;"
+            "print(sorted((w.pk, str(w.synced_at)) for w in Workflow.objects.all()))")
+    before = stack.django_shell(read).strip()
+    assert client.get('/api/admin/workflows/').status_code == 200
+    after = stack.django_shell(read).strip()
+    assert after == before, 'the registry was rewritten by a plain GET:\n%s\n%s' % (before, after)
