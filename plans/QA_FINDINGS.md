@@ -6,7 +6,7 @@ test in `e2e/tests/test_findings_*.py` (`xfail(strict=True)`), removed by the fi
 
 ## T07c — admin, config & multi-user
 
-Session: 2026-09-20, branch `worktree-agent-a8ec08b4553a18d0c` (base `rebuild` @ 83cd54f).
+Session: 2026-09-20 & 2026-09-26, branch `worktree-agent-a8ec08b4553a18d0c` (base `rebuild` @ 83cd54f).
 Probes: `e2e/exploratory/test_probe_*.py` — scratch scripts, skipped by `pytest e2e`; run them with
 `E2E_EXPLORATORY=1 E2E_SKIP_BUILD=1 venv/bin/python -m pytest e2e/exploratory -q -s`.
 Red tests: `e2e/tests/test_findings_admin.py` (5 × `xfail(strict=True)`, each reproduced twice).
@@ -202,8 +202,10 @@ sync). Worth aligning the admin UI so it does not claim a dead app is enabled.
   last-admin deletion all refused; a second admin can be promoted and demoted and loses access
   immediately; deactivating a user kills their session at once (401) while their running job
   finishes normally.
-* **Multi-user**: with `max_running_jobs: 1` two users' jobs run strictly FIFO (no starvation);
-  an admin cancelling a running job is reflected on the owner's job page within the poll interval;
+* **Multi-user**: with `max_running_jobs: 1` two users' jobs run strictly FIFO, alice's two jobs
+  then bob's, no starvation; a job page open in the browser picks up an
+  `POST /api/admin/jobs/{id}/cancel` of the running job within the poll interval (badge →
+  `cancelled`), and an admin cancelling alice's *waiting* job is visible to alice immediately;
   admin job filters `state` (incl. comma lists and a 400 for unknown values), `user` (id or name),
   `workflow`, `search` all correct; non-admins get 403.
 * **Pages/navbar**: slug rules enforced (`Probe-Page`, `probe page`, `ünicode`, `_leading`, >64
