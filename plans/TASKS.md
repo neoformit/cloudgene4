@@ -4,6 +4,12 @@ Orchestrated by the lead agent. Each task runs in its own git worktree/branch an
 by the orchestrator after review + tests. Read `plans/SPEC.md` first; issue IDs (J1, A1, …) refer to
 its issue register.
 
+**Model policy for task agents (user instruction, 2026-09-26)**
+Spawn agents on the default model (`sonnet`) unless the task genuinely needs deeper reasoning.
+Opus is reserved for: cross-cutting architecture/contract design, security analysis, and triage of
+conflicting evidence. Routine work — applying a known fix, writing tests to a given spec, docs,
+mechanical refactors, deployment config — goes to sonnet. State the chosen model when delegating.
+
 **Rules for every task agent**
 - Stay inside your *owned paths*. If you must touch another area, keep the change minimal and list it
   under "Cross-area edits" in your final report.
