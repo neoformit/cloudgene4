@@ -220,6 +220,9 @@ sync). Worth aligning the admin UI so it does not claim a dead app is enabled.
 
 ### Notes (not defects)
 
+* Admin user edits are last-write-wins: two admins PATCHing `groups` on the same user in sequence
+  silently overwrite each other (no ETag/version in the contract, `groups` replaces membership by
+  design — SPEC §3.6). Worth knowing before two people work the users page at once.
 * Offset pagination overlaps while jobs are being submitted (`page=2` repeats a row after a new job
   arrives) — inherent to page/`page_size` pagination as specified.
 * Under heavy concurrent writes SQLite occasionally makes the worker tick fail with
