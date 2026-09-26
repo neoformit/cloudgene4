@@ -153,4 +153,156 @@ updates and job scheduling, and `/api/health` can report the worker as stale/deg
 asserts the registry is not rewritten by a plain GET — the write amplification that causes
 the contention; the 500 itself is a race and is documented by the log excerpts above).
 
+Reproduced 3×: once through the browser (`probe_ui.py::test_xss_job_name_admin`, 500 on
+`/api/admin/workflows/`), once in the worker (6 aborted ticks) and once through
+`probe_lock.py` (500 on `/api/admin/dashboard/`, 2 × "database is locked" in server.log out
+of 189 requests).
+
 ---
+
+### A-04 — A per-app Nextflow `work_dir` silently discards every result of that workflow
+
+**Severity:** High (silent data loss)
+
+**Steps (minimal, `e2e/exploratory/probe_workdir.py`):**
+1. Install an app whose pipeline publishes with the **default** `publishDir` mode (symlink) —
+   `e2e/exploratory/apps/symlink-out/` is a 10-line fixture for this. Nextflow's default
+   `publishDir` mode is `symlink`; the E2E fixture apps all use `mode: 'copy'`, which is why
+   the scripted suite never sees this.
+2. Set a per-app work dir: `apps[]` entry `work_dir: custom-work` in `settings.yaml`, or in
+   the admin UI *Workflows → \<app\> → Nextflow → Work dir*
+   (`PUT /api/admin/workflows/{id}/nextflow {"work_dir": "custom-work"}`).
+3. Run the workflow.
+
+**Expected:** the same results as without the override — the job's outputs are listed and
+downloadable.
+
+**Actual:** the job reports **success**, the file really is published
+(`<job>/output/outdir/out.txt` → symlink into `<home>/custom-work/<job id>/…`, target
+exists), but `JobOutput` is empty: the Results tab says *"No downloadable results."* and the
+API returns `outputs: []`. Nothing warns the user or the admin.
+
+```
+test_default_work_dir   outputs [('outdir/out.txt', 6)]   download 200
+test_per_app_work_dir   outputs []                        published entries [('out.txt', True, True)]
+                        work dir used  <home>/custom-work/5c2ab3b1-…
+test_global_work_dir    outputs [('outdir/out.txt', 6)]   download 200   # global setting is fine
+```
+
+**Suspected cause:** the two sides disagree about which work dir is in use.
+`jobs/runner.work_dir_for(job, workflow_bridge.nextflow_work_dir(wf))` honours the **per-app**
+`apps[].work_dir` (falling back to the global one), but `jobs/outputs._allowed_roots(job)`
+only builds roots from `cloudgene_config.get('nextflow.work_dir')` — the **global** setting.
+So `collect_outputs()` resolves each published symlink, finds it outside every allowed root
+and skips it (and `resolve_output_file()` would 404 the download for the same reason).
+`_allowed_roots` must use the same resolution as the runner (per-app first).
+
+**Red test:** `test_a04_per_app_work_dir_is_an_allowed_output_root` (fast, structural: it
+compares the two code paths instead of running Nextflow; the full E2E reproduction is
+`e2e/exploratory/probe_workdir.py`).
+
+---
+
+### A-05 — The server accepts numbers the run form rejects (`1_0`, `٥`, …)
+
+**Severity:** Low
+
+**Steps:** `POST /api/jobs/` with `workflow=all-inputs`, `number_in=1_0` (or `٥`, the
+Arabic-Indic digit five).
+
+**Expected:** the same verdict as the form. `frontend/src/components/workflows/form/formModel.js`
+validates numbers with `/^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/` and rejects both, so the
+UI shows *"Please enter a number."*
+
+**Actual:** the API accepts them — `1_0` becomes `10.0` (Python's `float()` allows digit
+group separators) and `٥` becomes `5` (Python's `re` `\d` and `int()` accept Unicode digits,
+JavaScript's `\d` does not). The value that reaches `params.json` is not the text the user
+sent.
+
+**Evidence** (`e2e/exploratory/probe_inputs.py::test_number_input`):
+```
+number='1_0'   201 -> 10.0        number='٥'   201 -> 5
+number=' 7 '   201 -> 7           number='+5'  201 -> 5
+```
+(`-1e999`, `1e999`, `nan`, `inf`, `Infinity`, `0x10`, `1,5`, `abc`, `true` are all correctly
+rejected, and min/max are enforced — this is only about the lenient accepts.)
+
+**Suspected cause:** `jobs/submission.parse_number` uses `re.match(r'^[+-]?\d+$', s)` (Unicode
+`\d`) and bare `float(s)`. SPEC §3.7 requires client-side validation to mirror the server
+rules. Fix: anchor on an ASCII pattern equivalent to the frontend's.
+
+**Red test:** `test_a05_number_input_rejects_values_the_form_rejects`
+
+---
+
+## Checked and found clean (T07a)
+
+These were probed and behaved correctly — worth knowing so they are not re-tested blindly.
+
+**Job names (K3).** Spaces, leading/trailing whitespace, newlines/tabs and NUL (control
+characters → space, then trimmed), unicode/emoji/RTL, 255 chars (ok) vs 256/1000 chars
+(400 with a field error), empty / whitespace-only / control-only names (fall back to
+`<workflow> <date>`), and the `name` alias for `job_name`. `<script>`/`<img onerror>` names
+render escaped everywhere checked — job list, job page, admin jobs — and the three
+`ConfirmDialog`s (which use `v-html`) escape the name explicitly; `window.__xss` stayed
+undefined in every view.
+
+**Text inputs.** Empty and whitespace-only rejected when required; 100 000 chars ok,
+100 001 rejected; HTML, newlines, `../../etc/passwd`, `$(touch …); rm -rf /` and NUL bytes
+are stored and passed to Nextflow verbatim (a NUL round-trips into the output file and the
+job succeeds — no crash, no shell injection: the fixture writes from Groovy and the job name
+is never used in a path or command line). Oversized bodies (5 MB and 11 MB fields, multipart
+*and* JSON) return the 400 envelope, not a 500.
+
+**Uploads.** Filenames with spaces, unicode/emoji, `../..`, `..\..`, `/etc/shadow.csv`,
+leading dots, 300 characters, quotes and `;` are all reduced to a safe basename under
+`input/<param-id>/` while the original name is kept for display; `accept` is enforced
+(`notes.txt` rejected for `.csv`, `DATA.CSV` accepted); 0-byte files accepted; an empty
+filename and a missing file both give "Please select a file."; two files for a single-file
+input are rejected; duplicate names in a folder input are de-duplicated (`x.txt`,
+`x_1.txt`); `max_upload_mb` is enforced per submission (2 MB with a 1 MB limit → 413
+`upload_too_large`, and the sum over a folder input counts).
+
+**Submission guards.** Missing/unknown/forbidden workflow (400/404/404), disabled workflow
+(409 `workflow_disabled` for users *and* admins), missing required input, invalid list/radio
+choice, unticked `terms_checkbox`, hidden and `serialize: false` inputs that cannot be
+overridden from the request, unknown extra fields ignored, JSON instead of multipart works.
+
+**Lifecycle.** Submit-then-immediately-cancel (waiting → `cancelled` in the same request);
+cancel twice → 409 `invalid_state`; cancel after the job finished → 409; delete while
+waiting/running → 409; delete finished → 204 + workspace removed + 404 everywhere after;
+delete twice → 404. Restart: only admins (owner gets 404), 409 while running, 409
+`workflow_unavailable` when the workflow is disabled, 200 after re-enabling.
+
+**Results, logs, retention.** Download of a finished job's output (correct bytes,
+`attachment` vs `inline` with `?inline=1`), `download_count` increments atomically, bogus /
+negative / cross-job output ids → 404, log of a failed job contains the Nextflow error
+block. After `manage.py cleanup_jobs` past the retention window: `purged_at` set, outputs
+removed, downloads 404, log "No log available.", `can_restart` false, Results tab shows
+"The results of this job have been deleted."
+
+**Queue & polling.** `queue_position` 1/2/3 and re-numbering after a cancel;
+`duration_seconds`/`expires_at` null while waiting; the job page stops polling the moment
+the job reaches a final state (0 further `/status` calls in 12 s) and the badge matches the
+API; two tabs on the same job both follow a cancel without a reload; a double-click on
+*Submit* creates exactly one job; Back after a submit returns to an empty run form and does
+not resubmit anything; `?state=` validation, pagination bounds, non-UUID ids and the
+admin-only endpoints all behave.
+
+## Observations (not defects — a product decision may be needed)
+
+* **An omitted checkbox is `false`, even when the YAML default is `true`.** Visible checkbox
+  inputs fall back to `false` when the field is absent from the request, while *hidden*
+  inputs use the YAML `value`. The run form always sends `true`/`false`, so the UI is
+  unaffected; an API client that omits the field silently loses the default.
+  (`probe_inputs.py::test_list_radio_checkbox`: `flag omitted → 'no'` although
+  `flag: value: true`.)
+* **A failed job can show the same `::error::` message three times.** For the `fail`
+  fixture, `::error::Intentional failure` really does appear three times in
+  `logs/stdout.txt` (the workflow's `println`, and twice more because Nextflow echoes the
+  failed task's output in its error report) and once in the task's `.command.out`.
+  `MessageMerger` emits `max(n, m)` per source by design, so all three are stored and the
+  job page repeats the error. Behaving as specified, but noisy.
+* **NUL bytes survive end to end.** `message=a\x00b` is stored, written into `params.json`
+  and lands in the output file as `b'before\x00after\n'`. Nothing breaks; worth deciding
+  whether text inputs should strip control characters the way job names do.
