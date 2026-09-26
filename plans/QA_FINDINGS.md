@@ -16,6 +16,14 @@ Charter: break the run form and the job lifecycle. Session 2026-09-20/26, branch
 (`probe_inputs.py`, `probe_files.py`, `probe_lifecycle.py`, `probe_ui.py`, `probe_edge.py`,
 `probe_workdir.py`, `probe_lock.py`); red tests in `e2e/tests/test_findings_jobs.py`.
 
+| ID | Sev | Finding |
+|----|-----|---------|
+| A-04 | High | A per-app Nextflow `work_dir` silently discards every result of that workflow |
+| A-02 | High | >100 files in a folder input → HTTP 500 "Internal server error." |
+| A-03 | High | SQLite write contention: 500s on admin pages and aborted worker ticks |
+| A-01 | Medium | A file part sent for a text input is accepted and becomes the file's name |
+| A-05 | Low | The server accepts numbers the run form rejects (`1_0`, Unicode digits) |
+
 ### A-01 — A file part sent for a text input is accepted and becomes the file's *name*
 
 **Severity:** Medium
@@ -235,7 +243,7 @@ rules. Fix: anchor on an ASCII pattern equivalent to the frontend's.
 
 ---
 
-## Checked and found clean (T07a)
+### Checked and found clean
 
 These were probed and behaved correctly — worth knowing so they are not re-tested blindly.
 
@@ -289,7 +297,7 @@ API; two tabs on the same job both follow a cancel without a reload; a double-cl
 not resubmit anything; `?state=` validation, pagination bounds, non-UUID ids and the
 admin-only endpoints all behave.
 
-## Observations (not defects — a product decision may be needed)
+### Observations (not defects — a product decision may be needed)
 
 * **An omitted checkbox is `false`, even when the YAML default is `true`.** Visible checkbox
   inputs fall back to `false` when the field is absent from the request, while *hidden*
