@@ -7,8 +7,9 @@ test in `e2e/tests/test_findings_*.py` (`xfail(strict=True)`), removed by the fi
 ## T07c — admin, config & multi-user
 
 Session: 2026-09-20, branch `worktree-agent-a8ec08b4553a18d0c` (base `rebuild` @ 83cd54f).
-Probes: `e2e/exploratory/test_probe_*.py` (run with `E2E_SKIP_BUILD=1 pytest e2e/exploratory/... -s`).
-Red tests: `e2e/tests/test_findings_admin.py`.
+Probes: `e2e/exploratory/test_probe_*.py` — scratch scripts, skipped by `pytest e2e`; run them with
+`E2E_EXPLORATORY=1 E2E_SKIP_BUILD=1 venv/bin/python -m pytest e2e/exploratory -q -s`.
+Red tests: `e2e/tests/test_findings_admin.py` (5 × `xfail(strict=True)`, each reproduced twice).
 
 | ID | Sev | Title |
 |----|-----|-------|
