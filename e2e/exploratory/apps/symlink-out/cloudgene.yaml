@@ -1,0 +1,21 @@
+id: symlink-out
+name: Symlink Out
+version: 1.0.0
+description: T07a probe fixture. publishDir with the Nextflow default mode (symlink).
+category: e2e-probe
+workflow:
+  steps:
+    - name: Publish by symlink
+      type: nextflow
+      script: main.nf
+  inputs:
+    - id: message
+      description: Message
+      type: text
+      value: hello
+      required: true
+  outputs:
+    - id: outdir
+      description: Output folder
+      type: folder
+      download: true
