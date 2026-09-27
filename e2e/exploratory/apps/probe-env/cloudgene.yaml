@@ -1,0 +1,21 @@
+id: probe-env
+name: Probe Env
+version: 1.0.0
+description: T07c exploratory fixture; reports the Nextflow env/params/profile it was given.
+category: probe
+workflow:
+  steps:
+    - name: Report
+      type: nextflow
+      script: main.nf
+  inputs:
+    - id: note
+      description: Note
+      type: text
+      value: hi
+      required: false
+  outputs:
+    - id: outdir
+      description: Output folder
+      type: folder
+      download: true

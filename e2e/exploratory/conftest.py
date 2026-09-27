@@ -1,11 +1,20 @@
-"""Exploratory probes (T07a). Reuses the e2e harness fixtures from e2e/conftest.py.
+"""Exploratory probes from the charter-based QA sessions (T07a/b/c).
 
-Run with:  venv/bin/python -m pytest e2e/exploratory/<file>.py -q -s
-These files are NOT part of the scripted suite (e2e/pytest.ini has `testpaths = tests`).
+These reuse the fixtures from ``e2e/conftest.py`` but are scratch scripts, not regression
+tests: they are slow, they print rather than assert, and they mutate global server state.
+`pytest e2e` therefore skips them; run them explicitly with
+
+    E2E_EXPLORATORY=1 E2E_SKIP_BUILD=1 venv/bin/python -m pytest e2e/exploratory -q -s
+
+Confirmed findings live in ``plans/QA_FINDINGS.md``, each with a red test under
+``e2e/tests/test_findings_*.py``.
 """
 import json
+import os
 
 import pytest
+
+collect_ignore_glob = [] if os.environ.get('E2E_EXPLORATORY') == '1' else ['test_probe_*.py']
 
 
 @pytest.fixture
