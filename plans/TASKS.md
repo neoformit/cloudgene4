@@ -142,8 +142,94 @@ mid-run); (b) security & access control (IDOR, privilege escalation, CSRF, path 
 names/pages); (c) admin round-trips & multi-user scenarios (settings persistence, group changes taking
 effect, queue under load). Output: `plans/QA_FINDINGS.md` + red tests in `e2e/tests/test_findings_*.py`.
 
-### T08 Fix round(s) ☐ — **next up**; 17 defects in `plans/QA_FINDINGS.md`, ordered in `plans/HANDOVER.md`
-Created by orchestrator from QA findings.
+### T08 Fix round ◐ — 17 defects in `plans/QA_FINDINGS.md` (read the entry for each ID first)
+Three parallel sonnet agents, split by owned paths. Each finding already has a red
+`xfail(strict=True)` test (`e2e/tests/test_findings_*.py`); fixing it = delete the marker and see
+the test pass. Also add a Django unit test next to the code for each fix. C-06/C-07 have no red
+test: write one. Rules from the top of this file apply (owned paths, SPEC §3 updated in the same
+commit as any contract change, regenerate `schema.yaml` after API changes).
+
+**User decisions (2026-09-27):**
+- B-01: **keep `/django-admin/`** (all admin users are trusted) but route every login surface
+  through the same lockout. Do not remove or env-gate the Django admin.
+- The four "Observations"/I-7 items (omitted checkbox default, triple `::error::`, NUL bytes,
+  registration revealing existing usernames) are **out of scope** — leave behaviour as is.
+
+#### T08a Security & accounts ☐ — B-01, B-02, B-03, B-04
+Owned: `accounts/`, `cloudgene_django/urls.py`, any new `admin.py`/auth-backend module,
+`jobs/views.py` **only** `output_download`, matching frontend account views if a message changes.
+- **B-01**: move the lockout (check `locked_until`, count failures, reset on success) out of
+  `accounts.views.LoginView` into something every `authenticate()` call goes through — e.g. a custom
+  authentication backend that refuses locked users plus a `user_login_failed` receiver that counts
+  failures, keyed on the case-insensitive username. `LoginView` keeps returning 429
+  `account_locked` exactly as today (existing lockout tests must stay green). The Django admin login
+  must refuse a locked account and its wrong passwords must count.
+- **B-02**: password change (`PATCH /api/me`) and password reset confirm delete the user's DRF
+  `Token`. Mention it in SPEC §3.4 and in the profile UI's success message if there is one.
+- **B-03**: no Django admin page may show a token key. Unregister DRF's `TokenProxy`/`Token` admin
+  (or replace with a ModelAdmin that never renders `key`). Also check the `User` admin does not
+  expose it.
+- **B-04**: `output_download` must never serve active content on the app origin. Always
+  `Content-Disposition: attachment` unless the type is on a small safe allowlist for inline
+  (text/plain, image/png|jpeg|gif, application/pdf, application/json served as text/plain is fine);
+  HTML/SVG/XML/JS/unknown → `application/octet-stream` + attachment. Add
+  `Content-Security-Policy: sandbox` and `X-Content-Type-Options: nosniff` on every download. Check
+  what the frontend does with `?inline=1` and keep its preview working for the allowed types.
+
+#### T08b Jobs, uploads & worker ☐ — A-04, A-02, A-01/B-05, A-05, C-03, A-03 (worker half)
+Owned: `jobs/` (except `output_download` view), `workflows/workflow_bridge*` if needed,
+`core/exceptions.py`, upload settings in `cloudgene_django/settings.py`,
+`frontend/src/components/workflows/form/` (only if A-05 needs it).
+- **A-04**: one function decides a job's Nextflow work dir (per-app `apps[].work_dir`, else global,
+  else default). `runner.work_dir_for` and `outputs._allowed_roots` must both use it, and so must
+  `resolve_output_file`. Also add the fixture-free check that a symlink-published output under a
+  per-app work dir is collected (the exploratory repro is `e2e/exploratory/probe_workdir.py`).
+- **A-02**: set `DATA_UPLOAD_MAX_NUMBER_FILES` from config/env to a generous value (e.g. 10 000;
+  document in SPEC), and map Django's `TooManyFilesSent`, `TooManyFieldsSent`, `RequestDataTooBig`
+  (and other `SuspiciousOperation` upload errors) to the error envelope in
+  `core/exceptions.api_exception_handler` — 413 `upload_too_large` / 400 as appropriate, never 500.
+  Make sure the run form shows the message.
+- **A-01/B-05**: a file part for a non-file input is a 400 `invalid` with `fields.<id>`; values for
+  non-file inputs are read from `request.POST` (or `_get` rejects `UploadedFile`s). A typed value plus
+  a file part for the same text field → 400 as well.
+- **A-05**: `jobs/submission.parse_number` accepts exactly what `formModel.js`'s regex accepts
+  (ASCII only: no `_`, no Unicode digits). Keep the existing rejects/min/max behaviour; decide on
+  surrounding whitespace consistently with the frontend (check what the form sends).
+- **C-03**: deleting a Job row whose execution is running must stop the execution *first* (or mark
+  it and let the worker kill it and then remove the workspace), so nothing recreates the directory.
+  The worker must treat "row vanished" (`JobStep.NotUpdated`, `DoesNotExist`) as a designed path:
+  kill the process group, remove the workspace, log one INFO/WARNING line — no traceback.
+- **A-03 (worker half)**: split `Worker.tick()` so a `database is locked` in one phase (heartbeat,
+  reconcile, poll, claim) doesn't abandon the others; retry briefly on `OperationalError` locked.
+
+#### T08c Config, admin & logs ☐ — C-02, A-03 (registry/DB half), C-01, C-05, C-04, C-06, C-07
+Owned: `core/config.py`, `core/views.py` (health), `workflows/registry.py`, `admin_panel/`,
+DATABASES block of `cloudgene_django/settings.py`, logger names anywhere (C-04, keep those edits
+minimal and list them), `frontend/src/views/admin/`.
+- **C-02**: a cold start with an invalid `settings.yaml` must not 500 the site. Load fail-safe:
+  fall back to defaults per invalid key (or whole document if YAML is unparseable), remember the
+  validation errors, log them once at ERROR. `/api/health` reports `status: "degraded"` with a
+  `config: {ok: false, errors: [...]}` block naming the key(s). Admin settings PUTs must work in
+  that state (write a corrected document). Show the config error on the admin dashboard.
+- **A-03 (registry/DB)**: `registry.list_apps()` and every other read path use
+  `sync_if_changed()` — a plain GET must not write. SQLite: enable WAL and
+  `OPTIONS['transaction_mode'] = 'IMMEDIATE'` (only when the engine is sqlite). Note in SPEC that
+  Postgres is the production database.
+- **C-01**: TLS/SSL mutual exclusion validated against the merged (resulting) mail document, not the
+  request body; also add the rule to the `core/config.py` schema so a hand-edited file is caught.
+- **C-05**: navbar `url` must be an internal path (`/…`, not `//…`) or `http(s)://…`; reject
+  everything else with a field error. Harden `AppNavbar.vue` to only render those as links too.
+- **C-04**: logger names follow SPEC §3.8 (`cloudgene.auth`, `cloudgene.jobs`,
+  `cloudgene.workflows`, `cloudgene.admin`, `cloudgene.api`; keep `cloudgene.worker` if SPEC lists
+  it, else add it to SPEC). Job submit/cancel/delete in the web process log under `cloudgene.jobs`.
+  Update the Logs page hint to the real list.
+- **C-06**: unknown `level`/`min_level` on `/api/admin/logs/` → 400 like the jobs `state` filter.
+- **C-07**: the admin workflow row reports the effective state (a broken/invalid app is not
+  `enabled: true`) — pick a contract (e.g. keep `enabled` as configured and add `effective_status`,
+  or make `enabled` effective) and put it in SPEC; update the admin UI.
+
+**Merge order** (orchestrator): T08b → T08c → T08a, re-running `scripts/test.sh unit` after each and
+the full `pytest e2e` after the last. Expected end state: 0 xfailed findings tests, 0 failed.
 
 ---
 
