@@ -15,8 +15,8 @@ Read next: `plans/SPEC.md` (what the app is + architecture), `plans/TASKS.md` (b
 
 Test state on `rebuild` (orchestrator-verified):
 `scripts/test.sh unit` → 282 Django + 144 vitest green.
-`pytest e2e` → 109 scenario tests + 58 permission-matrix tests green; 16 `xfail(strict=True)`
-tests encode the open QA defects and will **fail loudly when each is fixed** (that is the signal to
+`pytest e2e` → **167 passed, 16 xfailed, 0 failed** (11m37s). The 16 `xfail(strict=True)` tests
+encode the open QA defects and will **fail loudly when each is fixed** (that is the signal to
 delete the marker).
 
 What was rebuilt: DB-backed worker + real Nextflow execution (trace/annotation progress, cancel,
