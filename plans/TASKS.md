@@ -136,13 +136,13 @@ E2E: S1, W1, D1, D2, D4–D7.
 ### T06 Integration run ☑
 Orchestrator merges T03–T05, resolves conflicts, runs `scripts/test.sh all`. Any failure → fix task.
 
-### T07a/b/c Exploratory QA sessions ◐ (parallel, read-only on app code)
+### T07a/b/c Exploratory QA sessions ☑ (merged 7ea5329) (parallel, read-only on app code)
 Charters: (a) run form & job lifecycle abuse (odd inputs, big/odd files, rapid submit/cancel, reload
 mid-run); (b) security & access control (IDOR, privilege escalation, CSRF, path traversal, XSS in job
 names/pages); (c) admin round-trips & multi-user scenarios (settings persistence, group changes taking
 effect, queue under load). Output: `plans/QA_FINDINGS.md` + red tests in `e2e/tests/test_findings_*.py`.
 
-### T08 Fix round(s) ☐
+### T08 Fix round(s) ☐ — **next up**; 17 defects in `plans/QA_FINDINGS.md`, ordered in `plans/HANDOVER.md`
 Created by orchestrator from QA findings.
 
 ---
@@ -231,4 +231,11 @@ upload size limits, `docs/` rewritten (admin guide, workflow YAML reference, dep
   `scripts/test.sh unit` = 282 Django + 144 vitest OK; `pytest e2e` = **109 passed, 0 failed, 0 skipped,
   0 xfailed** (9m45s) — every scenario in E2E_TEST_PLAN §3 now runs against the real stack incl.
   Nextflow. K1/K2/K3 all covered by passing tests. T07 exploratory QA started.
+- 2026-09-27: T07a/b/c merged. 17 confirmed defects in `plans/QA_FINDINGS.md`, each with a red
+  `xfail(strict=True)` test; plus a green endpoint x role permission matrix (66 operations x 4 roles,
+  58 tests). Highest severity: B-01 (/django-admin bypasses login lockout, session accepted by the
+  API), A-04 (per-app nextflow work_dir silently discards all job outputs), C-02 (one bad
+  settings.yaml value 500s the whole app and is unrepairable from the UI), A-03 (SQLite write
+  contention -> intermittent 500s; admin workflow list writes on every read), A-02 (>100 uploaded
+  files -> bare 500). Session ends here: see `plans/HANDOVER.md` for pickup.
 
