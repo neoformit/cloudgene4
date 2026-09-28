@@ -191,6 +191,11 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 AUTH_USER_MODEL = 'accounts.User'
 
+# Single authentication backend for every login surface (SPA API + Django admin), so the
+# per-account lockout (security.max_login_attempts / lockout_duration, B-01) applies to both:
+# see accounts.backends.LockoutModelBackend.
+AUTHENTICATION_BACKENDS = ['accounts.backends.LockoutModelBackend']
+
 
 # Security
 
