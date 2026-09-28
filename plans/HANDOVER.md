@@ -12,22 +12,29 @@ Read next: `plans/SPEC.md` (what the app is + architecture), `plans/TASKS.md` (b
 | 1 Foundations (T01 platform, T02 E2E harness) | ☑ merged |
 | 2 Slices (T03 jobs/worker, T04 accounts, T05 admin/config) | ☑ merged |
 | 3 Integration (T06) + exploratory QA (T07a/b/c) | ☑ done |
-| **T08 fix round (17 QA defects)** | ☑ **merged and verified — see below** |
-| 4 Production readiness (T09) | ☐ **on hold at user request, pending review** |
+| T08 fix round (17 QA defects) | ☑ merged and verified |
+| **4 Production readiness (T09)** | ☑ **merged and verified — see below** |
 
-Test state on `rebuild` (orchestrator-verified after T08a/b/c merged, plus a follow-up C-03
-hardening fix, `c1721d8`):
-`scripts/test.sh unit` → **319 Django + 144 vitest** green.
-`pytest e2e` → **183 passed, 0 failed, 0 xfailed** (4m54s). Every `xfail(strict=True)` marker for
-A-01..A-05, B-01..B-05 and C-01..C-07 is gone. Flakiness loops (isolated, repeated): D6 5/5,
-C-03 10/10.
+**All four phases are done.** Test state on `rebuild` (orchestrator-verified after every T09
+merge/commit):
+`scripts/test.sh unit` (SQLite) → **348 Django + 144 vitest** green.
+`scripts/test.sh unit --postgres` (PostgreSQL 16, role/db `cloudgene`/`cloudgene` on
+`127.0.0.1:5432`) → **348 Django + 144 vitest** green.
+`pytest e2e` on SQLite → **183 passed, 0 failed, 0 xfailed** (4m22s).
+`pytest e2e` on Postgres (`E2E_DATABASE_URL=postgres://cloudgene:cloudgene@127.0.0.1:5432/
+cloudgene`) → **183 passed, 0 failed, 0 xfailed** (4m40s) — same scenario count, no
+Postgres-specific regressions. `manage.py check --deploy` against
+`deploy/cloudgene.env.example`: 0 issues (1 silenced, `security.W021`, by design — see the
+HSTS-preload note below). `npm run build` and `scripts/smoke_gunicorn.sh --skip-build`
+(production stack: gunicorn + whitenoise, `DEBUG=False`) both OK.
 
 What was rebuilt: DB-backed worker + real Nextflow execution (trace/annotation progress, cancel,
 outputs, retention), YAML-driven config/registry/pages/navbar, session+CSRF auth, case-insensitive
 identity, admin panel, unified error envelope, OpenAPI contract with a staleness test, Playwright
-full-stack suite. Celery, Channels and Redis were removed (SPEC §3.1). The three bugs named in the
-original brief (duplicate users, job stuck pending, space in job name) are fixed and covered by
-passing tests.
+full-stack suite, and now a production deployment story (gunicorn + systemd + nginx + Postgres,
+Argon2id password hashing, JSON logging, deploy-time security checks). Celery, Channels and Redis
+were removed (SPEC §3.1). The three bugs named in the original brief (duplicate users, job stuck
+pending, space in job name) are fixed and covered by passing tests.
 
 ## Open work, in the order I would do it
 
@@ -38,30 +45,48 @@ verification (unit/E2E counts, the C-03 race that was found and fixed after the 
 the flakiness-loop results). The four "Observations"/I-7 items in `QA_FINDINGS.md` were reviewed by
 the user on 2026-09-27 and left as-is (no change).
 
-### 2. T09 production readiness (on hold pending user review)
-Postgres verification, gunicorn + static serving, systemd units for web **and worker**, structured
-logging, prod security settings (HSTS/secure cookies/SSL redirect — `manage.py check --deploy` is
-clean once `DJANGO_SECURE_COOKIES`, `DJANGO_SECURE_SSL_REDIRECT`, `DJANGO_HSTS_SECONDS` are set),
-upload limits, `cleanup_jobs`/`cleanup_logs` scheduling, rewriting `docs/` (still stale from the old
-implementation) and the final README.
+### 2. T09 production readiness — done
+Merged in order T09b `ebaeed4` (Postgres) → T09a `63aee1b` (deploy & ops: gunicorn, systemd,
+nginx, Argon2id, deploy checks, JSON logging, JSON body-size limit, `docs/DEPLOYMENT.md`) → T09c
+part 1 `d3f9cbe` (docs rewrite: `ADMIN_GUIDE.md`, `WORKFLOW_YAML_REFERENCE.md`, `API.md`) — all
+three merged cleanly (no manual conflict resolution needed, including in `e2e/stack.py` which both
+T09a and T09b touched). Two follow-up orchestrator commits: `563d8a9` made `SECURE_HSTS_PRELOAD`
+opt-in and off by default (T09a had it default on with HSTS, which is wrong — preload is a
+hard-to-reverse commitment covering every subdomain once submitted to browsers' preload lists);
+`7f72ce1` (T09c part 2) rewrote `README.md` — every quick-start step was actually run against a
+scratch `CLOUDGENE_HOME` on this host — added a docs link check, and corrected
+`docs/ADMIN_GUIDE.md`, which never mentioned the "last remaining admin" guard on a lone admin's own
+`DELETE /api/me` (400 `last_admin`, already tested); `plans/QA_FINDINGS.md`'s claim that last-admin
+deletion is refused was the accurate one. Full verification: `scripts/test.sh unit` green on both
+SQLite and Postgres (348 Django + 144 vitest each), `npm run build` and
+`scripts/smoke_gunicorn.sh --skip-build` OK, `manage.py check --deploy` clean against
+`deploy/cloudgene.env.example` (0 issues, 1 silenced by design), full `pytest e2e` green on both
+SQLite (183 passed, 4m22s) and Postgres (183 passed, 4m40s). See `plans/TASKS.md`'s 2026-09-28 log
+entry for the complete write-up (login timing, the HSTS decision, the worker
+`ProtectSystem=strict`/`ReadWritePaths` note, and the JSON-body-limit/nginx note).
 
-Also for T09: **login costs ~3 s of PBKDF2 on a small host** — review hasher/iterations. The E2E
-stack sets `INSECURE_FAST_PASSWORD_HASHING=1` (opt out with `E2E_REAL_HASHING=1`); that switch must
-never be set in production.
+Login timing on this host (real hashers): PBKDF2 ~0.329 s, Argon2id ~0.085 s (~4x faster) — the
+earlier ~3 s figure noted after T04 did not reproduce. The E2E stack still sets
+`INSECURE_FAST_PASSWORD_HASHING=1` (opt out with `E2E_REAL_HASHING=1`); a startup check
+(`core.checks`, `core.E001`) now refuses to run with that switch on when `DEBUG` is off unless
+`CLOUDGENE_E2E=1` is also set, so it can't leak into production.
 
 ### 3. Known gaps in the testing itself
-- ~~No Postgres run anywhere~~ (T09b, 2026-09-28): PostgreSQL 16.13 installed and verified — unit
-  suite (321 tests) and the full E2E suite (183 passed) both green against it, plus a dedicated
-  concurrency test proving the worker's claim UPDATE is race-free. See `plans/SPEC.md` §3.1 and
-  `e2e/README.md`. A-03's SQLite write-contention finding itself is still fixed only via the WAL +
-  `transaction_mode=IMMEDIATE` settings (Postgres never had that failure mode).
+- Postgres is now fully verified (T09b/T09, 2026-09-28): unit suite and the full E2E suite both
+  green against PostgreSQL 16, plus a dedicated concurrency test proving the worker's claim UPDATE
+  is race-free. See `plans/SPEC.md` §3.1 and `e2e/README.md`.
 - Not probed: worker killed mid-job beyond scenario Q3, `max_running_jobs: 0`, maintenance toggled
   mid-run, very large pipeline logs, `local-file`/`local-folder` path semantics, HTTPS `Referer`
   checks, load/DoS.
 - Exploratory probes live in `e2e/exploratory/` and are skipped by `pytest e2e`; run them with
   `E2E_EXPLORATORY=1 E2E_SKIP_BUILD=1 venv/bin/python -m pytest e2e/exploratory -q -s`.
-- The e2e suite takes ~10 min on a 1-CPU host (JVM start-up dominates); don't run several stacks
-  concurrently — they contend on SQLite and produce false failures.
+- The e2e suite takes ~4-5 min per full run on this host; don't run several stacks concurrently —
+  they can contend on SQLite/Postgres and produce false failures.
+- No real systemd boot test was done (the units in `deploy/systemd/` are reviewed and used by
+  `scripts/smoke_gunicorn.sh` in spirit, but never actually installed and started under systemd on
+  a real machine — worth doing before a first production rollout).
+- No load/stress test of the worker or the web process (concurrent submissions, sustained upload
+  traffic, queue depth under real load) — only functional/concurrency-correctness tests exist.
 
 ## Process notes for whoever picks this up
 - Agents worked in git worktrees off `rebuild`; the orchestrator merged and re-verified each one.

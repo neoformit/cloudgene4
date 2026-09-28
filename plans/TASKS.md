@@ -237,7 +237,8 @@ the full `pytest e2e` after the last. Expected end state: 0 xfailed findings tes
 
 > HOLD lifted by the user on 2026-09-28 after reviewing T08.
 
-### T09 Production readiness ◐
+### T09 Production readiness ☑ (merged to `rebuild`: T09b `ebaeed4`, T09a `63aee1b`,
+T09c part 1 `d3f9cbe`, HSTS-preload fix `563d8a9`, T09c part 2 (README) `7f72ce1`)
 Three parallel sonnet agents (T09a ‖ T09b ‖ T09c-part-1), then T09c-part-2 after T09a/T09b merge.
 Rules from the top of this file apply. Every behaviour change needs a test; `scripts/test.sh unit`
 green, targeted E2E green. Only the orchestrator's merge agent runs the full `pytest e2e`.
@@ -256,7 +257,7 @@ green, targeted E2E green. Only the orchestrator's merge agent runs the full `py
 - **Logging:** keep the DB log handler (SPEC §3.8); add an opt-in JSON console formatter
   (`LOG_FORMAT=json`) for journald/log shippers; default stays human-readable.
 
-#### T09a Deploy & ops ☐
+#### T09a Deploy & ops ☑ (merged 63aee1b)
 Owned: `cloudgene_django/settings.py` (security, logging, hashers — not DATABASES), `requirements.txt`,
 new `deploy/` directory, `core/checks.py` (new), `docs/DEPLOYMENT.md` (new).
 1. `gunicorn` in requirements; `deploy/gunicorn.conf.py` (workers from env, sensible timeouts for
@@ -281,7 +282,7 @@ new `deploy/` directory, `core/checks.py` (new), `docs/DEPLOYMENT.md` (new).
 7. `docs/DEPLOYMENT.md`: install, configure, first admin (`create_admin`), upgrade (migrate +
    collectstatic + restart), backups (DB + `CLOUDGENE_HOME`), log locations, health monitoring.
 
-#### T09b Postgres ☐
+#### T09b Postgres ☑ (merged ebaeed4)
 Owned: DATABASES block of `settings.py`, migrations (only if a real incompatibility needs one),
 `e2e/stack.py` + `e2e/conftest.py` (DB selection only), `scripts/test.sh` (a `--postgres` option).
 1. Install PostgreSQL locally (apt or another docker-less route; note exactly what worked). Create
@@ -296,7 +297,7 @@ Owned: DATABASES block of `settings.py`, migrations (only if a real incompatibil
    same job (the claim path must be race-free on Postgres, not only on SQLite's global lock).
 5. Record in SPEC §3.1/§5 and HANDOVER what's verified on Postgres and which version.
 
-#### T09c Docs & README ☐
+#### T09c Docs & README ☑ (part 1 merged d3f9cbe, part 2 merged 7f72ce1)
 Part 1 (now, parallel): delete the merged T08 worktrees/branches (`git worktree remove` +
 `git branch -D` for `worktree-agent-a74e7a2fc7a306905`, `worktree-agent-a9cd305e6472ecf2e`,
 `worktree-agent-ad6ddfe7a071a1df4`; there are no remote copies). Then rewrite `docs/` from the
@@ -419,4 +420,67 @@ quick-start web + worker, tests, link to DEPLOYMENT/ADMIN/WORKFLOW docs) and a d
   venv to match `/opt/pw-browsers` on this host — never `pip install -r e2e/requirements.txt` or
   `playwright install`. Docs updated (`QA_FINDINGS.md`, this file, `HANDOVER.md`) and pushed to
   `origin/rebuild`.
+- 2026-09-28: **T09 production readiness merged and verified. Phase 4 complete.** Merge order
+  (orchestrator, all clean/auto-merged, no manual conflict resolution needed): T09b `ebaeed4`
+  (Postgres: unit test support, claim-concurrency race test, `E2E_DATABASE_URL` in `e2e/stack.py`,
+  `scripts/test.sh unit --postgres`), T09a `63aee1b` (Argon2id hashing, `core/checks.py` deploy
+  checks, JSON logging, JSON body-size limit middleware, `deploy/` gunicorn+systemd+nginx configs,
+  `scripts/smoke_gunicorn.sh`, `docs/DEPLOYMENT.md`; `e2e/stack.py`'s `CLOUDGENE_E2E=1` line
+  auto-merged alongside T09b's own changes to the same file), T09c part 1 `d3f9cbe` (docs rewrite:
+  `docs/ADMIN_GUIDE.md`, `docs/WORKFLOW_YAML_REFERENCE.md`, `docs/API.md`,
+  `docs/examples/cloudgene.yaml` + its validating test; old `ADMIN_CONFIGURATION.md`/
+  `ADMIN_PANEL_GUIDE.md` deleted). Then two orchestrator commits: `563d8a9` — T09a had made
+  `SECURE_HSTS_PRELOAD` default on whenever `DJANGO_HSTS_SECONDS>0`; changed so
+  `SECURE_HSTS_INCLUDE_SUBDOMAINS` keeps that default but `SECURE_HSTS_PRELOAD` defaults **off**
+  and is opt-in only via `DJANGO_HSTS_PRELOAD=1` (submitting to browsers' preload lists is a
+  hard-to-reverse commitment covering every subdomain), with `security.W021` silenced only while
+  preload is off so `check --deploy` stays clean without pressuring an operator to flip it on;
+  updated `deploy/cloudgene.env.example`, `docs/DEPLOYMENT.md`, SPEC, and
+  `core/tests/test_deploy.py` (2 new unit tests). `7f72ce1` — T09c part 2: `README.md` rewritten
+  from the current code and actually exercised end to end (venv, `npm ci && npm run build`,
+  `migrate`, `create_admin`, `install_workflow`, `runserver` + `run_worker` together, confirmed
+  `/api/health` going from `degraded` to `ok` once the worker heartbeat lands) against a scratch
+  `CLOUDGENE_HOME`; a link check over `README.md` + `docs/*.md` found no broken relative
+  links/paths; and the last-admin doc discrepancy was resolved — `accounts/views.py` guards
+  self-delete on `DELETE /api/admin/users/{id}` (`cannot_delete_self`, structurally can never zero
+  out admins since the acting admin's own membership is untouched) and separately guards a lone
+  admin's own `DELETE /api/me` with 400 `last_admin` (already covered by
+  `accounts/tests.py::test_last_admin_cannot_delete_self`); `plans/QA_FINDINGS.md`'s "last-admin
+  deletion... refused" was the accurate claim, so `docs/ADMIN_GUIDE.md` (which never mentioned
+  that guard) was corrected to document it — doc-only change, no code changed.
+
+  **Verification** (orchestrator, after every commit above): `scripts/test.sh unit` (SQLite)
+  **348 Django + 144 vitest**, green throughout (321→338→346→348 Django as each merge/commit
+  landed). `scripts/test.sh unit --postgres` (PostgreSQL 16, role/db `cloudgene`/`cloudgene` on
+  `127.0.0.1:5432`): **348 Django + 144 vitest**, green. `cd frontend && npm run build`: OK.
+  `scripts/smoke_gunicorn.sh --skip-build` (production stack: `DEBUG=False`, gunicorn, whitenoise
+  from `STATIC_ROOT`): OK — SPA shell, a hashed static asset (200), `/api/health` (200) all served
+  correctly. `manage.py check --deploy` against every variable in `deploy/cloudgene.env.example`:
+  **0 issues (1 silenced — `security.W021`, by design, see the HSTS decision above)**. Full E2E on
+  SQLite (`E2E_SKIP_BUILD=1 venv/bin/python -m pytest e2e -q`): **183 passed, 0 failed, 0 xfailed**
+  (4m22s). Full E2E on Postgres (`E2E_DATABASE_URL=postgres://cloudgene:cloudgene@127.0.0.1:5432/
+  cloudgene E2E_SKIP_BUILD=1 venv/bin/python -m pytest e2e -q`): **183 passed, 0 failed, 0 xfailed**
+  (4m40s) — same scenario count as SQLite, no Postgres-specific regressions.
+
+  **Login timing** (real hashers, not the E2E fast switch, measured on this host): PBKDF2 (Django's
+  default iteration count) **~0.329 s/login**, Argon2id **~0.085 s/login** (~4x faster, and the
+  memory-hard OWASP-recommended default) — confirms T09a's own measurement. The earlier ~3 s/login
+  figure noted after T04 (a whole different order of magnitude) did **not** reproduce on this host;
+  it was most likely an artifact of a much heavier PBKDF2 iteration count or host load at the time,
+  not something this session could pin down further, but Argon2id is now the default regardless so
+  it is moot going forward.
+
+  **HSTS-preload decision**: preload is a hard-to-reverse commitment (it ships baked into browser
+  binaries and covers every subdomain once submitted), so unlike `SECURE_HSTS_INCLUDE_SUBDOMAINS`
+  it must never be implied just by turning HSTS on — `DJANGO_HSTS_PRELOAD` now defaults off and
+  needs an explicit `=1`.
+
+  **Notes for anyone deploying this**: the worker systemd unit's `ProtectSystem=strict` means
+  `nextflow.work_dir` and any per-app `apps[].work_dir` must sit under that unit's
+  `ReadWritePaths=` — already documented in `docs/DEPLOYMENT.md` §4 (edit the unit file to add
+  every configured work dir before enabling it). The JSON request-body size limit
+  (`core.middleware.JsonBodySizeLimitMiddleware`, `API_JSON_BODY_MAX_MB`) is enforced purely on the
+  `Content-Length` header for non-multipart `/api/` requests — a chunked-transfer-encoded body has
+  no `Content-Length` to check against, so its real ceiling in production is nginx's
+  `client_max_body_size` (see `deploy/nginx.conf.example`), not this middleware.
 
