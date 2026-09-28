@@ -168,7 +168,13 @@ username/email/full name). `PATCH /api/admin/users/{id} {groups?, is_active?, is
 `groups` and is managed only via `is_admin` (which toggles membership of the `admin` group
 together with `is_staff`). An admin cannot deactivate or de-admin themselves, and a superuser can
 never have `is_admin` set to `false` (superuser status always implies admin) — both are 400 field
-errors. `DELETE /api/admin/users/{id}` → 204; 400 `cannot_delete_self`. Deleting a user who has a
+errors. `DELETE /api/admin/users/{id}` → 204; 400 `cannot_delete_self`. There is no separate
+"last remaining admin" check on this endpoint, but the acting admin's own membership is untouched
+by deleting or demoting someone else, so the admin count can never be driven to zero through it.
+The one place a lone admin *could* remove the last admin account is their own self-service
+`DELETE /api/me` (profile deletion, see *Auth for API clients* / `plans/SPEC.md` §3.4) — that path
+is guarded explicitly: if the caller is the only administrator, it is refused with 400
+`last_admin` rather than deleted. Deleting a user who has a
 **running** job
 does not orphan the job or its workspace: the worker owns cleanup of any claimed job (see
 *Job lifecycle* below) — it detects the vanished row, stops the Nextflow process group, and then
