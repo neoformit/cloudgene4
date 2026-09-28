@@ -239,6 +239,11 @@ SPECTACULAR_SETTINGS = {
 # server.max_upload_mb in settings.yaml (enforced on submission).
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+# A-02: a folder input is an ordinary multi-hundred-file genomics use case; Django's default
+# DATA_UPLOAD_MAX_NUMBER_FILES (100) would raise TooManyFilesSent for those (mapped to a 413
+# in core.exceptions.api_exception_handler, but the limit itself should be generous — the real
+# ceiling is server.max_upload_mb, enforced in jobs/submission.py).
+DATA_UPLOAD_MAX_NUMBER_FILES = int(os.environ.get('DJANGO_DATA_UPLOAD_MAX_NUMBER_FILES', 10000))
 
 
 # E-mail: the effective mail settings come from settings.yaml (see core.mail).
