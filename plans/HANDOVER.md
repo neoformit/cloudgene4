@@ -1,8 +1,9 @@
-# Handover — state of the repair effort (2026-09-27)
+# Handover — state of the repair effort (2026-09-28)
 
 Branch: **`rebuild`** (not merged to `main`). All work below is on that branch.
 Read next: `plans/SPEC.md` (what the app is + architecture), `plans/TASKS.md` (board + log),
-`plans/QA_FINDINGS.md` (17 open defects), `plans/E2E_TEST_PLAN.md` (how to test).
+`plans/QA_FINDINGS.md` (all 17 defects fixed — see its Status block), `plans/E2E_TEST_PLAN.md`
+(how to test).
 
 ## Where things stand
 
@@ -10,14 +11,16 @@ Read next: `plans/SPEC.md` (what the app is + architecture), `plans/TASKS.md` (b
 |-------|--------|
 | 1 Foundations (T01 platform, T02 E2E harness) | ☑ merged |
 | 2 Slices (T03 jobs/worker, T04 accounts, T05 admin/config) | ☑ merged |
-| 3 Integration (T06) + exploratory QA (T07a/b/c) | ☑ done — fix round T08 **not started** |
+| 3 Integration (T06) + exploratory QA (T07a/b/c) | ☑ done |
+| **T08 fix round (17 QA defects)** | ☑ **merged and verified — see below** |
 | 4 Production readiness (T09) | ☐ **on hold at user request, pending review** |
 
-Test state on `rebuild` (orchestrator-verified):
-`scripts/test.sh unit` → 282 Django + 144 vitest green.
-`pytest e2e` → **167 passed, 16 xfailed, 0 failed** (11m37s). The 16 `xfail(strict=True)` tests
-encode the open QA defects and will **fail loudly when each is fixed** (that is the signal to
-delete the marker).
+Test state on `rebuild` (orchestrator-verified after T08a/b/c merged, plus a follow-up C-03
+hardening fix, `c1721d8`):
+`scripts/test.sh unit` → **319 Django + 144 vitest** green.
+`pytest e2e` → **183 passed, 0 failed, 0 xfailed** (4m54s). Every `xfail(strict=True)` marker for
+A-01..A-05, B-01..B-05 and C-01..C-07 is gone. Flakiness loops (isolated, repeated): D6 5/5,
+C-03 10/10.
 
 What was rebuilt: DB-backed worker + real Nextflow execution (trace/annotation progress, cancel,
 outputs, retention), YAML-driven config/registry/pages/navbar, session+CSRF auth, case-insensitive
@@ -28,42 +31,12 @@ passing tests.
 
 ## Open work, in the order I would do it
 
-### 1. T08 fix round — 17 QA defects (details + repro in `plans/QA_FINDINGS.md`)
-Each has a red test; fixing one means deleting its `xfail` marker and seeing it pass.
-
-**Do first (correctness/security):**
-- **B-01 High** `/django-admin/` bypasses login lockout entirely and its session is accepted by the
-  whole API. Decide: disable the Django admin in production, or route it through the same lockout.
-- **A-04 High** a per-workflow Nextflow `work_dir` silently discards all results (job succeeds,
-  no outputs). Two code paths disagree on allowed roots; `runner.work_dir_for` vs
-  `outputs._allowed_roots`.
-- **C-02 High** one invalid value in `settings.yaml` → every endpoint 500 after restart, `/api/health`
-  still says `ok`, and the admin API cannot repair it. Needs fail-safe load + health check that
-  reflects config validity.
-- **A-03 High** SQLite write contention → intermittent 500s and skipped worker ticks; `GET
-  /api/admin/workflows/` writes on every read (registry sync). Fix the write-on-read; consider WAL
-  and a retry, and note Postgres is the production answer.
-- **A-02 High** >100 files in a folder input → bare 500 (`DATA_UPLOAD_MAX_NUMBER_FILES` unset and
-  Django's upload exceptions not mapped to the error envelope).
-- **B-02/B-03 Medium** password change/reset leaves the API token valid; superuser can read every
-  token in cleartext via Django admin.
-- **B-04 Medium** job outputs served with a sniffed content type (`?inline=1`) → stored XSS from an
-  HTML output on the app origin.
-- **C-01 Medium** mail TLS/SSL mutual exclusion bypassable field-by-field → registration and password
-  reset silently stop working.
-- **C-03 Medium** deleting a user with a running job leaves the workspace behind and logs an
-  unhandled `JobStep.NotUpdated` traceback.
-- **A-01 / B-05 Medium** a file part sent for a text input is accepted and its filename becomes the
-  value (DRF merges POST and FILES; `jobs/submission.py:_get` should reject file-like values).
-
-**Then (polish):** A-05 number parsing differs FE/BE; C-04 log `component` values don't match the
-documented filters; C-05 navbar `url` accepts `javascript:`; C-06 unknown `?level=` returns 200+empty
-while unknown `?state=` returns 400; C-07 a broken app shows `enabled: true` while submissions 409.
-
-**Product decisions needed (recorded as observations, not defects):** an omitted checkbox becomes
-`false` even when the YAML default is `true`; a failed job can show the same `::error::` three times;
-NUL bytes in text inputs reach `params.json`; registration reveals whether a username/e-mail exists
-(currently deliberate).
+### 1. T08 fix round — done
+All 17 QA defects are fixed and merged to `rebuild`; see `plans/QA_FINDINGS.md`'s Status block for
+the merge commit of each group (T08a/b/c) and `plans/TASKS.md`'s 2026-09-28 log entry for the full
+verification (unit/E2E counts, the C-03 race that was found and fixed after the first merge, and
+the flakiness-loop results). The four "Observations"/I-7 items in `QA_FINDINGS.md` were reviewed by
+the user on 2026-09-27 and left as-is (no change).
 
 ### 2. T09 production readiness (on hold pending user review)
 Postgres verification, gunicorn + static serving, systemd units for web **and worker**, structured
@@ -94,3 +67,8 @@ never be set in production.
 - Keep `plans/SPEC.md` updated in the same commit as any contract change; `schema.yaml` must be
   regenerated after API changes or its staleness test fails.
 - `task.md` and `briefing.md` in the repo root are the user's own files — leave them uncommitted.
+- Environment: this host's venv runs **Python 3.12** with Django 6.0 (raises `ObjectNotUpdated`
+  from `Model.save(update_fields=...)` when a row was deleted under it — the C-03 fix leans on
+  that). `playwright==1.56.0` is pinned in `requirements.txt`/the venv to match the browsers
+  preinstalled at `/opt/pw-browsers`; never `pip install -r e2e/requirements.txt` or
+  `playwright install` on this host, or the pinned version drifts from the installed browsers.

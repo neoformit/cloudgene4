@@ -142,7 +142,7 @@ mid-run); (b) security & access control (IDOR, privilege escalation, CSRF, path 
 names/pages); (c) admin round-trips & multi-user scenarios (settings persistence, group changes taking
 effect, queue under load). Output: `plans/QA_FINDINGS.md` + red tests in `e2e/tests/test_findings_*.py`.
 
-### T08 Fix round ◐ — 17 defects in `plans/QA_FINDINGS.md` (read the entry for each ID first)
+### T08 Fix round ☑ — 17 defects in `plans/QA_FINDINGS.md` (read the entry for each ID first)
 Three parallel sonnet agents, split by owned paths. Each finding already has a red
 `xfail(strict=True)` test (`e2e/tests/test_findings_*.py`); fixing it = delete the marker and see
 the test pass. Also add a Django unit test next to the code for each fix. C-06/C-07 have no red
@@ -155,7 +155,7 @@ commit as any contract change, regenerate `schema.yaml` after API changes).
 - The four "Observations"/I-7 items (omitted checkbox default, triple `::error::`, NUL bytes,
   registration revealing existing usernames) are **out of scope** — leave behaviour as is.
 
-#### T08a Security & accounts ☐ — B-01, B-02, B-03, B-04
+#### T08a Security & accounts ☑ (merged f4f3c61) — B-01, B-02, B-03, B-04
 Owned: `accounts/`, `cloudgene_django/urls.py`, any new `admin.py`/auth-backend module,
 `jobs/views.py` **only** `output_download`, matching frontend account views if a message changes.
 - **B-01**: move the lockout (check `locked_until`, count failures, reset on success) out of
@@ -176,7 +176,7 @@ Owned: `accounts/`, `cloudgene_django/urls.py`, any new `admin.py`/auth-backend 
   `Content-Security-Policy: sandbox` and `X-Content-Type-Options: nosniff` on every download. Check
   what the frontend does with `?inline=1` and keep its preview working for the allowed types.
 
-#### T08b Jobs, uploads & worker ☐ — A-04, A-02, A-01/B-05, A-05, C-03, A-03 (worker half)
+#### T08b Jobs, uploads & worker ☑ (merged d0fa260; C-03 hardened in c1721d8) — A-04, A-02, A-01/B-05, A-05, C-03, A-03 (worker half)
 Owned: `jobs/` (except `output_download` view), `workflows/workflow_bridge*` if needed,
 `core/exceptions.py`, upload settings in `cloudgene_django/settings.py`,
 `frontend/src/components/workflows/form/` (only if A-05 needs it).
@@ -202,7 +202,7 @@ Owned: `jobs/` (except `output_download` view), `workflows/workflow_bridge*` if 
 - **A-03 (worker half)**: split `Worker.tick()` so a `database is locked` in one phase (heartbeat,
   reconcile, poll, claim) doesn't abandon the others; retry briefly on `OperationalError` locked.
 
-#### T08c Config, admin & logs ☐ — C-02, A-03 (registry/DB half), C-01, C-05, C-04, C-06, C-07
+#### T08c Config, admin & logs ☑ (merged d3cfa83) — C-02, A-03 (registry/DB half), C-01, C-05, C-04, C-06, C-07
 Owned: `core/config.py`, `core/views.py` (health), `workflows/registry.py`, `admin_panel/`,
 DATABASES block of `cloudgene_django/settings.py`, logger names anywhere (C-04, keep those edits
 minimal and list them), `frontend/src/views/admin/`.
@@ -324,4 +324,33 @@ upload size limits, `docs/` rewritten (admin guide, workflow YAML reference, dep
   settings.yaml value 500s the whole app and is unrepairable from the UI), A-03 (SQLite write
   contention -> intermittent 500s; admin workflow list writes on every read), A-02 (>100 uploaded
   files -> bare 500). Session ends here: see `plans/HANDOVER.md` for pickup.
+- 2026-09-28: T08a/b/c merged to `rebuild` in order (T08b `d0fa260`, T08c `d3cfa83`, T08a
+  `f4f3c61`). One merge conflict (`jobs/views.py`, two sides adding an import line — kept both);
+  everything else auto-merged cleanly. `schema.yaml` regenerated (no diff both times) rather than
+  hand-merged. Orchestrator verification after each merge: unit suites green throughout (296→305→
+  **317 Django + 144 vitest** final); `npm run build` OK; full `pytest e2e` = **183 passed, 0
+  failed, 0 xfailed** (4m44s) — every A-01..A-05/B-01..B-05/C-01..C-07 `xfail` marker is gone.
+  Flakiness loop (5x): D6 5/5 passed; **C-03 failed 4/6 isolated runs** — root-caused to a genuine
+  race in T08b's own C-03 fix (not a merge interaction): `Worker.claim()` set a job's status to
+  `running` before its pid/pgid were persisted, and the post_delete signal only killed the process
+  group when pgid/pid were present, so a delete landing in that window skipped the kill and
+  rmtree'd immediately while Nextflow kept writing, recreating `.nextflow/`/`logs/` moments later.
+  Reported to the user; fixed on their instruction in a follow-up commit `c1721d8` (design: **the
+  worker owns the workspace of any claimed job** — the post_delete signal now only removes the
+  workspace immediately for a job that was never claimed or already finished, and for a `running`
+  job does nothing at all; the worker detects a vanished row at every write point (claim, current
+  step, pid/pgid, a cheap pre-Popen existence re-check, JobStep/Job saves) plus a per-tick
+  existence check in `poll_executions()` — since a quiet running execution may not write anything
+  in a given tick — and always converges on `Execution.vanish()`: kill the process group, wait for
+  it to exit, then remove the workspace). Re-verified after the fix: unit **319 Django + 144
+  vitest** OK; C-03 **10/10** isolated runs passed; D6 **5/5**; full `pytest e2e` re-run once more
+  = **183 passed, 0 failed, 0 xfailed** (4m54s). Notes for T09: C-03's cleanup is entirely
+  worker-owned now (no /proc kill from the web process, so the same-host assumption from the first
+  T08b fix is gone — if web and worker are ever split across hosts this still holds, since only the
+  worker touches the process/workspace); the orphan sweep in `manage.py cleanup_jobs` remains the
+  backstop when no worker is running at all. SQLite now uses WAL + `transaction_mode=IMMEDIATE`
+  (Postgres remains the intended production database). `playwright==1.56.0` must stay pinned in the
+  venv to match `/opt/pw-browsers` on this host — never `pip install -r e2e/requirements.txt` or
+  `playwright install`. Docs updated (`QA_FINDINGS.md`, this file, `HANDOVER.md`) and pushed to
+  `origin/rebuild`.
 

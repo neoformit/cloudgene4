@@ -1,5 +1,15 @@
 # Exploratory QA findings
 
+## Status (T08, 2026-09-28)
+
+All 17 findings below are fixed on `rebuild`:
+- **T08b** (jobs, uploads & worker — A-01/B-05, A-02, A-04, A-05, C-03, A-03 worker half):
+  merged `d0fa260`; C-03 race hardened in a follow-up fix `c1721d8` (the worker, not the web
+  process, now owns the workspace of any claimed job — see the T08 log entry in `TASKS.md`).
+- **T08c** (config, admin & logs — C-01, C-02, C-04, C-05, C-06, C-07, A-03 registry/DB half,
+  D6): merged `d3cfa83`.
+- **T08a** (security & accounts — B-01, B-02, B-03, B-04): merged `f4f3c61`.
+
 Findings from charter-based exploratory QA sessions (`plans/E2E_TEST_PLAN.md` §4).
 Each agent appends its own section; never rewrite someone else's.
 
@@ -314,6 +324,8 @@ admin-only endpoints all behave.
 * **NUL bytes survive end to end.** `message=a\x00b` is stored, written into `params.json`
   and lands in the output file as `b'before\x00after\n'`. Nothing breaks; worth deciding
   whether text inputs should strip control characters the way job names do.
+
+  User reviewed these Observations on 2026-09-27 and accepted the current behaviour (no change).
 Findings from charter-based exploratory sessions (see `plans/E2E_TEST_PLAN.md` §4).
 Each agent appends its own section; never rewrite someone else's. Confirmed defects have a red
 test in `e2e/tests/test_findings_*.py` (`xfail(strict=True)`), removed by the fixing task.
@@ -717,6 +729,8 @@ non-file params (or read from `request.POST` for value inputs).
   only so the choice is explicit. Login timing was measured (unknown 0.090 s vs existing 0.115 s
   with the E2E fast hasher; the unknown-user path does a dummy `set_password`, so the real
   deployment is equalised).
+
+  User reviewed I-7 on 2026-09-27 and accepted the current behaviour (no change).
 
 ### Probed and found clean
 
