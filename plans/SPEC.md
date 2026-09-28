@@ -193,7 +193,12 @@ by updating this section.
   into `$CLOUDGENE_HOME/config/secret_key`; `DEBUG` default off; `ALLOWED_HOSTS`;
   `CSRF_TRUSTED_ORIGINS`; `DATABASE_URL`; `CLOUDGENE_HOME` default `./home`; `LOG_LEVEL`;
   `DJANGO_SECURE_COOKIES`, `DJANGO_SECURE_SSL_REDIRECT`, `DJANGO_HSTS_SECONDS`,
-  `DJANGO_BEHIND_TLS_PROXY`). Mail settings come from `settings.yaml` at send time via
+  `DJANGO_BEHIND_TLS_PROXY`; `DJANGO_DATA_UPLOAD_MAX_NUMBER_FILES` — Django's
+  `DATA_UPLOAD_MAX_NUMBER_FILES`, default `10000` so a folder input with hundreds of files
+  doesn't 500 (A-02); the real per-submission ceiling is `server.max_upload_mb`, enforced in
+  `jobs/submission.py`; `TooManyFilesSent`/`TooManyFieldsSent`/`RequestDataTooBig` and other
+  `SuspiciousOperation`s are mapped to a 413/400 `upload_too_large`/`invalid` envelope by
+  `core.exceptions.api_exception_handler`, never a 500). Mail settings come from `settings.yaml` at send time via
   `core.mail.send_mail()` / `get_connection()` (the Django test runner's locmem outbox is honoured).
 - The default `CLOUDGENE_HOME` is committed as `./home/` (runtime dirs `jobs/`, `mail/` and the
   generated `secret_key` are git-ignored). The Django test runner copies it to a temp dir per run.

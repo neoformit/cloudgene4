@@ -16,13 +16,20 @@ LOG_TAIL_BYTES = 256 * 1024
 
 
 def _allowed_roots(job: Job) -> list[Path]:
+    """The job's own workspace, plus its actual Nextflow work dir.
+
+    A-04: this must resolve the work dir exactly like ``jobs.runner.work_dir_for`` (per-app
+    ``apps[].work_dir`` first, else the global ``nextflow.work_dir``), or a per-app override
+    is honoured by the runner but not here — every published (symlinked) output then resolves
+    outside every allowed root and is silently dropped by ``collect_outputs``/
+    ``resolve_output_file``.
+    """
+    from . import runner, workflow_bridge  # local import: runner/workflow_bridge don't import us
+
     roots = [cloudgene_config.job_dir(job.id).resolve()]
-    work = (cloudgene_config.get('nextflow.work_dir', '') or '').strip()
-    if work:
-        base = Path(work)
-        if not base.is_absolute():
-            base = cloudgene_config.cloudgene_home() / base
-        roots.append((base / str(job.id)).resolve())
+    configured = (workflow_bridge.nextflow_work_dir(job.workflow) if job.workflow_id
+                 else (cloudgene_config.get('nextflow.work_dir', '') or '').strip())
+    roots.append(runner.work_dir_for(job, configured).resolve())
     return roots
 
 

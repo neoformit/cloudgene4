@@ -83,6 +83,22 @@ class ErrorEnvelopeHandlerTest(TestCase):
         self.assertEqual(r.data['error']['code'], 'server_error')
         self.assertNotIn('secret', r.data['error']['message'])
 
+    def test_upload_suspicious_operations_are_4xx_not_500(self):
+        # A-02: Django's SuspiciousOperation subclasses raised while parsing an oversized
+        # request must never fall through to the generic 500 handler.
+        from django.core.exceptions import RequestDataTooBig, TooManyFieldsSent, TooManyFilesSent
+        with self.assertLogs('cloudgene.api', 'WARNING'):
+            r = self.handle(TooManyFilesSent('The number of files exceeded settings.DATA_UPLOAD_MAX_NUMBER_FILES.'))
+        self.assertEqual(r.status_code, 413)
+        self.assertEqual(r.data['error']['code'], 'upload_too_large')
+        with self.assertLogs('cloudgene.api', 'WARNING'):
+            r = self.handle(TooManyFieldsSent('too many fields'))
+        self.assertEqual(r.status_code, 413)
+        with self.assertLogs('cloudgene.api', 'WARNING'):
+            r = self.handle(RequestDataTooBig('too big'))
+        self.assertEqual(r.status_code, 413)
+        self.assertEqual(r.data['error']['code'], 'upload_too_large')
+
 
 class AuthSessionTest(TestCase):
     def setUp(self):

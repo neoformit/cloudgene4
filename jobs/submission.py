@@ -14,6 +14,7 @@ import unicodedata
 import uuid
 from pathlib import Path
 
+from django.core.files.uploadedfile import UploadedFile
 from django.db import transaction
 from django.utils import timezone
 
@@ -128,6 +129,14 @@ def _accept_ok(param: InputParam, filename: str) -> bool:
     return any(lower.endswith(ext) for ext in exts)
 
 
+# A-05: must accept exactly what the run form's regex accepts
+# (frontend/src/components/workflows/form/formModel.js NUMBER_RE) — ASCII digits only, so
+# Python's own leniency (Unicode digits in `\d`/`int()`/`float()`, and digit-group underscores
+# such as "1_0" in `float()`) doesn't let the API accept values the form rejects.
+NUMBER_RE = re.compile(r'^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$', re.ASCII)
+INT_RE = re.compile(r'^[+-]?\d+$', re.ASCII)
+
+
 def parse_number(text):
     """Returns int/float or raises ValueError."""
     if isinstance(text, bool):
@@ -136,7 +145,9 @@ def parse_number(text):
         value = text
     else:
         s = str(text).strip()
-        value = int(s) if re.match(r'^[+-]?\d+$', s) else float(s)
+        if not NUMBER_RE.match(s):
+            raise ValueError
+        value = int(s) if INT_RE.match(s) else float(s)
     if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
         raise ValueError
     return value
@@ -194,6 +205,12 @@ def validate_inputs(definition: WorkflowDefinition, data, files):
             continue
 
         raw = _get(data, pid)
+        if isinstance(raw, UploadedFile):
+            # A-01/B-05: DRF merges request.FILES into request.data, so a file part sent for a
+            # non-file input would otherwise be stringified into its file *name* (str(UploadedFile)
+            # is its .name) and silently override, or masquerade as, the typed value. Reject it.
+            err(pid, 'A file was uploaded for this field, which expects a text value, not a file.')
+            continue
         if p.type == 'checkbox':
             checked = raw is not None and (_is_true(raw) or (
                 p.checkbox_values is not None and str(raw) == str(p.checkbox_values['true'])))

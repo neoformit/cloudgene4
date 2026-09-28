@@ -6,9 +6,11 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
+from unittest import mock
 
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.db import OperationalError
 from django.test import TestCase
 
 from core import config as cloudgene_config
@@ -216,6 +218,80 @@ class WorkerQueueTest(WorkerTestBase):
         self.assertEqual(hb.info['paused'], False)
 
 
+class TickPhaseIsolationTest(WorkerTestBase):
+    """A-03 (worker half): a "database is locked" error in one tick phase must not abandon the
+    others (SQLite write contention between the web process and the worker), and the failure is
+    logged once, without a traceback for the expected/known case."""
+
+    def test_heartbeat_lock_error_does_not_stop_poll_and_claim(self):
+        make_app('hello')
+        job = self.submit()
+        with mock.patch('jobs.worker.WorkerHeartbeat.beat',
+                        side_effect=OperationalError('database is locked')):
+            with self.assertLogs('cloudgene.worker', 'WARNING') as logs:
+                self.worker.tick()
+        # the heartbeat phase failed and logged a WARNING (no traceback)...
+        self.assertTrue(any('heartbeat' in m and 'database is locked' in m for m in logs.output),
+                        logs.output)
+        self.assertFalse(any(r.levelno >= 40 for r in logs.records), logs.output)  # no ERROR
+        self.assertFalse(any(r.exc_info for r in logs.records), logs.output)       # no traceback
+        # ...but claim() still ran in the same tick: the job was picked up regardless.
+        self.assertEqual(self.state(job), JobState.RUNNING)
+
+    def test_unexpected_error_in_one_phase_is_logged_with_traceback_and_others_still_run(self):
+        make_app('hello')
+        job = self.submit()
+        with mock.patch.object(Worker, 'reconcile_orphans', side_effect=RuntimeError('boom')):
+            with self.assertLogs('cloudgene.worker', 'ERROR') as logs:
+                self.worker.tick()
+        self.assertTrue(any('reconcile' in m for m in logs.output), logs.output)
+        self.assertTrue(any(r.exc_info for r in logs.records), logs.output)  # traceback kept
+        self.assertEqual(self.state(job), JobState.RUNNING)   # claim() still ran
+
+
+class RetryOnLockedTest(TestCase):
+    def test_succeeds_after_transient_lock_errors(self):
+        calls = []
+
+        def flaky():
+            calls.append(1)
+            if len(calls) < 3:
+                raise OperationalError('database is locked')
+            return 'ok'
+
+        with mock.patch('jobs.worker.time.sleep') as sleep:
+            self.assertEqual(worker_mod.retry_on_locked(flaky), 'ok')
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(sleep.call_count, 2)
+
+    def test_reraises_after_the_attempt_limit(self):
+        def always_locked():
+            raise OperationalError('database is locked')
+
+        with mock.patch('jobs.worker.time.sleep'):
+            with self.assertRaises(OperationalError):
+                worker_mod.retry_on_locked(always_locked, attempts=3)
+
+    def test_non_lock_error_is_not_retried(self):
+        calls = []
+
+        def broken():
+            calls.append(1)
+            raise OperationalError('no such table: jobs')
+
+        with mock.patch('jobs.worker.time.sleep') as sleep:
+            with self.assertRaises(OperationalError):
+                worker_mod.retry_on_locked(broken)
+        self.assertEqual(len(calls), 1)          # not retried
+        sleep.assert_not_called()
+
+    def test_other_exception_types_are_not_retried(self):
+        with mock.patch('jobs.worker.time.sleep') as sleep:
+            with self.assertRaises(ValueError):
+                worker_mod.retry_on_locked(lambda: (_ for _ in ()).throw(ValueError('nope')))
+        sleep.assert_not_called()
+
+
 class WorkerCancelTest(WorkerTestBase):
     def test_cancel_running_kills_process_tree(self):
         make_app('slow', mode='sleep')
@@ -295,6 +371,50 @@ class ShutdownTest(WorkerTestBase):
         self.assertIn('shut down', job.error_message)
         time.sleep(0.2)
         self.assertFalse(pid_alive(child))
+
+
+class DeletedWhileRunningTest(WorkerTestBase):
+    """C-03: deleting a Job row (e.g. cascading from a user deletion) while it is running must
+    not leave the workspace back on disk, and the worker must not log a traceback for it."""
+
+    def test_deleting_a_running_job_kills_it_and_the_worker_treats_it_as_a_designed_vanish(self):
+        make_app('slow', mode='sleep')
+        job = self.submit('slow')
+        child_file = cloudgene_config.job_dir(job.id) / 'work' / 'child.pid'
+        self.run_until(child_file.exists)
+        job.refresh_from_db()
+        nf_pid = job.pid
+        child = int(child_file.read_text())
+        workspace = cloudgene_config.job_dir(job.id)
+        self.assertTrue(pid_alive(nf_pid))
+
+        with self.assertLogs('cloudgene.jobs', 'INFO') as jlogs:
+            with self.captureOnCommitCallbacks(execute=True):
+                job.delete()
+        self.assertTrue(any('killed=True' in m for m in jlogs.output), jlogs.output)
+
+        # the post_delete signal killed the process group before removing the workspace
+        self.assertFalse(pid_alive(nf_pid))
+        self.assertFalse(pid_alive(child))
+        self.assertFalse(workspace.exists())
+
+        # the worker still holds the Execution for this job; its next poll must not blow up
+        with self.assertLogs('cloudgene.worker', 'INFO') as logs:
+            self.worker.poll_executions()
+        self.assertNotIn(str(job.id), self.worker.executions)
+        self.assertFalse(any(r.levelno >= 40 for r in logs.records), logs.output)  # no ERROR/exception
+        self.assertTrue(any('vanished' in m for m in logs.output), logs.output)
+
+    def test_deleting_a_finished_job_does_not_try_to_kill_anything(self):
+        make_app('hello')
+        job = self.submit()
+        self.run_until(lambda: self.state(job) == JobState.SUCCESS)
+        workspace = cloudgene_config.job_dir(job.id)
+        with mock.patch('jobs.worker.kill_orphan_group') as killer:
+            with self.captureOnCommitCallbacks(execute=True):
+                job.delete()
+        killer.assert_not_called()
+        self.assertFalse(workspace.exists())
 
 
 class RunWorkerCommandTest(WorkerTestBase):

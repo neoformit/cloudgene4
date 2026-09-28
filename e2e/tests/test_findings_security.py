@@ -287,8 +287,6 @@ def test_b04_html_output_not_served_as_active_content(stack, clients):
                            "Job.objects.filter(pk=%r).delete()\n" % job_id)
 
 
-@pytest.mark.xfail(strict=True, reason='B-05: a file upload satisfies a text input and its file '
-                                       'name becomes the value')
 def test_b05_file_upload_for_text_input_rejected(stack, clients):
     import io
     alice = clients('alice')

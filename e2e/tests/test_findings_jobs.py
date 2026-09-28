@@ -24,8 +24,6 @@ def _cancel(client, payload):
 # A-01
 # --------------------------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, reason='A-01: a file part for a text input is accepted and '
-                                       'becomes the file name')
 def test_a01_file_part_for_text_input_is_rejected(api):
     """A `text` input must not accept a multipart *file* part (and must never silently use the
     file's name as the value, overriding what the user typed)."""
@@ -47,8 +45,6 @@ def test_a01_file_part_for_text_input_is_rejected(api):
 # A-02
 # --------------------------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, reason='A-02: >100 files in a folder input return 500 '
-                                       '(TooManyFilesSent is not mapped to the error envelope)')
 def test_a02_many_files_in_folder_input_is_a_client_error(api):
     """Uploading more files than Django's DATA_UPLOAD_MAX_NUMBER_FILES must be a 4xx with a
     usable message, never a 500 "Internal server error."."""
@@ -105,8 +101,6 @@ print('ALLOWED=%s' % any(work == r or r in work.parents for r in roots))
 
 
 @pytest.mark.serial
-@pytest.mark.xfail(strict=True, reason='A-04: a per-app work_dir is not an allowed output root, '
-                                       'so every published (symlinked) result is discarded')
 def test_a04_per_app_work_dir_is_an_allowed_output_root(stack, server_settings):
     """`jobs.runner.work_dir_for` honours `apps[].work_dir`; `jobs.outputs._allowed_roots`
     only knows the global `nextflow.work_dir`. When they disagree, `collect_outputs()` drops
@@ -127,8 +121,6 @@ def test_a04_per_app_work_dir_is_an_allowed_output_root(stack, server_settings):
 # A-05
 # --------------------------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, reason='A-05: the server accepts numbers the run form rejects '
-                                       '(Python float/int leniency: "1_0", Unicode digits)')
 @pytest.mark.parametrize('value', ['1_0', '٥'])
 def test_a05_number_input_rejects_values_the_form_rejects(api, value):
     """formModel.js validates numbers with /^[+-]?(\\d+\\.?\\d*|\\.\\d+)([eE][+-]?\\d+)?$/ and

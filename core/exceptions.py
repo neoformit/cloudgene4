@@ -9,6 +9,7 @@ validation errors (``non_field_errors`` / ``detail``) become the message only.
 import logging
 
 from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
+from django.core.exceptions import RequestDataTooBig, SuspiciousOperation, TooManyFieldsSent, TooManyFilesSent
 from django.http import Http404, JsonResponse
 from rest_framework import exceptions, status
 from rest_framework.response import Response
@@ -81,6 +82,24 @@ def api_exception_handler(exc, context):
         exc = exceptions.NotFound()
     elif isinstance(exc, DjangoPermissionDenied):
         exc = exceptions.PermissionDenied()
+
+    # A-02: request parsing (accessing request.data/.FILES) can raise these Django
+    # SuspiciousOperation subclasses before any DRF exception ever sees the request; without a
+    # mapping here they fall through to the unhandled-error 500 below.
+    if isinstance(exc, (TooManyFilesSent, TooManyFieldsSent)):
+        logger.warning('Rejected oversized request: %s', exc)
+        return Response(
+            error_body('Too many files were included in this request.', 'upload_too_large'),
+            status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE)
+    if isinstance(exc, RequestDataTooBig):
+        logger.warning('Rejected oversized request: %s', exc)
+        return Response(
+            error_body('The request is too large.', 'upload_too_large'),
+            status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE)
+    if isinstance(exc, SuspiciousOperation):
+        logger.warning('Rejected suspicious request: %s', exc)
+        return Response(error_body(str(exc) or 'Bad request.', 'invalid'),
+                        status=status.HTTP_400_BAD_REQUEST)
 
     response = drf_exception_handler(exc, context)
 
