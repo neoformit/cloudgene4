@@ -349,11 +349,19 @@ Soft delete: `Job.deleted_at` (user-deleted jobs are hidden everywhere and their
   (`output_id`, `path` relative to `output/`, `size`); symlinks are followed only inside the job
   workspace and its work dir. Downloads are streamed by an authenticated view; paths come from the
   DB and are re-validated (no `..`, no absolute paths, must resolve inside the job).
-- **Delete / retention**: users delete finished jobs (soft delete + workspace removed); deleting a
-  Job row (e.g. user deletion) removes the workspace via a `post_delete` signal; `manage.py
-  cleanup_jobs` removes workspaces of jobs finished more than `server.job_retention_days` ago
-  (0 = keep) and orphan workspace dirs without a Job row (older than 1 h). `expires_at` in the API
-  is `finished_at + job_retention_days`.
+- **Delete / retention**: users delete finished jobs (soft delete + workspace removed). Hard-deleting
+  a Job row (e.g. user deletion) is handled by a `post_delete` signal, but *the worker owns the
+  workspace of any claimed job*: the signal removes the workspace immediately only for a job that
+  was never claimed (`waiting`) or already finished; for a `running` job it does nothing and leaves
+  cleanup to the worker, since only the worker process knows whether Nextflow is still writing into
+  that directory. The worker detects the vanished row the next time it tries to write to it (a 0-row
+  update, or `DoesNotExist`/`NotUpdated` from claim through start/poll), stops the execution (SIGTERM,
+  grace, SIGKILL, wait for the group to exit) and *then* removes the workspace
+  (`jobs.worker.Execution.vanish`) — one INFO log line, no traceback. If no worker is running at all,
+  `manage.py cleanup_jobs`'s orphan sweep (workspace dirs without a Job row, older than 1 h) is the
+  backstop. `manage.py cleanup_jobs` also removes workspaces of jobs finished more than
+  `server.job_retention_days` ago (0 = keep). `expires_at` in the API is
+  `finished_at + job_retention_days`.
 - **Restart** (admin only): a `failed`/`cancelled` job with an intact workspace is re-queued with
   the same inputs; steps/messages/outputs and `output/ logs/ work/` are reset and the **current**
   workflow definition is snapshotted again. 409 if the workflow is gone or disabled.

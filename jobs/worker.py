@@ -19,7 +19,7 @@ import time
 from pathlib import Path
 
 from django.core.exceptions import ObjectDoesNotExist, ObjectNotUpdated
-from django.db import OperationalError, close_old_connections, connection
+from django.db import IntegrityError, OperationalError, close_old_connections, connection
 from django.utils import timezone
 
 from core import config as cloudgene_config
@@ -192,8 +192,12 @@ class Execution:
         row = self.step_rows[index]
         row.status = 'running'
         row.started_at = timezone.now()
-        row.save(update_fields=['status', 'started_at'])
-        Job.objects.filter(pk=self.job.pk).update(current_step=index)
+        row.save(update_fields=['status', 'started_at'])  # raises ObjectNotUpdated if the row is gone
+        if not Job.objects.filter(pk=self.job.pk).update(current_step=index):
+            # C-03: the row vanished (e.g. the owning user was deleted) between being claimed
+            # and this step starting. Nothing has been spawned yet; the caller (poll_executions
+            # or launch()) turns this into a clean vanish().
+            raise Job.DoesNotExist(f'Job {self.job.pk} vanished before step {index} could start')
         if not step.supported:
             self._finish(JobState.FAILED, step.error or f'Step "{step.name}" is not supported.')
             return
@@ -219,6 +223,12 @@ class Execution:
         self.trace = TraceReader(prepared.trace_path)
         self.term_sent_at = None
         self.kill_sent = False
+        # C-03: `prepare_step` above can take a real amount of time for a real workflow
+        # (uploads, folder inputs, per-app work dirs). A cheap existence check right before we
+        # actually spawn Nextflow catches a row deleted during prep, so we never start a
+        # process for a job nothing will track any more.
+        if not Job.objects.filter(pk=self.job.pk).exists():
+            raise Job.DoesNotExist(f'Job {self.job.pk} vanished before Nextflow could start')
         out = open(self.stdout_path, 'ab')
         try:
             self.proc = subprocess.Popen(
@@ -235,8 +245,13 @@ class Execution:
             pgid = os.getpgid(self.proc.pid)
         except OSError:
             pass
-        Job.objects.filter(pk=self.job.pk).update(pid=self.proc.pid, pgid=pgid)
+        # Keep the in-memory pgid even if the DB write below fails to land, so a vanish() right
+        # after this still knows what to kill.
         self.job.pid, self.job.pgid = self.proc.pid, pgid
+        if not Job.objects.filter(pk=self.job.pk).update(pid=self.proc.pid, pgid=pgid):
+            # C-03: the row vanished in the instant between the re-check above and Nextflow
+            # actually starting. self.proc is already set, so the caller's vanish() kills it.
+            raise Job.DoesNotExist(f'Job {self.job.pk} vanished right after Nextflow started')
 
     def request_cancel(self):
         if self.proc is not None and self.term_sent_at is None and not self.finished:
@@ -498,15 +513,27 @@ class Worker:
     def poll_executions(self):
         if not self.executions:
             return
+        # C-03: a claimed job's row can vanish (e.g. the owning user was deleted) without any
+        # of poll()'s own writes ever running — a quiet execution (no new trace activity) may
+        # go a whole tick without writing anything at all. So check for existence up front,
+        # once per tick, rather than relying only on an incidental write raising; the
+        # exception handler below stays as a safety net for the row vanishing mid-tick.
+        existing = {str(i) for i in Job.objects.filter(
+            id__in=list(self.executions.keys())).values_list('id', flat=True)}
         cancel_ids = {str(i) for i in Job.objects.filter(
-            id__in=list(self.executions.keys()), cancel_requested=True).values_list('id', flat=True)}
+            id__in=list(existing), cancel_requested=True).values_list('id', flat=True)}
         for job_id, execution in list(self.executions.items()):
+            if job_id not in existing:
+                logger.info('Job %s vanished while running (its row was deleted); stopping.', job_id)
+                execution.vanish()
+                del self.executions[job_id]
+                continue
             try:
                 done = execution.poll(cancel_requested=job_id in cancel_ids)
             except (ObjectDoesNotExist, ObjectNotUpdated):
-                # C-03: the Job row (or one of its steps) vanished under us — most likely the
-                # owning user was deleted while the job was running. Designed path, not a bug:
-                # no traceback, just an informational log line.
+                # The Job row (or one of its steps) vanished mid-tick — most likely the owning
+                # user was deleted while the job was running. Designed path, not a bug: no
+                # traceback, just an informational log line.
                 logger.info('Job %s vanished while running (its row was deleted); stopping.', job_id)
                 execution.vanish()
                 done = True
@@ -529,11 +556,20 @@ class Worker:
                 status=JobState.RUNNING, started_at=now, finished_at=None, updated_at=now)
             if not claimed:
                 continue
-            job = Job.objects.select_related('user', 'workflow').get(pk=job_id)
+            try:
+                job = Job.objects.select_related('user', 'workflow').get(pk=job_id)
+            except Job.DoesNotExist:
+                # C-03: the row vanished in the instant between the claim update above and
+                # fetching it here. Nothing was ever launched for it; just clean up.
+                logger.info('Job %s vanished right after being claimed; removing its workspace.',
+                           job_id)
+                shutil.rmtree(cloudgene_config.job_dir(job_id), ignore_errors=True)
+                continue
             self.launch(job)
 
     def launch(self, job):
         key = str(job.id)
+        execution = None
         try:
             execution = Execution(job, grace=self.grace)
             self.executions[key] = execution
@@ -541,6 +577,19 @@ class Worker:
         except JobSetupError as exc:
             self.executions.pop(key, None)
             fail_job(job.id, str(exc))
+            return
+        except (ObjectDoesNotExist, ObjectNotUpdated, IntegrityError):
+            # C-03: the row (or one of its cascaded JobStep rows) vanished while we were
+            # setting up or starting the execution — most likely the owning user was deleted
+            # in the same instant. Designed path, not a bug: stop/kill whatever was started
+            # (if anything) and remove the workspace ourselves, since nothing else will.
+            self.executions.pop(key, None)
+            if execution is not None:
+                execution.vanish()
+            else:
+                logger.info('Job %s vanished before it could be launched; removing its '
+                           'workspace.', job.id)
+                shutil.rmtree(cloudgene_config.job_dir(job.id), ignore_errors=True)
             return
         except Exception as exc:
             logger.exception('Starting job %s failed', job.id)

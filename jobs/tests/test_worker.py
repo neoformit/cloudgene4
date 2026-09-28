@@ -374,10 +374,28 @@ class ShutdownTest(WorkerTestBase):
 
 
 class DeletedWhileRunningTest(WorkerTestBase):
-    """C-03: deleting a Job row (e.g. cascading from a user deletion) while it is running must
-    not leave the workspace back on disk, and the worker must not log a traceback for it."""
+    """C-03: the worker owns the workspace of any *claimed* job. Deleting a Job row (e.g.
+    cascading from a user deletion) must not leave the workspace back on disk once the worker
+    catches up, must never leave Nextflow running untracked, and the worker must not log a
+    traceback for any of this — it is a designed shutdown path, not a bug."""
 
-    def test_deleting_a_running_job_kills_it_and_the_worker_treats_it_as_a_designed_vanish(self):
+    def test_deleting_a_waiting_job_removes_the_workspace_immediately(self):
+        # Never claimed: nothing is running for it, so the web process (the post_delete
+        # signal) removes the workspace itself, without involving the worker at all.
+        make_app('hello')
+        cloudgene_config.set_value('queue.paused', True)
+        job = self.submit()
+        workspace = cloudgene_config.job_dir(job.id)
+        self.assertTrue(workspace.is_dir())
+        self.assertEqual(self.state(job), JobState.WAITING)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            job.delete()
+        self.assertFalse(workspace.exists())
+
+    def test_deleting_a_running_job_leaves_the_workspace_to_the_worker(self):
+        # The signal must not kill anything or touch the workspace for a running job — only
+        # the worker (which alone knows whether Nextflow is still writing to it) may do that.
         make_app('slow', mode='sleep')
         job = self.submit('slow')
         child_file = cloudgene_config.job_dir(job.id) / 'work' / 'child.pid'
@@ -388,22 +406,30 @@ class DeletedWhileRunningTest(WorkerTestBase):
         workspace = cloudgene_config.job_dir(job.id)
         self.assertTrue(pid_alive(nf_pid))
 
-        with self.assertLogs('cloudgene.jobs', 'INFO') as jlogs:
-            with self.captureOnCommitCallbacks(execute=True):
-                job.delete()
-        self.assertTrue(any('killed=True' in m for m in jlogs.output), jlogs.output)
+        with mock.patch('jobs.worker.kill_orphan_group') as killer:
+            with self.assertLogs('cloudgene.jobs', 'INFO') as jlogs:
+                with self.captureOnCommitCallbacks(execute=True):
+                    job.delete()
+        killer.assert_not_called()
+        self.assertTrue(any('leaving the workspace for the worker' in m for m in jlogs.output),
+                        jlogs.output)
 
-        # the post_delete signal killed the process group before removing the workspace
-        self.assertFalse(pid_alive(nf_pid))
-        self.assertFalse(pid_alive(child))
-        self.assertFalse(workspace.exists())
+        # nothing was killed and nothing was removed by the web process
+        self.assertTrue(pid_alive(nf_pid))
+        self.assertTrue(pid_alive(child))
+        self.assertTrue(workspace.exists())
 
-        # the worker still holds the Execution for this job; its next poll must not blow up
+        # the worker still holds the Execution for this job; its next poll notices the row is
+        # gone, kills the process group, waits for it to exit, and only then removes the
+        # workspace — no traceback.
         with self.assertLogs('cloudgene.worker', 'INFO') as logs:
             self.worker.poll_executions()
         self.assertNotIn(str(job.id), self.worker.executions)
         self.assertFalse(any(r.levelno >= 40 for r in logs.records), logs.output)  # no ERROR/exception
-        self.assertTrue(any('vanished' in m for m in logs.output), logs.output)
+        self.assertTrue(any('vanished' in m and 'row was deleted' in m for m in logs.output), logs.output)
+        self.assertFalse(pid_alive(nf_pid))
+        self.assertFalse(pid_alive(child))
+        self.assertFalse(workspace.exists())
 
     def test_deleting_a_finished_job_does_not_try_to_kill_anything(self):
         make_app('hello')
@@ -414,6 +440,36 @@ class DeletedWhileRunningTest(WorkerTestBase):
             with self.captureOnCommitCallbacks(execute=True):
                 job.delete()
         killer.assert_not_called()
+        self.assertFalse(workspace.exists())
+
+    def test_row_deleted_right_after_nextflow_starts_is_not_left_running(self):
+        """The original C-03 race: `claim()` sets status=running before pid/pgid are persisted.
+        If the row is deleted in that exact window (simulated here by deleting it right after
+        Popen returns, before the pid/pgid update lands), the process must still be killed and
+        the workspace still removed — nothing must be left writing into a directory nobody is
+        watching any more."""
+        make_app('slow', mode='sleep')
+        job = self.submit('slow')
+        workspace = cloudgene_config.job_dir(job.id)
+        real_popen = subprocess.Popen
+        procs = []
+
+        def popen_then_delete_row(*args, **kwargs):
+            proc = real_popen(*args, **kwargs)
+            procs.append(proc)
+            Job.objects.filter(pk=job.pk).delete()
+            return proc
+
+        with mock.patch('jobs.worker.subprocess.Popen', side_effect=popen_then_delete_row):
+            with self.assertLogs('cloudgene.worker', 'INFO') as logs:
+                self.worker.tick()
+        self.assertFalse(any(r.levelno >= 40 for r in logs.records), logs.output)  # no ERROR/exception
+        self.assertTrue(any('row was deleted' in m for m in logs.output), logs.output)
+        self.assertNotIn(str(job.id), self.worker.executions)
+
+        self.assertEqual(len(procs), 1)
+        procs[0].wait(timeout=5)
+        self.assertFalse(pid_alive(procs[0].pid))
         self.assertFalse(workspace.exists())
 
 
