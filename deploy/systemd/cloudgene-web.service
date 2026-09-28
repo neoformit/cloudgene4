@@ -1,0 +1,29 @@
+[Unit]
+Description=Cloudgene web (gunicorn)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=cloudgene
+Group=cloudgene
+WorkingDirectory=/opt/cloudgene
+EnvironmentFile=/etc/cloudgene/cloudgene.env
+ExecStart=/opt/cloudgene/venv/bin/gunicorn -c /opt/cloudgene/deploy/gunicorn.conf.py cloudgene_django.wsgi:application
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=always
+RestartSec=5
+# gunicorn's sync workers can take up to GUNICORN_TIMEOUT (default 300s) to finish an upload;
+# give systemd longer than that before it gives up on a graceful stop.
+TimeoutStopSec=310
+
+# Hardening (loosen only if a real need shows up: e.g. NoNewPrivileges must stay off if the
+# worker/web ever needs setuid tooling, which Nextflow does not).
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/cloudgene /var/lib/cloudgene
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

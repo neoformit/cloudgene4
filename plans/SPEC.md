@@ -215,15 +215,35 @@ by updating this section.
   into `$CLOUDGENE_HOME/config/secret_key`; `DEBUG` default off; `ALLOWED_HOSTS`;
   `CSRF_TRUSTED_ORIGINS`; `DATABASE_URL`; `CLOUDGENE_HOME` default `./home`; `LOG_LEVEL`;
   `DJANGO_SECURE_COOKIES`, `DJANGO_SECURE_SSL_REDIRECT`, `DJANGO_HSTS_SECONDS`,
-  `DJANGO_BEHIND_TLS_PROXY`; `DJANGO_DATA_UPLOAD_MAX_NUMBER_FILES` — Django's
+  `DJANGO_HSTS_INCLUDE_SUBDOMAINS`/`DJANGO_HSTS_PRELOAD` (default on once
+  `DJANGO_HSTS_SECONDS>0`, off otherwise), `DJANGO_BEHIND_TLS_PROXY`;
+  `DJANGO_DATA_UPLOAD_MAX_NUMBER_FILES` — Django's
   `DATA_UPLOAD_MAX_NUMBER_FILES`, default `10000` so a folder input with hundreds of files
   doesn't 500 (A-02); the real per-submission ceiling is `server.max_upload_mb`, enforced in
   `jobs/submission.py`; `TooManyFilesSent`/`TooManyFieldsSent`/`RequestDataTooBig` and other
   `SuspiciousOperation`s are mapped to a 413/400 `upload_too_large`/`invalid` envelope by
   `core.exceptions.api_exception_handler`, never a 500). Mail settings come from `settings.yaml` at send time via
   `core.mail.send_mail()` / `get_connection()` (the Django test runner's locmem outbox is honoured).
+  `LOG_FORMAT=json` selects a structured console formatter (`core.logging_formatters.JsonFormatter`)
+  for journald/log shippers; default is human-readable text (T09a). `API_JSON_BODY_MAX_MB`
+  (default `10`) bounds a non-multipart `/api/` request body by `Content-Length`, rejected with a
+  413 `upload_too_large` before Django reads it (`core.middleware.JsonBodySizeLimitMiddleware`,
+  QA_FINDINGS I-4). `INSECURE_FAST_PASSWORD_HASHING` (test-only fast hasher) is refused with a
+  system-check `Error` (`core.checks`, id `core.E001`) unless `DEBUG` is on or `CLOUDGENE_E2E=1`
+  is also set — the E2E stack sets both.
 - The default `CLOUDGENE_HOME` is committed as `./home/` (runtime dirs `jobs/`, `mail/` and the
   generated `secret_key` are git-ignored). The Django test runner copies it to a temp dir per run.
+- **Password hashing (T09a):** `PASSWORD_HASHERS` puts Argon2id first (`Argon2PasswordHasher`),
+  PBKDF2/PBKDF2-SHA1/Scrypt kept after it so existing PBKDF2 hashes still verify and are
+  upgraded to Argon2 automatically on next login (Django's own `check_password()` behaviour — no
+  extra code). Measured on this host (real hashers, not the E2E fast switch): PBKDF2 (Django's
+  default iteration count) ~0.33 s/login average, Argon2id ~0.09 s/login average (~4x faster).
+- **Deploy checks (T09a, `core/checks.py`):** always-on `core.E001` blocks any `manage.py`
+  command if `INSECURE_FAST_PASSWORD_HASHING=1` is set without `DEBUG` or `CLOUDGENE_E2E=1`.
+  `manage.py check --deploy` additionally warns (`core.W001`-`core.W006`) on SQLite in
+  production, a weak/short `SECRET_KEY`, `ALLOWED_HOSTS=['*']`, and secure cookies/SSL
+  redirect/HSTS not set — alongside Django's own built-in `security.W0xx` deploy checks. Clean
+  against `deploy/cloudgene.env.example`.
 
 `settings.yaml` keys (schema, defaults and validation: `core.config.SCHEMA`):
 

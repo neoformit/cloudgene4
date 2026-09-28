@@ -2,8 +2,12 @@
 import json
 import logging
 import os
+import re
+import subprocess
+import sys
 from unittest import mock
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import check_password
 from django.core.checks import Error, Tags, Warning, run_checks
@@ -129,6 +133,34 @@ class DeployChecksTest(SimpleTestCase):
                                CSRF_COOKIE_SECURE=True, SECURE_SSL_REDIRECT=True,
                                SECURE_HSTS_SECONDS=31536000):
             self.assertEqual(core_checks.check_secure_transport_settings(None), [])
+
+
+class DeployEnvExampleTest(SimpleTestCase):
+    """`manage.py check --deploy` must be clean (no warnings/errors) against
+    deploy/cloudgene.env.example (TASKS T09a bullet 3's "done when")."""
+
+    def test_check_deploy_is_clean_with_the_example_env(self):
+        env_path = os.path.join(settings.BASE_DIR, 'deploy', 'cloudgene.env.example')
+        with open(env_path) as fh:
+            text = fh.read()
+        env_vars = dict(
+            (m.group(1), m.group(2))
+            for m in re.finditer(r'^([A-Z_][A-Z0-9_]*)=(.*)$', text, re.MULTILINE)
+        )
+        self.assertIn('DJANGO_SECRET_KEY', env_vars)  # sanity: the file parsed at all
+
+        env = {
+            'PATH': os.environ.get('PATH', '/usr/bin:/bin'),
+            'DJANGO_SETTINGS_MODULE': 'cloudgene_django.settings',
+            'CLOUDGENE_HOME': '/tmp/cloudgene-check-deploy-example-home',
+        }
+        env.update(env_vars)
+        result = subprocess.run(
+            [sys.executable, 'manage.py', 'check', '--deploy'],
+            cwd=settings.BASE_DIR, env=env, capture_output=True, text=True, timeout=60,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('no issues', result.stdout + result.stderr)
 
 
 class JsonFormatterTest(SimpleTestCase):

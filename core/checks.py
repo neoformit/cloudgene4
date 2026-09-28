@@ -56,7 +56,9 @@ def check_secret_key_strength(app_configs, **kwargs):
         return []
     key = settings.SECRET_KEY or ''
     weak = {'changeme', 'change-me', 'secret', 'insecure', 'dev', 'development', ''}
-    if len(key) < 32 or key.lower() in weak:
+    # 50 matches Django's own security.W009 threshold (django.core.checks.security.base) so the
+    # two checks agree instead of giving contradictory verdicts.
+    if len(key) < 50 or key.lower() in weak:
         return [Warning(
             'SECRET_KEY looks weak or short for a production deployment.',
             hint='Set DJANGO_SECRET_KEY to a long random value, or leave it unset so '
