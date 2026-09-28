@@ -2,6 +2,7 @@
 import json
 import os
 import tempfile
+import uuid
 from pathlib import Path
 
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -11,9 +12,11 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from core import config as cloudgene_config
+from jobs import outputs, runner, workflow_bridge
 from jobs.models import Job, JobMessage, JobOutput, JobState, JobStep
 from jobs.submission import safe_filename
 from jobs.worker import Worker
+from workflows import registry
 
 from .helpers import TempHomeMixin, install_fake_nextflow, make_app, make_user
 
@@ -166,11 +169,48 @@ class SubmissionTest(ApiTestBase):
             res = self.submit(self.alice, self.valid(count=value), app='all-inputs')
             self.assertEqual(res.json()['error']['fields']['count'], [msg])
 
+    def test_number_rejects_what_the_run_form_rejects(self):
+        # A-05: Python's own leniency (Unicode digits, "1_0" digit-group underscores) must not
+        # let the API accept a value formModel.js's NUMBER_RE would reject.
+        for value in ('1_0', '٥', '1__0', '1_', '_1'):
+            res = self.submit(self.alice, self.valid(count=value), app='all-inputs')
+            self.assertEqual(res.json()['error']['fields']['count'], ['Please enter a number.'],
+                             'count=%r was accepted' % value)
+        for value, expected in (('5', 5), ('+5', 5), (' 7 ', 7), ('4.5', 4.5)):
+            res = self.submit(self.alice, self.valid(count=value), app='all-inputs')
+            self.assertEqual(res.status_code, 201, res.content)
+            self.assertEqual(Job.objects.get(pk=res.json()['id']).parameters['count'], expected)
+
     def test_file_accept_and_single_file(self):
         res = self.submit(self.alice, self.valid(data=upload('evil.exe')), app='all-inputs')
         self.assertIn('not an accepted file type', res.json()['error']['fields']['data'][0])
         res = self.submit(self.alice, self.valid(data=[upload('a.csv'), upload('b.csv')]), app='all-inputs')
         self.assertEqual(res.json()['error']['fields']['data'], ['Only one file can be uploaded here.'])
+
+    def test_file_part_for_text_input_is_rejected(self):
+        # A-01/B-05: a file part for a `text` input must not be silently accepted (and must
+        # never become the value, overriding what the user typed).
+        res = self.submit(self.alice, self.valid(title=upload('sneaky-name.txt')), app='all-inputs')
+        self.assertEqual(res.status_code, 400, res.content)
+        self.assertIn('title', res.json()['error']['fields'])
+        self.assertEqual(Job.objects.count(), 0)
+
+        # Even a typed value alongside a file for the same field must be rejected, not silently
+        # overridden by the file.
+        res = self.submit(self.alice, self.valid(title=['typed by the user', upload('m.txt')]),
+                          app='all-inputs')
+        self.assertEqual(res.status_code, 400, res.content)
+        self.assertIn('title', res.json()['error']['fields'])
+        self.assertEqual(Job.objects.count(), 0)
+
+    def test_many_files_in_folder_input_is_a_client_error_not_500(self):
+        # A-02: more files than DATA_UPLOAD_MAX_NUMBER_FILES must be a 4xx, never a bare 500.
+        with self.settings(DATA_UPLOAD_MAX_NUMBER_FILES=5):
+            res = self.submit(self.alice, self.valid(many=[upload('f%d.txt' % i) for i in range(10)]),
+                              app='all-inputs')
+        self.assertLess(res.status_code, 500, res.content)
+        self.assertEqual(res.json()['error']['code'], 'upload_too_large')
+        self.assertEqual(Job.objects.count(), 0)
 
     def test_upload_size_limit(self):
         cloudgene_config.set_value('server.max_upload_mb', 1)
@@ -319,6 +359,28 @@ class JobLifecycleApiTest(ApiTestBase):
         from jobs import workflow_bridge
         collect_outputs(job, workflow_bridge.definition_from_yaml(job.workflow_yaml))
         self.assertFalse(JobOutput.objects.filter(job=job, path='outdir/link.txt').exists())
+
+    def test_a04_per_app_work_dir_is_an_allowed_output_root(self):
+        """`runner.work_dir_for` and `outputs._allowed_roots` must agree on which work dir a
+        job actually uses, or a per-app `work_dir` override causes every symlinked
+        (`publishDir` default) result to resolve outside every allowed root and be silently
+        dropped (A-04)."""
+        registry.set_nextflow_settings('hello', work_dir='custom-work')
+        job = Job(id=uuid.uuid4(), workflow=self.hello, user=self.alice)
+        configured = workflow_bridge.nextflow_work_dir(job.workflow)
+        self.assertEqual(configured, 'custom-work')  # sanity: the override really applies
+        work = runner.work_dir_for(job, configured).resolve()
+        roots = outputs._allowed_roots(job)
+        self.assertTrue(any(work == r or r in work.parents for r in roots),
+                        'work dir %s not covered by allowed roots %s' % (work, roots))
+
+    def test_a04_global_work_dir_still_allowed_without_an_app_override(self):
+        job = Job(id=uuid.uuid4(), workflow=self.hello, user=self.alice)
+        cloudgene_config.set_value('nextflow.work_dir', 'global-work')
+        configured = workflow_bridge.nextflow_work_dir(job.workflow)
+        work = runner.work_dir_for(job, configured).resolve()
+        roots = outputs._allowed_roots(job)
+        self.assertTrue(any(work == r or r in work.parents for r in roots))
 
     def test_cancel_waiting_and_delete_rules(self):
         c = self.as_user(self.alice)
