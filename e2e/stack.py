@@ -319,6 +319,7 @@ def start_stack(name='main'):
         # lockout window expire during the login it is supposed to block. Set E2E_REAL_HASHING=1
         # to exercise the production hasher instead.
         'INSECURE_FAST_PASSWORD_HASHING': '0' if os.environ.get('E2E_REAL_HASHING') == '1' else '1',
+        'CLOUDGENE_E2E': '1',  # T09a core.checks.E001: required alongside the switch above
         'ALLOWED_HOSTS': '127.0.0.1,localhost',
         'CSRF_TRUSTED_ORIGINS': base_url,
         'PYTHONUNBUFFERED': '1',
