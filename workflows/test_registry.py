@@ -39,11 +39,13 @@ class TempHomeMixin:
         config.clear_cache()
         config.save_settings({})
         registry._last_signature = None
+        registry._last_statuses = None
 
     def tearDown(self):
         self._override.disable()
         config.clear_cache()
         registry._last_signature = None
+        registry._last_statuses = None
         shutil.rmtree(self._tmp, ignore_errors=True)
         super().tearDown()
 
@@ -174,6 +176,18 @@ class RegistrySyncTest(TempHomeMixin, TestCase):
         self.assertTrue(registry.sync_if_changed())
         self.assertTrue(Workflow.objects.filter(pk='hello').exists())
         self.assertFalse(registry.sync_if_changed())
+
+    def test_list_apps_does_not_write_on_a_plain_read(self):
+        """A-03 (registry half): list_apps() must not rewrite the registry when nothing on
+        disk changed — that write-per-read is what causes SQLite lock contention with the
+        worker (QA_FINDINGS.md A-03)."""
+        self.write_apps([{'path': 'hello'}])
+        registry.sync_all()
+        before = Workflow.objects.get(pk='hello').synced_at
+        statuses = registry.list_apps()
+        after = Workflow.objects.get(pk='hello').synced_at
+        self.assertEqual(before, after)
+        self.assertEqual({s.id for s in statuses}, {'hello'})
 
     def test_manual_rows_untouched_by_sync(self):
         Workflow.objects.create(id='manual', name='Manual', yaml_config='id: manual')

@@ -65,8 +65,6 @@ def test_a02_many_files_in_folder_input_is_a_client_error(api):
 # A-03
 # --------------------------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, reason='A-03: GET /api/admin/workflows/ rewrites every Workflow '
-                                       'row on each request (SQLite lock contention -> 500s)')
 def test_a03_admin_workflow_list_does_not_write_on_every_read(api, stack):
     """A read-only list must not run a full registry sync (a DB write per row) on every call.
 

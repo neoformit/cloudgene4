@@ -159,7 +159,15 @@ by updating this section.
   Replaces Celery + Channels + Redis. Single worker per deployment (enforced by a DB lock row / pid file).
   Liveness: the worker calls `core.models.WorkerHeartbeat.beat(pid=..., hostname=..., started_at=...)`
   every tick (row `name="default"`); `/api/health` reports it (stale after 30 s).
-- **DB**: SQLite for dev/test, PostgreSQL supported for prod (`DATABASE_URL`).
+- **DB**: SQLite for dev/test, **Postgres is the database for production** (`DATABASE_URL`) — web
+  and worker are separate OS processes sharing one SQLite file only in dev, which serialises every
+  writer. When the engine is sqlite, `cloudgene_django/settings.py` sets
+  `OPTIONS['transaction_mode'] = 'IMMEDIATE'` (Django ≥5.1: takes the write lock at `BEGIN` instead
+  of on the first write, so a transaction that reads then writes cannot fail with "database is
+  locked" partway through) and `OPTIONS['init_command'] = 'PRAGMA journal_mode=WAL;'` (readers don't
+  block the writer); `OPTIONS['timeout']` (20 s) still covers real contention. Read paths must not
+  write on a plain read regardless of engine — see the workflow registry below
+  (QA_FINDINGS A-03).
 - No Redis. No WebSockets. **[D]** Live status = client polling (2 s while job active, backoff to 10 s)
   of a cheap status endpoint. This mirrors Cloudgene 3 and is robust behind any proxy.
 
@@ -253,7 +261,10 @@ by updating this section.
   start-up — T03's `run_worker` should call `registry.sync_all()` on start), lazily from
   `workflows.middleware.WorkflowSyncMiddleware` on any `/api/` request when settings.yaml or an
   installed cloudgene.yaml changed (mtime/size), and after every admin write. Not in
-  `AppConfig.ready` (unsafe during migrate).
+  `AppConfig.ready` (unsafe during migrate). **`registry.list_apps()` (every read path, incl.
+  `GET /api/admin/workflows/`) calls `sync_if_changed()`, never `sync_all()` directly — a plain GET
+  must never write the registry** (QA_FINDINGS A-03: this write-on-every-read was what put the web
+  process in SQLite lock contention with the worker's own per-tick writes).
 - CLI: `manage.py install_workflow <path> [--public] [--groups a,b] [--disabled] [--copy]
   [--replace]`, `manage.py sync_workflows`.
 - Per-app Nextflow files: `$CLOUDGENE_HOME/apps/<id>/nextflow.config` and `nextflow.env`
