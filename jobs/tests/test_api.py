@@ -353,6 +353,74 @@ class JobLifecycleApiTest(ApiTestBase):
         self.assertEqual(c.get(f'/api/jobs/{ids[2]}/status/').json()['queue_position'], 2)
 
 
+class OutputDownloadContentTypeTest(ApiTestBase):
+    """B-04: a job output must never be served as active content on the app origin. Only a
+    small allowlist (text/plain, image/png|jpeg|gif, application/pdf) may be served with its
+    real type and be inline (``?inline=1``); everything else — HTML/SVG/XML/JS/unknown — is
+    always ``application/octet-stream`` and always an attachment."""
+
+    PNG_MAGIC = b'\x89PNG\r\n\x1a\n' + b'0' * 8
+
+    def seed_output(self, filename, content=b'data'):
+        job = Job.objects.create(name='out', user=self.alice, app_id='hello', app_name='Hello',
+                                 status=JobState.SUCCESS, finished_at=timezone.now())
+        ws = cloudgene_config.job_dir(job.id) / 'output' / 'outdir'
+        ws.mkdir(parents=True, exist_ok=True)
+        (ws / filename).write_bytes(content)
+        output = JobOutput.objects.create(job=job, output_id='outdir', path=f'outdir/{filename}',
+                                          size=len(content))
+        return job, output
+
+    def get(self, job, output, inline=False):
+        url = f'/api/jobs/{job.id}/outputs/{output.id}/'
+        if inline:
+            url += '?inline=1'
+        return self.as_user(self.alice).get(url)
+
+    def assert_common_headers(self, response):
+        self.assertEqual(response['X-Content-Type-Options'], 'nosniff')
+        self.assertEqual(response['Content-Security-Policy'], 'sandbox')
+
+    def test_html_never_served_as_html(self):
+        job, output = self.seed_output('report.html', b'<script>alert(1)</script>')
+        for inline in (False, True):
+            r = self.get(job, output, inline=inline)
+            self.assertEqual(r.status_code, 200)
+            self.assertNotIn('html', r['Content-Type'].lower())
+            self.assertEqual(r['Content-Type'], 'application/octet-stream')
+            self.assertIn('attachment', r['Content-Disposition'])
+            self.assert_common_headers(r)
+
+    def test_svg_never_served_inline(self):
+        job, output = self.seed_output('image.svg', b'<svg onload="alert(1)"></svg>')
+        for inline in (False, True):
+            r = self.get(job, output, inline=inline)
+            self.assertEqual(r['Content-Type'], 'application/octet-stream')
+            self.assertIn('attachment', r['Content-Disposition'])
+            self.assert_common_headers(r)
+
+    def test_txt_is_safe_and_can_be_inline(self):
+        job, output = self.seed_output('notes.txt', b'hello')
+        r = self.get(job, output, inline=False)
+        self.assertTrue(r['Content-Type'].startswith('text/plain'))
+        self.assertIn('attachment', r['Content-Disposition'])
+        self.assert_common_headers(r)
+        r = self.get(job, output, inline=True)
+        self.assertTrue(r['Content-Type'].startswith('text/plain'))
+        self.assertIn('inline', r['Content-Disposition'])
+        self.assert_common_headers(r)
+
+    def test_png_is_safe_and_can_be_inline(self):
+        job, output = self.seed_output('plot.png', self.PNG_MAGIC)
+        r = self.get(job, output, inline=False)
+        self.assertEqual(r['Content-Type'], 'image/png')
+        self.assertIn('attachment', r['Content-Disposition'])
+        r = self.get(job, output, inline=True)
+        self.assertEqual(r['Content-Type'], 'image/png')
+        self.assertIn('inline', r['Content-Disposition'])
+        self.assert_common_headers(r)
+
+
 class AdminJobsApiTest(ApiTestBase):
     def test_admin_list_filters_and_permissions(self):
         a = self.submit(self.alice, {'job_name': 'alpha'}).json()['id']
