@@ -1,0 +1,55 @@
+# Example nginx site config for Cloudgene: TLS termination in front of gunicorn
+# (deploy/systemd/cloudgene-web.service, bound to 127.0.0.1:8000 by default).
+#
+# client_max_body_size must be >= settings.yaml's server.max_upload_mb (default 1024 MB —
+# SPEC §3.2) or nginx itself rejects a large-but-otherwise-valid upload with its own 413 before
+# Django ever sees it. Raise both together.
+
+server {
+    listen 80;
+    server_name cloudgene.example.org;
+    # Let Certbot/ACME challenges through, redirect everything else to HTTPS.
+    location /.well-known/acme-challenge/ { root /var/www/html; }
+    location / { return 301 https://$host$request_uri; }
+}
+
+server {
+    listen 443 ssl http2;
+    server_name cloudgene.example.org;
+
+    ssl_certificate     /etc/letsencrypt/live/cloudgene.example.org/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/cloudgene.example.org/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+
+    # Keep in sync with settings.yaml server.max_upload_mb (default 1024 MB).
+    client_max_body_size 1024m;
+    # Large genomics uploads take real wall-clock time on a slow client connection.
+    client_body_timeout 300s;
+    proxy_read_timeout 300s;
+    proxy_send_timeout 300s;
+
+    # /static/ is optional: whitenoise (in the gunicorn process) already serves the built SPA
+    # and static/ efficiently with far-future cache headers on hashed filenames, so a plain
+    # proxy_pass for everything is fine on a single small host. Uncomment to have nginx serve
+    # static assets directly instead (after `manage.py collectstatic`), which avoids gunicorn
+    # worker time on every asset request under real traffic.
+    # location /static/ {
+    #     alias /opt/cloudgene/staticfiles/;
+    #     access_log off;
+    #     expires 30d;
+    # }
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        # Django trusts this only from DJANGO_BEHIND_TLS_PROXY=1 (settings.py
+        # SECURE_PROXY_SSL_HEADER); do not expose gunicorn's port directly to the internet, or a
+        # client could forge this header and be treated as HTTPS.
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_redirect off;
+    }
+}

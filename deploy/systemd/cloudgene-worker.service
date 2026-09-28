@@ -1,0 +1,30 @@
+[Unit]
+Description=Cloudgene job worker (manage.py run_worker)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=cloudgene
+Group=cloudgene
+WorkingDirectory=/opt/cloudgene
+EnvironmentFile=/etc/cloudgene/cloudgene.env
+# Single instance: run_worker takes an exclusive lock (SPEC §3.1) and exits if another
+# instance already holds it, so Restart=always here is safe even if systemd ever raced a
+# restart against a still-shutting-down old process.
+ExecStart=/opt/cloudgene/venv/bin/python manage.py run_worker
+Restart=always
+RestartSec=5
+# The worker forwards SIGTERM to each running Nextflow process group and waits for it to exit
+# before shutting down (graceful shutdown, SPEC §3.3); give it real headroom.
+TimeoutStopSec=120
+KillSignal=SIGTERM
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/cloudgene /var/lib/cloudgene
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

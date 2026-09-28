@@ -1,0 +1,22 @@
+[Unit]
+Description=Cloudgene daily retention cleanup (jobs + logs)
+After=network.target postgresql.service
+
+[Service]
+Type=oneshot
+User=cloudgene
+Group=cloudgene
+WorkingDirectory=/opt/cloudgene
+EnvironmentFile=/etc/cloudgene/cloudgene.env
+# server.job_retention_days (settings.yaml) governs cleanup_jobs; cleanup_logs defaults to 30
+# days (--days to override). Both are safe to run with the worker live: cleanup_jobs only
+# touches jobs whose workspace the worker is not using (already finished + past retention, or
+# an orphaned row with no live process — SPEC §3.3).
+ExecStart=/opt/cloudgene/venv/bin/python manage.py cleanup_jobs
+ExecStart=/opt/cloudgene/venv/bin/python manage.py cleanup_logs
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/cloudgene /var/lib/cloudgene
+ProtectHome=true
