@@ -370,9 +370,24 @@ Soft delete: `Job.deleted_at` (user-deleted jobs are hidden everywhere and their
   an account an admin deactivated. Keys and reset tokens are random (`secrets.token_urlsafe`) and
   stored only as sha256.
 - **Password reset**: request always 200 with the same message (mail only for active accounts);
-  link `/recover/<token>`, single use, expires after 24 h; confirm validates the password rules.
+  link `/recover/<token>`, single use, expires after 24 h; confirm validates the password rules
+  and **revokes the user's API token** (B-02: a credential from before the reset must not survive
+  it).
 - **API tokens**: one DRF token per user, created/regenerated with `POST /api/me/token` (key shown
   once), revoked with `DELETE /api/me/token`. `/api/auth/token/` (obtain_auth_token) is removed.
+  A password change (`PATCH /api/me` with `password`) also revokes the existing token (B-02); the
+  profile UI's success message says so when the account had one.
+- **Lockout applies to every login surface, not just the SPA API** (B-01): the lockout
+  (`accounts.backends.LockoutModelBackend` + `user_login_failed`/`user_logged_in` signal
+  receivers) is the sole `AUTHENTICATION_BACKENDS` entry, so `/django-admin/login/` shares exactly
+  the same state (`User.login_attempts`/`locked_until`) as `POST /api/auth/login`: a locked
+  account cannot authenticate anywhere, correct password or not, and a wrong password at either
+  surface counts (case-insensitive username). `/django-admin/` itself is intentionally kept (all
+  admin/staff users are trusted) — see the changelog below.
+- **No interface may return an existing API token's key** (B-03): DRF's own `TokenProxy` admin
+  (which lists `key` in cleartext) is unregistered in `accounts/admin.py`; `accounts.User` is not
+  registered in the Django admin at all, so there is no user changelist/change page either. The
+  key is only ever returned once, by `POST /api/me/token`.
 
 ### 3.5 API conventions (the contract) **[D]**
 - All endpoints under `/api/`. JSON in/out except job submission (`multipart/form-data`) and file
@@ -520,7 +535,13 @@ scope. Slice owners may refine paths but must update this section.
 - `GET /api/jobs/{id}/log` → `text/plain`: the worker/Nextflow stdout plus the tail of each
   `nextflow.log`.
 - `GET /api/jobs/{id}/outputs/{file_id}` streams the file (`?inline=1` to display instead of
-  download); 404 for a foreign/missing/unsafe path.
+  download); 404 for a foreign/missing/unsafe path. **B-04**: never served as active content on
+  the app origin — only a small allowlist (`text/plain`, `image/png`, `image/jpeg`, `image/gif`,
+  `application/pdf`; `application/json` is served as `text/plain`) is returned with its guessed
+  type and may be `inline`; every other type (HTML/SVG/XML/JS/unknown) is always
+  `application/octet-stream` with `Content-Disposition: attachment`, regardless of `?inline=1`.
+  Every response also carries `X-Content-Type-Options: nosniff` and
+  `Content-Security-Policy: sandbox`.
 - `GET /api/admin/jobs` (admin only) lists **all** users' jobs with `?state=&user=<id|username>&
   workflow=<id>&search=<name|user|workflow|id prefix>`; `POST /api/admin/jobs/{id}/cancel` and
   `…/restart` return the job (restart: 409 `invalid_state`, `workspace_removed` or
@@ -639,6 +660,14 @@ stores a snapshot of the YAML it was submitted with (`Job.workflow_yaml`) and ru
 - Works with SQLite (dev/test) and Postgres (prod).
 
 ## 6. Changelog of spec decisions
+- 2026-09-27 (T08a fix round, B-01/B-02/B-03/B-04): the lockout now lives in
+  `accounts.backends.LockoutModelBackend` + `user_login_failed`/`user_logged_in` receivers, the
+  only `AUTHENTICATION_BACKENDS` entry, so `/django-admin/login/` shares it with the SPA API
+  (`/django-admin/` itself is kept — user decision, all admin/staff users are trusted); password
+  change and password-reset confirm now revoke the user's API token; DRF's `TokenProxy` admin is
+  unregistered (`accounts/admin.py`) so no interface prints a token key; job output downloads
+  (`GET /api/jobs/{id}/outputs/{file_id}`) enforce a small inline-safe content-type allowlist and
+  add `X-Content-Type-Options`/`Content-Security-Policy: sandbox` on every response (§3.4, §3.6).
 - 2026-09-20 (T03): job lifecycle, worker loop, Nextflow command/env/params, progress parsing,
   outputs/downloads, retention and restart written out (§3.3); job + admin-job payload shapes and
   error codes (§3.6); workflow definition parser rules and Python API (§4). State names are

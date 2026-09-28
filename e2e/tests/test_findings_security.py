@@ -1,7 +1,7 @@
 """T07b exploratory QA — security & access control (plans/QA_FINDINGS.md § T07b).
 
-`test_permission_matrix` is green regression cover for the endpoint x role matrix; the other
-tests are the red repros of B-01..B-05 and must be un-xfailed by whoever fixes them.
+`test_permission_matrix` is green regression cover for the endpoint x role matrix. B-01..B-04
+(T08a) are fixed and un-xfailed below; B-05 (T08b) is still red.
 """
 import uuid
 
@@ -200,8 +200,6 @@ def _django_admin_login(base_url, username, password):
 
 
 @pytest.mark.serial
-@pytest.mark.xfail(strict=True, reason='B-01: /django-admin/login/ ignores the lockout and its '
-                                       'session is accepted by the API')
 def test_b01_django_admin_login_bypasses_lockout(stack, clients):
     username, password = 't07bstaff', 'Staff1234'
     _make_staff_user(stack, username, password)
@@ -219,7 +217,6 @@ def test_b01_django_admin_login_bypasses_lockout(stack, clients):
         'as %s' % (response.status_code, me.get('user', {}).get('username')))
 
 
-@pytest.mark.xfail(strict=True, reason='B-02: the API token survives a password change / reset')
 def test_b02_password_change_revokes_api_token(stack, clients):
     username, password = 't07btoken%s' % uuid.uuid4().hex[:6], 'Passw0rd1'
     stack.django_shell(
@@ -242,7 +239,6 @@ def test_b02_password_change_revokes_api_token(stack, clients):
         'the API token created before the password change still works (%s)' % after.status_code)
 
 
-@pytest.mark.xfail(strict=True, reason="B-03: /django-admin/ shows every user's API token key")
 def test_b03_token_keys_not_readable_in_django_admin(stack, clients):
     alice = clients('alice')
     key = alice.post_json('/api/me/token/')['token']
@@ -253,8 +249,6 @@ def test_b03_token_keys_not_readable_in_django_admin(stack, clients):
     assert key not in page.text, "alice's token key is printed in the Django admin token list"
 
 
-@pytest.mark.xfail(strict=True, reason='B-04: ?inline=1 serves a job output as text/html on the '
-                                       'application origin')
 def test_b04_html_output_not_served_as_active_content(stack, clients):
     """Seed a finished job whose output is an .html file, then download it inline."""
     payload = '<script>window.__t07b=1</script>'
