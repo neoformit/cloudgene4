@@ -12,6 +12,7 @@ const server = useServerStore()
 const pages = ref([])
 const loading = ref(true)
 const current = ref(null) // {slug, html, deletable, isNew}
+const pageLoading = ref(false)
 const preview = ref(false)
 const saving = ref(false)
 const error = ref('')
@@ -19,6 +20,10 @@ const success = ref('')
 const slugError = ref('')
 const newSlug = ref('')
 const confirmDelete = ref(false)
+// Guards against out-of-order responses: clicking another page while one is still loading
+// must never let a late GET overwrite what the admin is now editing (or hand the Save button
+// a stale `current.slug`, silently saving the new text under the wrong page — see D6).
+let openToken = 0
 
 async function loadList() {
   try {
@@ -36,11 +41,20 @@ async function open(slug) {
   error.value = ''
   success.value = ''
   preview.value = false
+  // Hide the editor for the page that was open until the new one has actually loaded, so
+  // typing (or an automated Save) can never land on the outgoing page's `current` object.
+  current.value = null
+  pageLoading.value = true
+  const token = ++openToken
   try {
     const { data } = await getPage(slug)
+    if (token !== openToken) return // superseded by a newer open() call; drop this response
     current.value = { ...data, isNew: false }
   } catch (err) {
+    if (token !== openToken) return
     error.value = apiErrorMessage(err)
+  } finally {
+    if (token === openToken) pageLoading.value = false
   }
 }
 
@@ -48,6 +62,8 @@ function startNew() {
   error.value = ''
   success.value = ''
   slugError.value = ''
+  openToken++ // invalidate any in-flight open() so it cannot clobber this
+  pageLoading.value = false
   const slug = newSlug.value.trim().toLowerCase()
   if (!/^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug)) {
     slugError.value = 'Use lower-case letters, digits, "-" and "_" (max 64).'
@@ -132,7 +148,8 @@ const publicUrl = (slug) => (slug === 'home' ? '/' : slug === 'footer' ? null : 
       </div>
 
       <div class="col-md-9">
-        <div v-if="!current" class="text-muted">Select a page to edit.</div>
+        <LoadingSpinner v-if="pageLoading" data-testid="page-loading" />
+        <div v-else-if="!current" class="text-muted">Select a page to edit.</div>
         <form v-else data-testid="page-editor" @submit.prevent="save">
           <div class="d-flex justify-content-between align-items-center mb-2">
             <h5 class="mb-0">
