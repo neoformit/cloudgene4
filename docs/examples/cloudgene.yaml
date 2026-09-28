@@ -1,0 +1,154 @@
+# Complete cloudgene.yaml example exercising every key and input/output type documented in
+# docs/WORKFLOW_YAML_REFERENCE.md and plans/SPEC.md §4. It is not meant to be run with Nextflow
+# (main.nf does not exist anywhere) — it is validated for syntax/structure only, by
+# workflows/tests_yaml_reference_example.py, which loads it with
+# workflows.definition.load_definition and asserts it produces no errors.
+
+id: reference-example
+name: Reference Example
+version: 1.2.3
+description: >
+  Demonstrates every supported <code>cloudgene.yaml</code> key and input/output type.
+  <b>HTML is allowed</b> in this field.
+website: https://example.org/reference-example
+author: Cloudgene Docs
+logo: logo.png
+category: examples
+
+workflow:
+  steps:
+    - name: Prepare
+      type: nextflow          # optional; this is the default when `script` is present
+      script: main.nf          # relative to the app directory, or an owner/repo remote pipeline
+      revision: 1.0             # optional Nextflow -r revision (tag/branch/commit)
+      params:                   # extra key/value pairs merged into params.json as-is
+        internal_flag: true
+      processes:                 # optional progress-rendering hints for the job page
+        - process: PREPARE
+          label: Preparing inputs
+          view: list
+
+    - name: Analyse
+      script: main.nf
+      params:
+        step: analyse
+
+  inputs:
+    # --- display-only inputs: never submitted, never appear in params.json ---
+    - id: sep_general
+      description: General
+      type: separator
+    - id: intro
+      description: This form exercises <b>every</b> input type.
+      type: info
+    - id: note
+      description: Display-only label text.
+      type: label
+
+    # --- text-like inputs ---
+    - id: sample_name
+      description: Sample name
+      type: text
+      value: sample-01
+      required: true
+      help: Any printable text, including spaces and unicode.
+    - id: notes_string
+      description: Free-form string
+      type: string
+      value: ''
+      required: false
+    - id: threshold
+      description: Score threshold
+      type: number
+      value: 0.5
+      min: 0
+      max: 1
+      required: true
+    - id: comments
+      description: Comments (written to comments.txt for the pipeline to read)
+      type: textarea
+      value: ''
+      writeFile: comments.txt
+      required: false
+      details: Longer help text shown behind a "details" toggle in the form.
+
+    # --- choice inputs ---
+    - id: reference_genome
+      description: Reference genome
+      type: list
+      value: GRCh38
+      values:
+        GRCh37: GRCh37 / hg19
+        GRCh38: GRCh38 / hg38
+    - id: run_mode
+      description: Run mode
+      type: radio
+      value: fast
+      values:
+        fast: Fast
+        accurate: Accurate
+
+    # --- checkboxes ---
+    - id: keep_intermediate
+      description: Keep intermediate files
+      type: checkbox
+      value: false
+      values:
+        true: 'yes'
+        false: 'no'
+    - id: agb
+      description: I accept the general terms
+      type: agb_checkbox
+      required: false
+    - id: terms
+      description: I accept the terms of service
+      type: terms_checkbox
+      required: true
+
+    # --- uploads (browser) and server-side paths ---
+    - id: input_vcf
+      description: Input VCF file
+      type: file
+      accept: .vcf,.vcf.gz
+      required: true
+    - id: input_folder
+      description: Folder of FASTQ files
+      type: folder
+      required: false
+    - id: server_file
+      description: Server-side file path (admin/trusted use)
+      type: local-file
+      required: false
+    - id: server_folder
+      description: Server-side folder path (admin/trusted use)
+      type: local-folder
+      required: false
+
+    # --- visibility / serialisation flags ---
+    - id: hidden_default
+      description: Hidden, fixed value
+      type: text
+      value: internal-default
+      visible: false
+      required: false
+    - id: not_sent_to_pipeline
+      description: Shown in the UI but never sent to the pipeline
+      type: text
+      value: ''
+      serialize: false
+      required: false
+
+  outputs:
+    - id: results
+      description: Results folder
+      type: folder
+      download: true
+      serialize: true
+    - id: report
+      description: Summary report
+      type: file
+      download: true
+    - id: intermediate
+      description: Intermediate data (not offered as a download)
+      type: folder
+      download: false
