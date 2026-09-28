@@ -10,6 +10,7 @@ from django.db.models import Count, Q
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import generics
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -375,12 +376,15 @@ class DashboardView(APIView):
             'invalid': sum(1 for x in statuses if not x.valid),
         }
         wf['disabled'] = wf['total'] - wf['enabled'] - wf['invalid']
+        cfg = config.config_status()
         data = {
             'queue': queue_status(counts),
             'jobs': counts,
             'users': users,
             'workflows': wf,
             'recent_jobs': recent_jobs(),
+            'config': {'ok': cfg['ok'],
+                      'errors': [f'{k}: {m}' for k, msgs in cfg['errors'].items() for m in msgs]},
         }
         return Response(s.DashboardSerializer(data).data)
 

@@ -184,12 +184,26 @@ by updating this section.
   caches by mtime/size/inode, and writes atomically (temp file + `os.replace`) under an exclusive
   `fcntl` lock on `config/.settings.lock`. Web and worker both read through it, so admin changes
   reach the worker without restart. API (module-level functions):
-  - read: `load_settings(force=False) -> dict` (validated deep copy, defaults filled; missing file
-    = defaults; an invalid file raises `ConfigError` unless a valid version is cached, then that is
-    kept and an error logged), `get('server.max_running_jobs', default=None)`.
+  - read: `load_settings(force=False) -> dict` (validated deep copy, defaults filled). **Fail-safe**
+    (QA_FINDINGS C-02): a missing file yields defaults; a key that fails its schema check (type,
+    range, choice, or a cross-field rule — §mail below) falls back to *that key's* default; YAML
+    that does not even parse falls back to the *whole* document's defaults. `load_settings` itself
+    therefore never raises — one bad hand-edited value degrades that value instead of 500ing every
+    endpoint. `config_status() -> {ok, errors}` reports the last load's problems (`errors` keyed by
+    dotted path, same shape as `ConfigError.errors`); surfaced on `/api/health`'s `config` block and
+    the admin dashboard's `config` block. The problem is also logged once at ERROR (`core.config`)
+    when the on-disk file changes. `get('server.max_running_jobs', default=None)` reads one key.
+    `validate_settings(data) -> dict` is the strict form used by writes: raises `ConfigError` when
+    `data` has any invalid/impossible key so an admin PUT is rejected rather than silently patched.
   - write: `set_value('queue.paused', True)`, `update_settings(dict_to_deep_merge | fn(doc))`,
-    `save_settings(doc)`; all validate and return the new settings; `ConfigError.errors` maps dotted
-    key paths (`server.max_running_jobs`, `navbar[0].url`) to message lists (use as API `fields`).
+    `save_settings(doc)`; all validate (strictly) and return the new settings; a write reads the
+    *current* on-disk document leniently first (so a PUT can still repair a broken file — the
+    result is what must validate) then validates the merged result strictly. `ConfigError.errors`
+    maps dotted key paths (`server.max_running_jobs`, `navbar[0].url`, `mail.use_ssl`) to message
+    lists (use as API `fields`). Cross-field rules enforced on the *resulting* document (not just
+    the request body): `mail.use_tls` and `mail.use_ssl` cannot both be true (QA_FINDINGS C-01);
+    `navbar[].url` must be an internal path (`/…`, not `//…`) or an `http(s)://` URL
+    (QA_FINDINGS C-05).
   - paths: `cloudgene_home()`, `config_dir()`, `settings_path()`, `nextflow_config_path()`,
     `nextflow_env_path()`, `pages_dir()`, `apps_dir()`, `jobs_dir()`, `app_dir(id)`, `job_dir(uuid)`,
     `page_path(slug)` (slugs `^[a-z0-9][a-z0-9_-]{0,63}$`, else `ValueError` — traversal-safe).
@@ -436,7 +450,10 @@ Admin     GET /api/admin/dashboard → {queue: {paused, maintenance, maintenance
           jobs: {total, waiting, running, success, failed, cancelled},
           users: {total, active, admins}, workflows: {total, enabled, disabled, invalid},
           recent_jobs: [{id, name, state, workflow{id,name}, user{id,username}, submitted_at,
-          started_at, finished_at}]}  (legacy pending/completed counted as waiting/success)
+          started_at, finished_at}],
+          config: {ok, errors: [str]}}  (legacy pending/completed counted as waiting/success;
+          `config` mirrors `/api/health`'s block — a bad `settings.yaml` key is visible on the
+          dashboard, not just logged, QA_FINDINGS C-02)
           POST /api/admin/queue/{pause|resume}  POST /api/admin/maintenance/{enter {message?}|exit}
           → queue block; they write `queue.paused` / `server.maintenance(_message)`
           GET /api/admin/jobs?state=&user=&workflow=&search=  POST /api/admin/jobs/{id}/cancel
@@ -477,7 +494,10 @@ Admin     GET /api/admin/dashboard → {queue: {paused, maintenance, maintenance
           GET /api/admin/logs?level=&min_level=&component=&search=&page= → paginated
           [{id, timestamp, level (lower-case), component, logger, message, username, metadata}]
 Health    GET /api/health → {status: ok|degraded|error, db: {ok}, worker: {ok, last_seen,
-          age_seconds, pid}}; 200 unless the DB is down (503); no/stale worker = "degraded"
+          age_seconds, pid}, config: {ok, errors: [str]}}; 200 unless the DB is down (503);
+          no/stale worker or an invalid settings.yaml key (`config.ok: false`) = "degraded"
+          (QA_FINDINGS C-02: a bad key never 500s the site — it falls back to that key's
+          default and is reported here, `errors` items are `"<dotted.key>: <message>"`)
 ```
 Exact request/response shapes are defined by the serializers and `schema.yaml`; this list is the
 scope. Slice owners may refine paths but must update this section.

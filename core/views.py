@@ -10,6 +10,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from . import config
 from .exceptions import json_error
 from .models import WorkerHeartbeat
 
@@ -38,6 +39,10 @@ class HealthView(APIView):
                     'age_seconds': serializers.FloatField(allow_null=True),
                     'pid': serializers.IntegerField(allow_null=True),
                 }),
+                'config': inline_serializer('HealthConfig', {
+                    'ok': serializers.BooleanField(),
+                    'errors': serializers.ListField(child=serializers.CharField()),
+                }),
             }),
         },
     )
@@ -51,16 +56,19 @@ class HealthView(APIView):
         except Exception:
             logger.exception('Health check: database error')
             db_ok = False
+        cfg = config.config_status()
+        cfg_errors = [f'{key}: {msg}' for key, msgs in cfg['errors'].items() for msg in msgs]
         if not db_ok:
             state = 'error'
-        elif not worker['ok']:
+        elif not worker['ok'] or not cfg['ok']:
             state = 'degraded'
         else:
             state = 'ok'
         if worker['last_seen'] is not None:
             worker['last_seen'] = worker['last_seen'].isoformat()
         return Response(
-            {'status': state, 'db': {'ok': db_ok}, 'worker': worker},
+            {'status': state, 'db': {'ok': db_ok}, 'worker': worker,
+             'config': {'ok': cfg['ok'], 'errors': cfg_errors}},
             status=200 if db_ok else 503,
         )
 

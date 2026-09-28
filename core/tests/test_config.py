@@ -69,12 +69,19 @@ class ConfigLoadTest(TempHomeMixin, SimpleTestCase):
         self.assertEqual(s['mail']['backend'], 'file')
 
     def test_validation_errors_are_keyed_by_path(self):
+        # C-02: a bad value never raises out of load_settings any more — it is a fail-safe
+        # load. The bad keys fall back to their defaults and are reported by config_status().
         self.write_yaml({'server': {'max_running_jobs': 0, 'maintenance': 'yes'},
                          'mail': {'backend': 'pigeon'},
                          'navbar': [{'title': 'x'}]})
-        with self.assertRaises(config.ConfigError) as ctx:
-            config.load_settings()
-        errors = ctx.exception.errors
+        with self.assertLogs('core.config', 'ERROR'):
+            s = config.load_settings()
+        self.assertEqual(s['server']['max_running_jobs'], 2)       # schema default
+        self.assertEqual(s['server']['maintenance'], False)
+        self.assertEqual(s['mail']['backend'], 'file')
+        status = config.config_status()
+        self.assertFalse(status['ok'])
+        errors = status['errors']
         self.assertIn('server.max_running_jobs', errors)
         self.assertIn('server.maintenance', errors)
         self.assertIn('mail.backend', errors)
@@ -84,18 +91,58 @@ class ConfigLoadTest(TempHomeMixin, SimpleTestCase):
         self.write_yaml({'server': {'max_queue_size': '7'}})
         self.assertEqual(config.get('server.max_queue_size'), 7)
 
-    def test_invalid_yaml(self):
+    def test_invalid_yaml_falls_back_to_defaults(self):
         config.settings_path().parent.mkdir(parents=True)
         config.settings_path().write_text('server: [unclosed')
-        with self.assertRaises(config.ConfigError):
-            config.load_settings()
+        with self.assertLogs('core.config', 'ERROR'):
+            s = config.load_settings()
+        self.assertEqual(s, config.default_settings())
+        status = config.config_status()
+        self.assertFalse(status['ok'])
+        self.assertIn('settings', status['errors'])
 
-    def test_broken_file_after_valid_load_keeps_last_valid(self):
+    def test_broken_key_after_valid_load_falls_back_to_its_default(self):
         self.write_yaml({'server': {'name': 'Good'}})
         self.assertEqual(config.get('server.name'), 'Good')
-        config.settings_path().write_text('server: {max_running_jobs: -5}\n# changed')
+        config.settings_path().write_text('server: {name: Good, max_running_jobs: -5}\n')
         with self.assertLogs('core.config', 'ERROR'):
+            # The still-valid key from the same (new) file is kept...
             self.assertEqual(config.get('server.name'), 'Good')
+        # ...only the invalid key itself falls back to its default.
+        self.assertEqual(config.get('server.max_running_jobs'), 2)
+        self.assertFalse(config.config_status()['ok'])
+
+    def test_config_status_ok_after_a_clean_load(self):
+        self.write_yaml({'server': {'name': 'Good'}})
+        self.assertEqual(config.config_status(), {'ok': True, 'errors': {}})
+
+    def test_navbar_url_must_be_internal_or_http_in_a_hand_edited_file(self):
+        # C-05: settings.yaml `navbar[].url` is validated by the schema too, not only by
+        # the admin-panel serializer, so a hand-edited file is caught the same way.
+        self.write_yaml({'navbar': [{'title': 'Bad', 'url': 'javascript:alert(1)'}]})
+        with self.assertLogs('core.config', 'ERROR'):
+            s = config.load_settings()
+        self.assertEqual(s['navbar'][0]['url'], '')
+        self.assertIn('navbar[0].url', config.config_status()['errors'])
+        # a valid internal path does not raise at all
+        good = config.validate_settings({'navbar': [{'title': 'Good', 'url': '/pages/about'}]})
+        self.assertEqual(good['navbar'][0]['url'], '/pages/about')
+        with self.assertRaises(config.ConfigError) as ctx:
+            config.validate_settings({'navbar': [{'title': 'Bad', 'url': '//evil.example'}]})
+        self.assertIn('navbar[0].url', ctx.exception.errors)
+
+    def test_mail_tls_and_ssl_mutually_exclusive_in_a_hand_edited_file(self):
+        # C-01: the schema itself catches the impossible combination, not just the
+        # admin-panel serializer, so a hand-edited settings.yaml is caught too.
+        self.write_yaml({'mail': {'use_tls': True, 'use_ssl': True}})
+        with self.assertLogs('core.config', 'ERROR'):
+            s = config.load_settings()
+        self.assertTrue(s['mail']['use_tls'])
+        self.assertFalse(s['mail']['use_ssl'])
+        self.assertIn('mail.use_ssl', config.config_status()['errors'])
+        with self.assertRaises(config.ConfigError) as ctx:
+            config.validate_settings({'mail': {'use_tls': True, 'use_ssl': True}})
+        self.assertIn('mail.use_ssl', ctx.exception.errors)
 
     def test_returned_dict_is_a_copy(self):
         s = config.load_settings()
@@ -128,6 +175,15 @@ class ConfigWriteTest(TempHomeMixin, SimpleTestCase):
         with self.assertRaises(config.ConfigError):
             config.set_value('server.max_running_jobs', 'many')
         self.assertEqual(config.get('server.max_running_jobs'), 2)
+
+    def test_update_settings_repairs_a_broken_file(self):
+        # C-02: the admin must be able to PUT a fix while settings.yaml is broken — the
+        # write path must not itself raise on the (currently invalid) on-disk document.
+        config.settings_path().parent.mkdir(parents=True)
+        config.settings_path().write_text('server: {max_running_jobs: -5}\n')
+        config.update_settings({'server': {'max_running_jobs': 3}})
+        self.assertEqual(config.get('server.max_running_jobs'), 3)
+        self.assertTrue(config.config_status()['ok'])
 
     def test_update_settings_deep_merge_and_callable(self):
         self.write_yaml({'server': {'name': 'A', 'max_queue_size': 3}})

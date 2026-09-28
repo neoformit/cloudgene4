@@ -218,6 +218,27 @@ class HealthTest(TestCase):
         self.assertTrue(body['db']['ok'])
         self.assertFalse(body['worker']['ok'])
         self.assertIsNone(body['worker']['last_seen'])
+        self.assertEqual(body['config'], {'ok': True, 'errors': []})
+
+    def test_health_reports_a_broken_settings_file(self):
+        # C-02: an invalid settings.yaml must be visible on /api/health, not just an
+        # internally-logged error, and must not itself take the site down.
+        from core import config
+        WorkerHeartbeat.beat(pid=1, hostname='h')
+        config.settings_path().parent.mkdir(parents=True, exist_ok=True)
+        config.settings_path().write_text('server: {max_running_jobs: 0}\n')
+        config.clear_cache()
+        try:
+            with self.assertLogs('core.config', 'ERROR'):
+                r = self.client.get('/api/health/')
+            self.assertEqual(r.status_code, 200)
+            body = r.json()
+            self.assertEqual(body['status'], 'degraded')
+            self.assertFalse(body['config']['ok'])
+            self.assertTrue(any('server.max_running_jobs' in e for e in body['config']['errors']))
+        finally:
+            config.settings_path().unlink(missing_ok=True)
+            config.clear_cache()
 
     def test_health_with_fresh_and_stale_heartbeat(self):
         WorkerHeartbeat.beat(pid=42, hostname='h')

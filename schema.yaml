@@ -2300,6 +2300,18 @@ components:
         * `smtp` - smtp
         * `file` - file
         * `console` - console
+    ConfigStatus:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        errors:
+          type: array
+          items:
+            type: string
+      required:
+      - errors
+      - ok
     Dashboard:
       type: object
       properties:
@@ -2315,7 +2327,12 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/RecentJob'
+        config:
+          allOf:
+          - $ref: '#/components/schemas/ConfigStatus'
+          description: settings.yaml validation status (QA_FINDINGS C-02)
       required:
+      - config
       - jobs
       - queue
       - recent_jobs
@@ -2387,10 +2404,25 @@ components:
           $ref: '#/components/schemas/HealthDb'
         worker:
           $ref: '#/components/schemas/HealthWorker'
+        config:
+          $ref: '#/components/schemas/HealthConfig'
       required:
+      - config
       - db
       - status
       - worker
+    HealthConfig:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        errors:
+          type: array
+          items:
+            type: string
+      required:
+      - errors
+      - ok
     HealthDb:
       type: object
       properties:
