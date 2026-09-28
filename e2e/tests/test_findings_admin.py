@@ -52,9 +52,6 @@ def restart_web(stack):
 # C-01 — a partial mail PUT bypasses the TLS/SSL mutual exclusion
 # ---------------------------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, reason='C-01: PUT /api/admin/settings/mail/ {use_ssl: true} '
-                                       'alone leaves use_tls AND use_ssl true, which makes '
-                                       'every SMTP mail fail')
 def test_c01_mail_tls_and_ssl_cannot_both_be_enabled(stack, api, keep_settings):
     admin = api('admin')
     admin.put('/api/admin/settings/mail/', json={'use_tls': True, 'use_ssl': False})
@@ -72,9 +69,6 @@ def test_c01_mail_tls_and_ssl_cannot_both_be_enabled(stack, api, keep_settings):
 # C-02 — one out-of-range value in settings.yaml takes the whole site down after a restart
 # ---------------------------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, reason='C-02: a single invalid value in settings.yaml makes '
-                                       'every endpoint 500 once the web process restarts, '
-                                       'while /api/health still reports "ok"')
 def test_c02_invalid_settings_value_does_not_take_the_site_down(stack, restart_web):
     data = stack.read_settings()
     data['server']['max_running_jobs'] = 0          # valid YAML, outside the schema range
@@ -124,9 +118,6 @@ def test_c03_deleting_user_removes_the_workspace_of_a_running_job(stack, api, re
 # C-04 — log components do not match SPEC §3.8 (nothing is filed under "auth" or "jobs")
 # ---------------------------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, reason='C-04: authentication logs use the component "accounts" '
-                                       'and job logs "worker", so the components named in '
-                                       'SPEC §3.8 and in the Logs filter hint find nothing')
 def test_c04_log_components_follow_the_spec(stack, api):
     admin = api('admin')
     anon = api()
@@ -144,9 +135,6 @@ def test_c04_log_components_follow_the_spec(stack, api):
 # C-05 — navbar URLs are not validated (a javascript: URL is stored and served to everyone)
 # ---------------------------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, reason='C-05: /api/admin/settings/navbar/ accepts any string as '
-                                       'url (server.url is validated), so a javascript: URL is '
-                                       'stored and rendered as an <a href> for every visitor')
 def test_c05_navbar_url_is_validated(stack, api, keep_settings):
     admin = api('admin')
     r = admin.put('/api/admin/settings/navbar/',

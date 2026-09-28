@@ -38,7 +38,7 @@ from .serializers import (
     UserSerializer,
 )
 
-logger = logging.getLogger('cloudgene.accounts')
+logger = logging.getLogger('cloudgene.auth')  # SPEC §3.8 (QA_FINDINGS C-04)
 
 PASSWORD_RESET_HOURS = 24
 MSG_INVALID_LOGIN = 'Invalid username or password.'

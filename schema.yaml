@@ -2135,6 +2135,15 @@ components:
           description: Position in settings.yaml apps[]
         enabled:
           type: boolean
+          description: As configured in settings.yaml apps[].enabled
+        effective_status:
+          allOf:
+          - $ref: '#/components/schemas/EffectiveStatusEnum'
+          description: |-
+            "enabled" only when configured enabled AND valid (QA_FINDINGS C-07): a broken app is never effectively enabled even if apps[].enabled is true
+
+            * `enabled` - enabled
+            * `disabled` - disabled
         public:
           type: boolean
         groups:
@@ -2156,6 +2165,7 @@ components:
       required:
       - category
       - description
+      - effective_status
       - enabled
       - errors
       - groups
@@ -2193,6 +2203,15 @@ components:
           description: Position in settings.yaml apps[]
         enabled:
           type: boolean
+          description: As configured in settings.yaml apps[].enabled
+        effective_status:
+          allOf:
+          - $ref: '#/components/schemas/EffectiveStatusEnum'
+          description: |-
+            "enabled" only when configured enabled AND valid (QA_FINDINGS C-07): a broken app is never effectively enabled even if apps[].enabled is true
+
+            * `enabled` - enabled
+            * `disabled` - disabled
         public:
           type: boolean
         groups:
@@ -2217,6 +2236,7 @@ components:
       required:
       - category
       - description
+      - effective_status
       - enabled
       - errors
       - groups
@@ -2300,6 +2320,18 @@ components:
         * `smtp` - smtp
         * `file` - file
         * `console` - console
+    ConfigStatus:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        errors:
+          type: array
+          items:
+            type: string
+      required:
+      - errors
+      - ok
     Dashboard:
       type: object
       properties:
@@ -2315,12 +2347,25 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/RecentJob'
+        config:
+          allOf:
+          - $ref: '#/components/schemas/ConfigStatus'
+          description: settings.yaml validation status (QA_FINDINGS C-02)
       required:
+      - config
       - jobs
       - queue
       - recent_jobs
       - users
       - workflows
+    EffectiveStatusEnum:
+      enum:
+      - enabled
+      - disabled
+      type: string
+      description: |-
+        * `enabled` - enabled
+        * `disabled` - disabled
     GeneralSettings:
       type: object
       description: '``server.*`` keys of settings.yaml. PUT accepts any subset (others
@@ -2387,10 +2432,25 @@ components:
           $ref: '#/components/schemas/HealthDb'
         worker:
           $ref: '#/components/schemas/HealthWorker'
+        config:
+          $ref: '#/components/schemas/HealthConfig'
       required:
+      - config
       - db
       - status
       - worker
+    HealthConfig:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        errors:
+          type: array
+          items:
+            type: string
+      required:
+      - errors
+      - ok
     HealthDb:
       type: object
       properties:

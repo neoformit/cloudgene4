@@ -146,8 +146,15 @@ DATABASES = {
     )
 }
 if DATABASES['default']['ENGINE'] == 'django.db.backends.sqlite3':
-    # Web and worker share the DB file; wait for locks instead of failing.
-    DATABASES['default'].setdefault('OPTIONS', {}).setdefault('timeout', 20)
+    # Web and worker share the DB file (production should use Postgres — see SPEC §3.2);
+    # wait for locks instead of failing, use WAL so readers don't block the writer, and
+    # take a write lock up front (BEGIN IMMEDIATE) so a transaction that reads-then-writes
+    # cannot fail with "database is locked" when it tries to upgrade mid-transaction
+    # (QA_FINDINGS.md A-03).
+    _sqlite_opts = DATABASES['default'].setdefault('OPTIONS', {})
+    _sqlite_opts.setdefault('timeout', 20)
+    _sqlite_opts.setdefault('transaction_mode', 'IMMEDIATE')
+    _sqlite_opts.setdefault('init_command', 'PRAGMA journal_mode=WAL;')
 
 
 # Test-only escape hatch: PBKDF2 costs ~3 s per check on small hosts, which slows the E2E

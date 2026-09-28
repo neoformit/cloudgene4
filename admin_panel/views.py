@@ -10,6 +10,7 @@ from django.db.models import Count, Q
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import generics
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -375,12 +376,15 @@ class DashboardView(APIView):
             'invalid': sum(1 for x in statuses if not x.valid),
         }
         wf['disabled'] = wf['total'] - wf['enabled'] - wf['invalid']
+        cfg = config.config_status()
         data = {
             'queue': queue_status(counts),
             'jobs': counts,
             'users': users,
             'workflows': wf,
             'recent_jobs': recent_jobs(),
+            'config': {'ok': cfg['ok'],
+                      'errors': [f'{k}: {m}' for k, msgs in cfg['errors'].items() for m in msgs]},
         }
         return Response(s.DashboardSerializer(data).data)
 
@@ -462,9 +466,15 @@ class LogListView(generics.ListAPIView):
         params = self.request.query_params
         level = (params.get('level') or '').lower()
         if level:
+            if level not in self.ORDER:
+                raise ValidationError({'level': [
+                    f'Unknown level "{level}". Use one of: {", ".join(self.ORDER)}.']})
             qs = qs.filter(level=level)
         min_level = (params.get('min_level') or '').lower()
-        if min_level in self.ORDER:
+        if min_level:
+            if min_level not in self.ORDER:
+                raise ValidationError({'min_level': [
+                    f'Unknown level "{min_level}". Use one of: {", ".join(self.ORDER)}.']})
             qs = qs.filter(level__in=self.ORDER[self.ORDER.index(min_level):])
         component = params.get('component')
         if component:

@@ -8,7 +8,10 @@ const server = useServerStore()
 const router = useRouter()
 
 // Items come from settings.yaml `navbar:` via /api/server (already filtered for the viewer).
-const isExternal = (url) => /^[a-z][a-z0-9+.-]*:/i.test(url || '')
+// The backend validates url (C-05: an internal path or an http(s) URL) but the frontend
+// never trusts that alone — only those two shapes are ever rendered as a link.
+const isExternal = (url) => /^https?:\/\//i.test(url || '')
+const isInternal = (url) => (url || '').startsWith('/')
 
 async function logout() {
   await auth.logout()
@@ -45,9 +48,13 @@ async function logout() {
             >
               <i v-if="item.icon" :class="`fas fa-${item.icon} me-1`"></i>{{ item.title }}
             </a>
-            <RouterLink v-else class="nav-link" data-testid="nav-item" :to="item.url">
+            <RouterLink v-else-if="isInternal(item.url)" class="nav-link" data-testid="nav-item"
+                       :to="item.url">
               <i v-if="item.icon" :class="`fas fa-${item.icon} me-1`"></i>{{ item.title }}
             </RouterLink>
+            <span v-else class="nav-link disabled" data-testid="nav-item">
+              <i v-if="item.icon" :class="`fas fa-${item.icon} me-1`"></i>{{ item.title }}
+            </span>
           </li>
         </ul>
 

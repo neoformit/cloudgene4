@@ -51,7 +51,15 @@ SLUG_RE = re.compile(r'^[a-z0-9][a-z0-9_-]{0,63}$')
 
 
 class Field:
-    """A typed scalar setting."""
+    """A typed scalar setting.
+
+    On any validation failure ``clean()`` both records the error (keyed by dotted path)
+    *and* falls back to the field's default. ``validate_settings()``/``save_settings()``
+    still raise ``ConfigError`` when ``errors`` is non-empty (so an admin PUT of bad data is
+    rejected as before) — but this means the *cleaned* document is always usable on its own,
+    which is what a fail-safe load needs: one bad key in a hand-edited ``settings.yaml``
+    degrades to that key's default instead of taking the whole site down (QA_FINDINGS C-02).
+    """
 
     def __init__(self, type_, default, *, min=None, max=None, choices=None, help=''):
         self.type = type_
@@ -68,31 +76,34 @@ class Field:
         if t is bool:
             if not isinstance(value, bool):
                 errors.setdefault(path, []).append('Must be true or false.')
-                return self.default
+                return copy.deepcopy(self.default)
         elif t is int:
             if isinstance(value, bool) or not isinstance(value, int):
                 if isinstance(value, str) and value.strip().lstrip('-').isdigit():
                     value = int(value.strip())
                 else:
                     errors.setdefault(path, []).append('Must be an integer.')
-                    return self.default
+                    return copy.deepcopy(self.default)
         elif t is str:
             if isinstance(value, (int, float)) and not isinstance(value, bool):
                 value = str(value)
             if not isinstance(value, str):
                 errors.setdefault(path, []).append('Must be a string.')
-                return self.default
+                return copy.deepcopy(self.default)
         elif t is list:  # list of strings
             if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
                 errors.setdefault(path, []).append('Must be a list of strings.')
                 return copy.deepcopy(self.default)
         if self.min is not None and value < self.min:
             errors.setdefault(path, []).append(f'Must be at least {self.min}.')
+            return copy.deepcopy(self.default)
         if self.max is not None and value > self.max:
             errors.setdefault(path, []).append(f'Must be at most {self.max}.')
+            return copy.deepcopy(self.default)
         if self.choices is not None and value not in self.choices:
             errors.setdefault(path, []).append(
                 f'Must be one of: {", ".join(map(str, self.choices))}.')
+            return copy.deepcopy(self.default)
         return value
 
 
@@ -217,14 +228,47 @@ def default_settings() -> dict:
     return _defaults(SCHEMA)
 
 
-def validate_settings(data: dict | None) -> dict:
-    """Return a normalised copy of ``data`` with defaults filled in; raise ConfigError."""
+def _valid_navbar_url(value: str) -> bool:
+    """An internal path ("/…", not "//…") or an http(s) URL (SPEC §3.2, QA_FINDINGS C-05)."""
+    if value.startswith('/'):
+        return not value.startswith('//')
+    return value.startswith(('http://', 'https://'))
+
+
+def _validate_cross_fields(cleaned: dict, errors: dict) -> None:
+    """Rules that span more than one key, or need more than a per-field type/range check —
+    enforced against the *resulting* document, not just the fields present in one request,
+    so a partial PUT (or a hand-edited file) cannot produce an impossible or unsafe
+    combination (QA_FINDINGS C-01, C-05)."""
+    mail = cleaned.get('mail') or {}
+    if mail.get('use_tls') and mail.get('use_ssl'):
+        errors.setdefault('mail.use_ssl', []).append('TLS and SSL are mutually exclusive.')
+        mail['use_ssl'] = SCHEMA['mail']['use_ssl'].default
+    for i, item in enumerate(cleaned.get('navbar') or []):
+        url = item.get('url', '')
+        if url and not _valid_navbar_url(url):
+            errors.setdefault(f'navbar[{i}].url', []).append(
+                'Must be an internal path (starting with "/") or an http:// / https:// URL.')
+            item['url'] = ''
+
+
+def _clean(data: dict | None) -> tuple[dict, dict[str, list[str]]]:
+    """Clean ``data`` against :data:`SCHEMA`. Never raises: every key with an error (incl.
+    cross-field rules) falls back to its default in the returned document, and the errors
+    are returned alongside it so a caller can decide whether to accept the result."""
     if data is None:
         data = {}
     if not isinstance(data, dict):
-        raise ConfigError('The settings document must be a mapping.')
+        return default_settings(), {'settings': ['The settings document must be a mapping.']}
     errors: dict[str, list[str]] = {}
     cleaned = _clean_section(SCHEMA, data, '', errors)
+    _validate_cross_fields(cleaned, errors)
+    return cleaned, errors
+
+
+def validate_settings(data: dict | None) -> dict:
+    """Return a normalised copy of ``data`` with defaults filled in; raise ConfigError."""
+    cleaned, errors = _clean(data)
     if errors:
         raise ConfigError(errors)
     return cleaned
@@ -390,7 +434,7 @@ def list_pages() -> list[str]:
 # --------------------------------------------------------------------------------------
 
 _cache_lock = threading.Lock()
-_cache: dict[str, Any] = {'path': None, 'stamp': None, 'data': None}
+_cache: dict[str, Any] = {'path': None, 'stamp': None, 'data': None, 'errors': None}
 
 
 def _stamp(path: Path):
@@ -413,12 +457,24 @@ def _read_yaml(path: Path) -> dict:
     return data or {}
 
 
-def load_settings(force: bool = False) -> dict:
-    """Return the validated settings (a deep copy; mutate freely).
+def _read_yaml_lenient(path: Path) -> tuple[dict, dict[str, list[str]]]:
+    """Like :func:`_read_yaml` but never raises: unparseable YAML yields ``{}`` (so the
+    whole document falls back to defaults) plus the parse error."""
+    try:
+        return _read_yaml(path), {}
+    except ConfigError as exc:
+        return {}, exc.errors
 
-    A missing file yields the defaults. Invalid content raises ConfigError, except when
-    a previously valid version is cached, in which case that is returned and an error
-    is logged (keeps a running worker alive if someone saves a broken file by hand).
+
+def load_settings(force: bool = False) -> dict:
+    """Return the settings (a deep copy; mutate freely), defaults filled in.
+
+    A missing file, unparseable YAML, or an out-of-schema value never take the process
+    down (QA_FINDINGS C-02): a bad key falls back to its default, the whole document falls
+    back to defaults if the YAML itself does not parse, and the resulting errors (if any)
+    are logged once at ERROR and kept for :func:`config_status` (surfaced on ``/api/health``
+    and the admin dashboard). Use :func:`config_status` to see whether the last load was
+    clean.
     """
     path = settings_path()
     stamp = _stamp(path)
@@ -426,20 +482,29 @@ def load_settings(force: bool = False) -> dict:
         if (not force and _cache['data'] is not None and _cache['path'] == str(path)
                 and _cache['stamp'] == stamp):
             return copy.deepcopy(_cache['data'])
-        try:
-            data = validate_settings(_read_yaml(path))
-        except ConfigError:
-            if _cache['data'] is not None and _cache['path'] == str(path):
-                logger.exception('Invalid %s; keeping last valid settings', path)
-                return copy.deepcopy(_cache['data'])
-            raise
-        _cache.update(path=str(path), stamp=stamp, data=data)
+        raw, parse_errors = _read_yaml_lenient(path)
+        data, errors = _clean(raw)
+        errors = {**parse_errors, **errors}
+        if errors:
+            logger.error('Invalid %s (falling back to defaults for the affected keys): %s',
+                        path, errors)
+        _cache.update(path=str(path), stamp=stamp, data=data, errors=errors)
         return copy.deepcopy(data)
+
+
+def config_status() -> dict:
+    """``{ok, errors}`` for the last :func:`load_settings` — used by ``/api/health`` and the
+    admin dashboard to surface a settings.yaml problem that would otherwise be invisible
+    (``load_settings`` itself never raises for a bad file any more)."""
+    load_settings()
+    with _cache_lock:
+        errors = copy.deepcopy(_cache.get('errors') or {})
+    return {'ok': not errors, 'errors': errors}
 
 
 def clear_cache() -> None:
     with _cache_lock:
-        _cache.update(path=None, stamp=None, data=None)
+        _cache.update(path=None, stamp=None, data=None, errors=None)
 
 
 
@@ -478,7 +543,7 @@ def _write(data: dict) -> dict:
     path = settings_path()
     write_text_atomic(path, _dump(cleaned))
     with _cache_lock:
-        _cache.update(path=str(path), stamp=_stamp(path), data=cleaned)
+        _cache.update(path=str(path), stamp=_stamp(path), data=cleaned, errors={})
     return copy.deepcopy(cleaned)
 
 
@@ -504,9 +569,18 @@ def update_settings(patch: dict | Callable[[dict], dict | None]) -> dict:
     ``patch`` is either a dict deep-merged into the current settings (lists are
     replaced, not merged) or a callable receiving the current settings (a copy) and
     returning the new document (or mutating it in place and returning None).
+
+    The on-disk document is read leniently (bad keys fall back to their default) rather
+    than raising, so an admin can still PUT a fix while ``settings.yaml`` is in a broken
+    state (QA_FINDINGS C-02) — ``_write`` below is what enforces the schema on the *result*
+    and rejects it (ConfigError) if it is still invalid.
     """
     with _file_lock():
-        current = validate_settings(_read_yaml(settings_path()))
+        raw, parse_errors = _read_yaml_lenient(settings_path())
+        current, _errors = _clean(raw)
+        if parse_errors:
+            # The file didn't even parse: start from defaults, not a half-applied patch.
+            current = default_settings()
         if callable(patch):
             result = patch(current)
             new = current if result is None else result

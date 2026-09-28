@@ -246,6 +246,7 @@ def _scan(settings: dict) -> list[AppStatus]:
 
 _sync_lock = threading.Lock()
 _last_signature: Any = None
+_last_statuses: list[AppStatus] | None = None
 
 
 def _signature(settings_stamp, statuses_paths):
@@ -308,7 +309,7 @@ def _upsert(st: AppStatus, raw: str | None):
 
 def sync_all() -> list[AppStatus]:
     """Rebuild the Workflow cache rows from settings.yaml apps[] (idempotent)."""
-    global _last_signature
+    global _last_signature, _last_statuses
     from .models import Workflow
 
     with _sync_lock:
@@ -335,6 +336,7 @@ def sync_all() -> list[AppStatus]:
                 else:
                     row.delete()
         _last_signature = _signature(settings_stamp, [s.yaml_path for s in statuses if s.yaml_path])
+        _last_statuses = statuses
         return statuses
 
 
@@ -359,7 +361,16 @@ def sync_if_changed() -> bool:
 
 
 def list_apps() -> list[AppStatus]:
-    return sync_all()
+    """Return the current app statuses without writing on a plain read.
+
+    Syncs only when ``settings.yaml`` or an installed ``cloudgene.yaml`` changed since the
+    last sync in this process (:func:`sync_if_changed`); otherwise returns the statuses from
+    that last sync. A read-only endpoint must never rewrite the registry (SPEC §3.2, A-03).
+    """
+    sync_if_changed()
+    if _last_statuses is None:
+        return sync_all()
+    return _last_statuses
 
 
 def get_status(app_id: str) -> AppStatus:

@@ -14,6 +14,8 @@ Admin endpoints:
     GET  /api/admin/jobs/?state=&user=&workflow=&search=
     POST /api/admin/jobs/{id}/cancel/   POST /api/admin/jobs/{id}/restart/
 """
+import logging
+
 from django.db.models import F, Q
 from django.http import FileResponse, HttpResponse
 from drf_spectacular.types import OpenApiTypes
@@ -34,6 +36,8 @@ from .outputs import read_job_log, resolve_output_file
 from .serializers import (JobDetailSerializer, JobListSerializer, JobStatusSerializer,
                           JobSubmitRequestSerializer)
 from .submission import SubmissionError, submit_job
+
+logger = logging.getLogger('cloudgene.jobs')
 
 STATE_PARAM = OpenApiParameter('state', str, enum=list(JobState.ALL),
                                description='Filter by state (comma-separated list allowed)')
@@ -90,6 +94,8 @@ class JobViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.Gene
             job = submit_job(request.user, request.data, request.FILES)
         except SubmissionError as exc:
             return error_response(exc.message, exc.code, exc.status, fields=exc.fields)
+        logger.info('Job %s submitted (workflow=%s)', job.id, job.app_id,
+                   extra={'user': request.user})
         return Response(JobDetailSerializer(job, context=self.get_serializer_context()).data,
                         status=status.HTTP_201_CREATED)
 
@@ -100,6 +106,7 @@ class JobViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.Gene
             services.delete_job(job)
         except services.JobActionError as exc:
             return _action_error(exc)
+        logger.info('Job %s deleted', job.id, extra={'user': request.user})
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @extend_schema(responses=JobStatusSerializer)
@@ -115,6 +122,7 @@ class JobViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.Gene
             job = services.cancel_job(job, by_admin=job.user_id != request.user.id)
         except services.JobActionError as exc:
             return _action_error(exc)
+        logger.info('Job %s cancelled', job.id, extra={'user': request.user})
         return Response(JobDetailSerializer(job).data)
 
     @extend_schema(responses={(200, 'text/plain'): OpenApiTypes.STR})
@@ -177,6 +185,7 @@ class AdminJobViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
             job = services.cancel_job(self.get_object(), by_admin=True)
         except services.JobActionError as exc:
             return _action_error(exc)
+        logger.info('Job %s cancelled by admin', job.id, extra={'user': request.user})
         return Response(JobDetailSerializer(job).data)
 
     @extend_schema(request=None, responses=JobDetailSerializer)
@@ -186,4 +195,5 @@ class AdminJobViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
             job = services.restart_job(self.get_object())
         except services.JobActionError as exc:
             return _action_error(exc)
+        logger.info('Job %s restarted by admin', job.id, extra={'user': request.user})
         return Response(JobDetailSerializer(job).data)

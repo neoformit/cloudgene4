@@ -79,6 +79,15 @@ class NavbarItemSerializer(serializers.Serializer):
     admin_only = serializers.BooleanField(required=False, default=False)
     auth_only = serializers.BooleanField(required=False, default=False)
 
+    def validate_url(self, value):
+        value = value.strip()
+        if value.startswith('/') and not value.startswith('//'):
+            return value
+        if value.startswith(('http://', 'https://')):
+            return value
+        raise serializers.ValidationError(
+            'Must be an internal path (starting with "/") or an http:// / https:// URL.')
+
 
 class NavbarSerializer(serializers.Serializer):
     navbar = NavbarItemSerializer(many=True)
@@ -167,12 +176,18 @@ class RecentJobSerializer(serializers.Serializer):
     finished_at = serializers.DateTimeField(allow_null=True)
 
 
+class ConfigStatusSerializer(serializers.Serializer):
+    ok = serializers.BooleanField()
+    errors = serializers.ListField(child=serializers.CharField())
+
+
 class DashboardSerializer(serializers.Serializer):
     queue = QueueStatusSerializer()
     jobs = JobCountsSerializer()
     users = UserCountsSerializer()
     workflows = WorkflowCountsSerializer()
     recent_jobs = RecentJobSerializer(many=True)
+    config = ConfigStatusSerializer(help_text='settings.yaml validation status (QA_FINDINGS C-02)')
 
 
 # --- logs ---------------------------------------------------------------------------------
