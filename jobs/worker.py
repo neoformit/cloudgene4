@@ -19,7 +19,7 @@ import time
 from pathlib import Path
 
 from django.core.exceptions import ObjectDoesNotExist, ObjectNotUpdated
-from django.db import close_old_connections, connection
+from django.db import OperationalError, close_old_connections, connection
 from django.utils import timezone
 
 from core import config as cloudgene_config
@@ -37,6 +37,42 @@ logger = logging.getLogger('cloudgene.worker')
 CANCEL_GRACE_SECONDS = 10
 ORPHAN_MESSAGE = 'The worker was restarted while this job was running; the job was stopped.'
 SHUTDOWN_MESSAGE = 'The worker was shut down while this job was running; the job was stopped.'
+
+
+# ------------------------------------------------------------------------------------------
+# A-03 (worker half): tick phases must not take each other down, and a transient SQLite write
+# lock (the web process/another connection holding a write transaction) should be retried
+# briefly rather than aborting a whole phase.
+# ------------------------------------------------------------------------------------------
+
+LOCK_RETRY_ATTEMPTS = 3
+LOCK_RETRY_BACKOFF = 0.05   # seconds; doubles each attempt (0.05, 0.1, 0.2, ...)
+_LOCK_MESSAGES = ('database is locked', 'database table is locked')
+
+
+def is_locked_error(exc: BaseException) -> bool:
+    """True for a SQLite ``OperationalError`` caused by write contention (not other
+    OperationalErrors, e.g. a genuinely broken schema/query, which must not be retried)."""
+    return isinstance(exc, OperationalError) and any(m in str(exc).lower() for m in _LOCK_MESSAGES)
+
+
+def retry_on_locked(fn, *args, attempts: int = LOCK_RETRY_ATTEMPTS,
+                    backoff: float = LOCK_RETRY_BACKOFF, **kwargs):
+    """Call ``fn(*args, **kwargs)``, retrying up to ``attempts`` times (short backoff) if it
+    raises a "database is locked"/"database table is locked" ``OperationalError``. Any other
+    exception (including a non-lock ``OperationalError``) propagates immediately. Re-raises the
+    last lock error once the attempts are exhausted."""
+    delay = backoff
+    for attempt in range(1, attempts + 1):
+        try:
+            return fn(*args, **kwargs)
+        except OperationalError as exc:
+            if not is_locked_error(exc) or attempt == attempts:
+                raise
+            logger.warning('%s: database is locked (attempt %d/%d); retrying in %.2fs',
+                           getattr(fn, '__name__', fn), attempt, attempts, delay)
+            time.sleep(delay)
+            delay *= 2
 
 
 # ------------------------------------------------------------------------------------------
@@ -407,7 +443,39 @@ class Worker:
         for job in orphans:
             killed = kill_orphan_group(job)
             logger.warning('Orphaned job %s marked failed (process group killed: %s)', job.id, killed)
-            fail_job(job.id, ORPHAN_MESSAGE)
+            retry_on_locked(fail_job, job.id, ORPHAN_MESSAGE)
+
+    def _beat(self, max_running):
+        retry_on_locked(WorkerHeartbeat.beat, pid=os.getpid(), hostname=self.hostname,
+                        started_at=self.started_at,
+                        info={'running': len(self.executions), 'paused': self.paused,
+                              'max_running_jobs': max_running})
+
+    def _cancel_waiting_jobs(self):
+        """A waiting job flagged for cancellation (race with the web process) is cancelled here."""
+        for job_id in Job.objects.filter(status=JobState.WAITING, cancel_requested=True).values_list('id', flat=True):
+            now = timezone.now()
+            if retry_on_locked(Job.objects.filter(pk=job_id, status=JobState.WAITING).update,
+                               status=JobState.CANCELLED, finished_at=now, updated_at=now):
+                retry_on_locked(JobMessage.objects.create, job_id=job_id, level='warning',
+                               text='Job cancelled.')
+
+    # -- A-03 (worker half): each phase below runs independently of the others, so a locked
+    # database (or any other unexpected error) in one phase never abandons the rest of the
+    # tick — a lock storm on the heartbeat must not also stop poll/claim from running.
+
+    def _run_phase(self, name, fn):
+        try:
+            fn()
+        except OperationalError as exc:
+            if is_locked_error(exc):
+                # Expected under SQLite write contention and already retried at the call site;
+                # a single WARNING (no traceback) is enough — the next tick tries again.
+                logger.warning('Worker tick: phase "%s" failed (database is locked): %s', name, exc)
+            else:
+                logger.exception('Worker tick: phase "%s" failed', name)
+        except Exception:
+            logger.exception('Worker tick: phase "%s" failed', name)
 
     def tick(self):
         if not connection.in_atomic_block:   # (tests run the worker inside a transaction)
@@ -419,19 +487,13 @@ class Worker:
             settings = cloudgene_config.default_settings()
         self.paused = bool(settings.get('queue', {}).get('paused', False))
         max_running = max(1, int(settings.get('server', {}).get('max_running_jobs', 2) or 1))
-        WorkerHeartbeat.beat(pid=os.getpid(), hostname=self.hostname, started_at=self.started_at,
-                             info={'running': len(self.executions), 'paused': self.paused,
-                                   'max_running_jobs': max_running})
-        self.reconcile_orphans()
-        self.poll_executions()
-        # A waiting job flagged for cancellation (race with the web process) is cancelled here.
-        for job_id in Job.objects.filter(status=JobState.WAITING, cancel_requested=True).values_list('id', flat=True):
-            now = timezone.now()
-            if Job.objects.filter(pk=job_id, status=JobState.WAITING).update(
-                    status=JobState.CANCELLED, finished_at=now, updated_at=now):
-                JobMessage.objects.create(job_id=job_id, level='warning', text='Job cancelled.')
+
+        self._run_phase('heartbeat', lambda: self._beat(max_running))
+        self._run_phase('reconcile', self.reconcile_orphans)
+        self._run_phase('poll', self.poll_executions)
+        self._run_phase('cancel_waiting', self._cancel_waiting_jobs)
         if not self.paused and not self.stopping:
-            self.claim(max_running - len(self.executions))
+            self._run_phase('claim', lambda: self.claim(max_running - len(self.executions)))
 
     def poll_executions(self):
         if not self.executions:
@@ -462,8 +524,9 @@ class Worker:
             cancel_requested=False, deleted_at__isnull=True).values_list('id', flat=True)[:slots])
         for job_id in candidates:
             now = timezone.now()
-            claimed = Job.objects.filter(pk=job_id, status=JobState.WAITING, cancel_requested=False) \
-                .update(status=JobState.RUNNING, started_at=now, finished_at=None, updated_at=now)
+            claimed = retry_on_locked(
+                Job.objects.filter(pk=job_id, status=JobState.WAITING, cancel_requested=False).update,
+                status=JobState.RUNNING, started_at=now, finished_at=None, updated_at=now)
             if not claimed:
                 continue
             job = Job.objects.select_related('user', 'workflow').get(pk=job_id)

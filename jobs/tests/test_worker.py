@@ -10,6 +10,7 @@ from unittest import mock
 
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.db import OperationalError
 from django.test import TestCase
 
 from core import config as cloudgene_config
@@ -215,6 +216,80 @@ class WorkerQueueTest(WorkerTestBase):
         self.assertEqual(hb.pid, os.getpid())
         self.assertTrue(hb.is_alive)
         self.assertEqual(hb.info['paused'], False)
+
+
+class TickPhaseIsolationTest(WorkerTestBase):
+    """A-03 (worker half): a "database is locked" error in one tick phase must not abandon the
+    others (SQLite write contention between the web process and the worker), and the failure is
+    logged once, without a traceback for the expected/known case."""
+
+    def test_heartbeat_lock_error_does_not_stop_poll_and_claim(self):
+        make_app('hello')
+        job = self.submit()
+        with mock.patch('jobs.worker.WorkerHeartbeat.beat',
+                        side_effect=OperationalError('database is locked')):
+            with self.assertLogs('cloudgene.worker', 'WARNING') as logs:
+                self.worker.tick()
+        # the heartbeat phase failed and logged a WARNING (no traceback)...
+        self.assertTrue(any('heartbeat' in m and 'database is locked' in m for m in logs.output),
+                        logs.output)
+        self.assertFalse(any(r.levelno >= 40 for r in logs.records), logs.output)  # no ERROR
+        self.assertFalse(any(r.exc_info for r in logs.records), logs.output)       # no traceback
+        # ...but claim() still ran in the same tick: the job was picked up regardless.
+        self.assertEqual(self.state(job), JobState.RUNNING)
+
+    def test_unexpected_error_in_one_phase_is_logged_with_traceback_and_others_still_run(self):
+        make_app('hello')
+        job = self.submit()
+        with mock.patch.object(Worker, 'reconcile_orphans', side_effect=RuntimeError('boom')):
+            with self.assertLogs('cloudgene.worker', 'ERROR') as logs:
+                self.worker.tick()
+        self.assertTrue(any('reconcile' in m for m in logs.output), logs.output)
+        self.assertTrue(any(r.exc_info for r in logs.records), logs.output)  # traceback kept
+        self.assertEqual(self.state(job), JobState.RUNNING)   # claim() still ran
+
+
+class RetryOnLockedTest(TestCase):
+    def test_succeeds_after_transient_lock_errors(self):
+        calls = []
+
+        def flaky():
+            calls.append(1)
+            if len(calls) < 3:
+                raise OperationalError('database is locked')
+            return 'ok'
+
+        with mock.patch('jobs.worker.time.sleep') as sleep:
+            self.assertEqual(worker_mod.retry_on_locked(flaky), 'ok')
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(sleep.call_count, 2)
+
+    def test_reraises_after_the_attempt_limit(self):
+        def always_locked():
+            raise OperationalError('database is locked')
+
+        with mock.patch('jobs.worker.time.sleep'):
+            with self.assertRaises(OperationalError):
+                worker_mod.retry_on_locked(always_locked, attempts=3)
+
+    def test_non_lock_error_is_not_retried(self):
+        calls = []
+
+        def broken():
+            calls.append(1)
+            raise OperationalError('no such table: jobs')
+
+        with mock.patch('jobs.worker.time.sleep') as sleep:
+            with self.assertRaises(OperationalError):
+                worker_mod.retry_on_locked(broken)
+        self.assertEqual(len(calls), 1)          # not retried
+        sleep.assert_not_called()
+
+    def test_other_exception_types_are_not_retried(self):
+        with mock.patch('jobs.worker.time.sleep') as sleep:
+            with self.assertRaises(ValueError):
+                worker_mod.retry_on_locked(lambda: (_ for _ in ()).throw(ValueError('nope')))
+        sleep.assert_not_called()
 
 
 class WorkerCancelTest(WorkerTestBase):
