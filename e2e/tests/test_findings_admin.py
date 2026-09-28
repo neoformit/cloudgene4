@@ -121,9 +121,6 @@ def test_c03_deleting_user_removes_the_workspace_of_a_running_job(stack, api, re
 # C-04 — log components do not match SPEC §3.8 (nothing is filed under "auth" or "jobs")
 # ---------------------------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, reason='C-04: authentication logs use the component "accounts" '
-                                       'and job logs "worker", so the components named in '
-                                       'SPEC §3.8 and in the Logs filter hint find nothing')
 def test_c04_log_components_follow_the_spec(stack, api):
     admin = api('admin')
     anon = api()

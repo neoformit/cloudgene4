@@ -471,8 +471,11 @@ Admin     GET /api/admin/dashboard → {queue: {paused, maintenance, maintenance
           DELETE /api/admin/groups/{id} → 204 (400 protected_group for `admin`)
           (old /api/users/ and /api/groups/ are removed)
           GET /api/admin/workflows → [{id, name, version, description, category, path, yaml_path,
-          index, enabled, public, groups[], valid, errors[], warnings[], job_count}] (unpaginated;
-          all apps incl. disabled + invalid)   GET /api/admin/workflows/{id} (+ yaml)
+          index, enabled, effective_status, public, groups[], valid, errors[], warnings[],
+          job_count}] (unpaginated; all apps incl. disabled + invalid). `enabled` is exactly
+          apps[].enabled (what the admin configured); `effective_status` ("enabled"/"disabled")
+          is `enabled` AND `valid` — a broken app is never effectively enabled even if configured
+          `enabled: true` (QA_FINDINGS C-07).   GET /api/admin/workflows/{id} (+ yaml)
           PATCH /api/admin/workflows/{id} {enabled?, public?, groups[]? (names)}
           DELETE /api/admin/workflows/{id} (uninstall)   POST /api/admin/workflows/{id}/reload
           POST /api/admin/workflows/install {path, enabled?, public?, groups?, copy?} → 201;
@@ -572,13 +575,22 @@ scope. Slice owners may refine paths but must update this section.
 - Every interactive element that E2E tests need has a stable `data-testid`.
 
 ### 3.8 Application logging → Admin → Logs (T05)
-- Log through `logging.getLogger('cloudgene.<area>')` (`cloudgene.jobs`, `cloudgene.auth`,
-  `cloudgene.workflows`, `cloudgene.admin`, `cloudgene.api`, …). Records at INFO+ are stored in
-  `admin_panel.SystemLog` by `admin_panel.logging.DatabaseLogHandler` (configured in
-  `settings.LOGGING`), `component` = `<area>`. Pass `extra={'user': user, 'data': {...}}` to attach
-  the acting user and JSON metadata. The handler never raises.
-- What to log: logins/failed logins/lockouts (T04), job state changes and failures (T03), admin
-  actions (T05: settings, pages, workflows, queue, maintenance).
+- Log through `logging.getLogger('cloudgene.<area>')`: `cloudgene.jobs` (job submit/cancel/delete
+  in the web process — `jobs/views.py`), `cloudgene.worker` (the `run_worker` process: heartbeat,
+  scheduling, per-job state changes/failures as it runs them, tick errors), `cloudgene.auth`
+  (accounts: login/failed login/lockout/register/activate/password reset), `cloudgene.workflows`
+  (registry sync/install/uninstall/access changes), `cloudgene.admin` (admin panel: settings,
+  pages, queue, maintenance), `cloudgene.api` (the global exception handler's `server_error` logs).
+  Records at INFO+ are stored in `admin_panel.SystemLog` by `admin_panel.logging.DatabaseLogHandler`
+  (configured in `settings.LOGGING`), `component` = `<area>` (the part after `cloudgene.`). Pass
+  `extra={'user': user, 'data': {...}}` to attach the acting user and JSON metadata. The handler
+  never raises.
+- What to log: logins/failed logins/lockouts (T04), job submit/cancel/delete (web process,
+  `cloudgene.jobs`) and job state changes/failures (worker process, `cloudgene.worker`) (T03),
+  admin actions (T05: settings, pages, workflows, queue, maintenance).
+- `GET /api/admin/logs/?level=&min_level=` — unknown values are a 400 `invalid` field error
+  (`level`/`min_level`), the same as the jobs `state` filter (QA_FINDINGS C-06); valid levels are
+  the standard Python levels, case-insensitive (`debug`, `info`, `warning`, `error`, `critical`).
 - Retention: `manage.py cleanup_logs [--days 30]` (schedule with `cleanup_jobs`).
 
 ---

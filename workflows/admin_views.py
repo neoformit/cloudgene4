@@ -36,7 +36,11 @@ class AdminWorkflowSerializer(serializers.Serializer):
     path = serializers.CharField(help_text='apps[].path as written in settings.yaml')
     yaml_path = serializers.CharField(allow_blank=True, help_text='Resolved cloudgene.yaml')
     index = serializers.IntegerField(help_text='Position in settings.yaml apps[]')
-    enabled = serializers.BooleanField()
+    enabled = serializers.BooleanField(help_text='As configured in settings.yaml apps[].enabled')
+    effective_status = serializers.ChoiceField(
+        choices=['enabled', 'disabled'],
+        help_text='"enabled" only when configured enabled AND valid (QA_FINDINGS C-07): a '
+                  'broken app is never effectively enabled even if apps[].enabled is true')
     public = serializers.BooleanField()
     groups = serializers.ListField(child=serializers.CharField())
     valid = serializers.BooleanField()
@@ -111,6 +115,7 @@ def _row(st: registry.AppStatus, job_counts=None, with_yaml=False) -> dict:
         'yaml_path': st.yaml_path,
         'index': st.index,
         'enabled': st.enabled,
+        'effective_status': 'enabled' if (st.enabled and st.valid) else 'disabled',
         'public': st.public,
         'groups': st.groups,
         'valid': st.valid,

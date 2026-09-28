@@ -333,6 +333,21 @@ class AdminWorkflowsApiTest(Base):
         self.as_admin()
         self.assertIn('hello', [w['id'] for w in self.client.get('/api/admin/workflows/').json()])
 
+    def test_broken_app_effective_status_is_disabled_even_when_configured_enabled(self):
+        # C-07: apps[].enabled stays as configured, but a broken app is never *effectively*
+        # enabled — the admin list must say so explicitly rather than reporting enabled: true.
+        self.as_admin()
+        r = self.client.post('/api/admin/workflows/install/', {'path': 'hello'}, format='json')
+        self.assertEqual(r.status_code, 201, r.content)
+        yaml_file = self.home / 'apps' / 'hello' / 'cloudgene.yaml'
+        yaml_file.write_text(yaml_file.read_text().replace('type: text', 'type: bogus'))
+        self.client.post('/api/admin/workflows/hello/reload/')
+        rows = {w['id']: w for w in self.client.get('/api/admin/workflows/').json()}
+        hello = rows['hello']
+        self.assertTrue(hello['enabled'])           # configured value untouched
+        self.assertFalse(hello['valid'])
+        self.assertEqual(hello['effective_status'], 'disabled')
+
     def test_install_errors(self):
         self.as_admin()
         r = self.client.post('/api/admin/workflows/install/', {'path': 'invalid'}, format='json')
@@ -431,6 +446,28 @@ class LogsTest(Base):
         self.assertEqual(r['count'], 1)
         r = self.client.get('/api/admin/logs/?min_level=info&search=login').json()
         self.assertEqual(r['count'], 1)
+
+    def test_unknown_level_filter_is_a_400_not_silently_empty(self):
+        # C-06: a typo in ?level=/?min_level= must not look like "no such events".
+        self.as_admin()
+        r = self.client.get('/api/admin/logs/?level=bogus')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('level', r.json()['error']['fields'])
+        r = self.client.get('/api/admin/logs/?min_level=bogus')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('min_level', r.json()['error']['fields'])
+
+    def test_log_components_follow_the_spec(self):
+        # C-04: SPEC §3.8 names cloudgene.auth/jobs/workflows/admin/api (+ worker); nothing
+        # should still be filed under the old "accounts" component.
+        logging.getLogger('cloudgene.auth').warning('Failed login for bob')
+        logging.getLogger('cloudgene.jobs').info('Job abc submitted')
+        self.as_admin()
+        components = {r['component'] for r in
+                      self.client.get('/api/admin/logs/?page_size=200').json()['results']}
+        self.assertIn('auth', components)
+        self.assertIn('jobs', components)
+        self.assertNotIn('accounts', components)
 
     def test_cleanup_logs(self):
         old = SystemLog.objects.create(level='info', message='old')

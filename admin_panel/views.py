@@ -466,9 +466,15 @@ class LogListView(generics.ListAPIView):
         params = self.request.query_params
         level = (params.get('level') or '').lower()
         if level:
+            if level not in self.ORDER:
+                raise ValidationError({'level': [
+                    f'Unknown level "{level}". Use one of: {", ".join(self.ORDER)}.']})
             qs = qs.filter(level=level)
         min_level = (params.get('min_level') or '').lower()
-        if min_level in self.ORDER:
+        if min_level:
+            if min_level not in self.ORDER:
+                raise ValidationError({'min_level': [
+                    f'Unknown level "{min_level}". Use one of: {", ".join(self.ORDER)}.']})
             qs = qs.filter(level__in=self.ORDER[self.ORDER.index(min_level):])
         component = params.get('component')
         if component:

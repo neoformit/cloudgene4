@@ -2135,6 +2135,15 @@ components:
           description: Position in settings.yaml apps[]
         enabled:
           type: boolean
+          description: As configured in settings.yaml apps[].enabled
+        effective_status:
+          allOf:
+          - $ref: '#/components/schemas/EffectiveStatusEnum'
+          description: |-
+            "enabled" only when configured enabled AND valid (QA_FINDINGS C-07): a broken app is never effectively enabled even if apps[].enabled is true
+
+            * `enabled` - enabled
+            * `disabled` - disabled
         public:
           type: boolean
         groups:
@@ -2156,6 +2165,7 @@ components:
       required:
       - category
       - description
+      - effective_status
       - enabled
       - errors
       - groups
@@ -2193,6 +2203,15 @@ components:
           description: Position in settings.yaml apps[]
         enabled:
           type: boolean
+          description: As configured in settings.yaml apps[].enabled
+        effective_status:
+          allOf:
+          - $ref: '#/components/schemas/EffectiveStatusEnum'
+          description: |-
+            "enabled" only when configured enabled AND valid (QA_FINDINGS C-07): a broken app is never effectively enabled even if apps[].enabled is true
+
+            * `enabled` - enabled
+            * `disabled` - disabled
         public:
           type: boolean
         groups:
@@ -2217,6 +2236,7 @@ components:
       required:
       - category
       - description
+      - effective_status
       - enabled
       - errors
       - groups
@@ -2338,6 +2358,14 @@ components:
       - recent_jobs
       - users
       - workflows
+    EffectiveStatusEnum:
+      enum:
+      - enabled
+      - disabled
+      type: string
+      description: |-
+        * `enabled` - enabled
+        * `disabled` - disabled
     GeneralSettings:
       type: object
       description: '``server.*`` keys of settings.yaml. PUT accepts any subset (others

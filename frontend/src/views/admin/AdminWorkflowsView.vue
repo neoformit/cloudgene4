@@ -173,6 +173,7 @@ async function doInstall() {
               :data-workflow-id="wf.id"
               :data-enabled="wf.enabled"
               :data-valid="wf.valid"
+              :data-effective-status="wf.effective_status"
             >
               <td><code>{{ wf.id }}</code></td>
               <td>{{ wf.name }}</td>
