@@ -13,7 +13,7 @@ from django.conf import settings
 from django.contrib.auth.models import Group
 from django.core import mail
 from django.db import IntegrityError, transaction
-from django.test import TestCase
+from django.test import Client, TestCase
 from django.utils import timezone
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient, APITestCase
@@ -492,6 +492,14 @@ class PasswordResetTest(APITestCase):
         self.assertEqual(self.user.login_attempts, 0)
         self.assertIsNone(self.user.locked_until)
 
+    def test_reset_revokes_api_token(self):
+        """B-02: a credential created before the reset must not survive it."""
+        Token.objects.create(user=self.user)
+        self.request_reset('alice@x.org')
+        r = self.confirm(link_token(mail.outbox[0], '/recover/'))
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertFalse(Token.objects.filter(user=self.user).exists())
+
 
 # --- Profile (A3, A7) -----------------------------------------------------------------------------
 
@@ -549,6 +557,18 @@ class ProfileTest(APITestCase):
         self.assertTrue(self.user.check_password('NewPass456'))
         # this session stays logged in
         self.assertTrue(self.client.get('/api/auth/me/').json()['authenticated'])
+
+    def test_password_change_revokes_api_token(self):
+        """B-02: a credential created before a password change must not survive it."""
+        key = self.client.post('/api/me/token/').json()['token']
+        anon = APIClient()
+        self.assertEqual(anon.get('/api/me/', HTTP_AUTHORIZATION=f'Token {key}').status_code, 200)
+        r = self.patch(password='NewPass456', password_confirm='NewPass456',
+                       current_password=PASSWORD)
+        self.assertEqual(r.status_code, 200)
+        self.assertIsNone(r.json()['api_token'])
+        self.assertFalse(Token.objects.filter(user=self.user).exists())
+        self.assertEqual(anon.get('/api/me/', HTTP_AUTHORIZATION=f'Token {key}').status_code, 401)
 
     def test_blank_password_means_unchanged(self):
         r = self.patch(password='', full_name='Alice')
@@ -851,3 +871,82 @@ class PermissionMatrixTest(APITestCase):
         client = APIClient()
         client.force_authenticate(user)
         return getattr(client, method)(url).status_code
+
+
+# --- Django admin: shared lockout (B-01), no token exposure (B-03) --------------------------------
+
+class DjangoAdminLockoutTest(APITestCase):
+    """B-01: `/django-admin/login/` must go through the same lockout as the SPA API — a locked
+    account cannot log in there even with the correct password, and wrong passwords there count
+    toward the lockout just like `/api/auth/login/`."""
+
+    def setUp(self):
+        self.user = make_user('staffer', is_staff=True)
+
+    def django_admin_login(self, username, password):
+        client = Client()
+        response = client.post('/django-admin/login/',
+                               {'username': username, 'password': password,
+                                'next': '/django-admin/'})
+        return client, response
+
+    def test_locked_account_rejected_with_correct_password(self):
+        with setting('security.max_login_attempts', 3), setting('security.lockout_duration', 600):
+            for _ in range(3):
+                self.client.post('/api/auth/login/',
+                                 {'username': 'staffer', 'password': 'Wrong1234'}, format='json')
+            self.user.refresh_from_db()
+            self.assertIsNotNone(self.user.locked_until)
+
+            admin_client, response = self.django_admin_login('staffer', PASSWORD)
+            self.assertNotEqual(response.status_code, 302,
+                                'a locked account was allowed to log in at /django-admin/login/')
+            self.assertNotIn('_auth_user_id', admin_client.session)
+
+    def test_wrong_passwords_count_towards_lockout_case_insensitive(self):
+        with setting('security.max_login_attempts', 3), setting('security.lockout_duration', 600):
+            for _ in range(3):
+                self.django_admin_login('STAFFER', 'Wrong1234')
+            self.user.refresh_from_db()
+            self.assertIsNotNone(self.user.locked_until)
+            # the API login now also refuses, with the correct password
+            r = self.client.post('/api/auth/login/',
+                                 {'username': 'staffer', 'password': PASSWORD}, format='json')
+            self.assertEqual(r.status_code, 429)
+            self.assertEqual(r.json()['error']['code'], 'account_locked')
+
+    def test_successful_login_resets_counter(self):
+        with setting('security.max_login_attempts', 3), setting('security.lockout_duration', 600):
+            for _ in range(2):
+                self.django_admin_login('staffer', 'Wrong1234')
+            self.user.refresh_from_db()
+            self.assertEqual(self.user.login_attempts, 2)
+            admin_client, response = self.django_admin_login('staffer', PASSWORD)
+            self.assertEqual(response.status_code, 302)
+            self.assertIn('_auth_user_id', admin_client.session)
+            self.user.refresh_from_db()
+            self.assertEqual(self.user.login_attempts, 0)
+            self.assertIsNone(self.user.locked_until)
+
+
+class DjangoAdminTokenExposureTest(APITestCase):
+    """B-03: no admin surface may show a token key."""
+
+    def test_token_admin_unregistered(self):
+        from django.contrib import admin as django_admin
+        from rest_framework.authtoken.models import Token, TokenProxy
+        self.assertNotIn(TokenProxy, django_admin.site._registry)
+        self.assertNotIn(Token, django_admin.site._registry)
+
+    def test_token_changelist_not_reachable(self):
+        make_admin('boss')
+        admin_client = Client()
+        admin_client.login(username='boss', password=PASSWORD)
+        page = admin_client.get('/django-admin/authtoken/tokenproxy/')
+        self.assertEqual(page.status_code, 404)
+
+    def test_user_model_not_registered_in_admin(self):
+        """No accounts.User admin exists either, so there is no user changelist that could
+        expose api_token."""
+        from django.contrib import admin as django_admin
+        self.assertNotIn(User, django_admin.site._registry)

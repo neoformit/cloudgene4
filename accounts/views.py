@@ -6,10 +6,10 @@ import logging
 import math
 from datetime import timedelta
 
-from django.contrib.auth import login, logout, update_session_auth_hash
+from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.contrib.auth.models import Group
 from django.db import IntegrityError, transaction
-from django.db.models import Count, F, Q
+from django.db.models import Count, Q
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -65,6 +65,11 @@ class LoginView(APIView):
     account is locked for ``security.lockout_duration`` seconds (429, code ``account_locked``).
     Unknown usernames and wrong passwords get the same message. API clients use a token
     (``Authorization: Token <key>``, created on the profile page) instead.
+
+    The lockout itself lives in ``accounts.backends.LockoutModelBackend`` plus the
+    ``user_login_failed``/``user_logged_in`` signal receivers (B-01), so it also applies to
+    ``/django-admin/login/`` and anything else that calls ``django.contrib.auth.authenticate()``
+    — this view only turns the outcome into the SPEC §3.4 error envelope.
     """
     permission_classes = [AllowAny]
 
@@ -79,32 +84,18 @@ class LoginView(APIView):
         username = validation.normalize_username(serializer.validated_data['username'])
         password = serializer.validated_data['password']
 
-        user = User.objects.filter(username__iexact=username).first()
+        user = authenticate(request, username=username, password=password)
         if user is None:
-            User().set_password(password)  # same cost as a real check (timing)
-            logger.info('Login failed: unknown user %r', username)
-            return error_response(MSG_INVALID_LOGIN, 'invalid_credentials')
-
-        max_attempts = config.get('security.max_login_attempts') or 0
-        duration = config.get('security.lockout_duration') or 0
-        now = timezone.now()
-        if user.locked_until and max_attempts:
-            if user.locked_until > now:
-                return self._locked(user, now)
-            User.objects.filter(pk=user.pk).update(login_attempts=0, locked_until=None)
-            user.login_attempts, user.locked_until = 0, None
-
-        if not user.check_password(password):
-            User.objects.filter(pk=user.pk).update(login_attempts=F('login_attempts') + 1)
-            user.refresh_from_db(fields=['login_attempts'])
-            logger.info('Login failed: wrong password for %s (%d)', user.username,
-                        user.login_attempts)
-            if max_attempts and user.login_attempts >= max_attempts and duration:
-                user.locked_until = now + timedelta(seconds=duration)
-                User.objects.filter(pk=user.pk).update(locked_until=user.locked_until)
-                logger.warning('Login: account %s locked for %ss after %d failed logins',
-                               user.username, duration, user.login_attempts)
-                return self._locked(user, now)
+            # authenticate() already counted this failure (and locked the account if it hit
+            # the threshold) via the user_login_failed signal; look the account back up only
+            # to word the response (locked vs. plain invalid credentials).
+            existing = User.objects.filter(username__iexact=username).first()
+            if existing is not None and existing.locked_until:
+                existing.refresh_from_db(fields=['locked_until'])
+                now = timezone.now()
+                if existing.locked_until and existing.locked_until > now:
+                    return self._locked(existing, now)
+            logger.info('Login failed: invalid credentials for %r', username)
             return error_response(MSG_INVALID_LOGIN, 'invalid_credentials')
 
         if not user.is_active:
@@ -112,10 +103,7 @@ class LoginView(APIView):
                 'Your account is not active. Please use the activation link we sent you by '
                 'e-mail, or contact the administrator.', 'account_inactive', status.HTTP_403_FORBIDDEN)
 
-        if user.login_attempts or user.locked_until:
-            User.objects.filter(pk=user.pk).update(login_attempts=0, locked_until=None)
-            user.login_attempts, user.locked_until = 0, None
-        login(request, user)  # also updates last_login
+        login(request, user)  # also updates last_login and resets the lockout counter
         logger.info('Login: %s', user.username)
         return Response({'user': UserSerializer(user).data})
 
@@ -326,6 +314,8 @@ class PasswordResetConfirmView(APIView):
         user.login_attempts = 0
         user.locked_until = None
         user.save()
+        # B-02: a credential created before the reset must not survive it.
+        Token.objects.filter(user=user).delete()
         logger.info('Password reset completed for %s', user.username)
         return Response({'message': 'Your password has been changed. You can log in now.'})
 
@@ -356,10 +346,12 @@ class ProfileView(APIView):
                 user = serializer.save()
         except IntegrityError:
             raise serializers.ValidationError({'email': [MSG_EMAIL_TAKEN]})
-        if (serializer.validated_data.get('password')
-                and isinstance(request.successful_authenticator, SessionAuthentication)):
-            # Keep this session valid after the password hash changed (others are logged out).
-            update_session_auth_hash(request._request, user)
+        if serializer.validated_data.get('password'):
+            if isinstance(request.successful_authenticator, SessionAuthentication):
+                # Keep this session valid after the password hash changed (others are logged out).
+                update_session_auth_hash(request._request, user)
+            # B-02: a credential created before the password change must not survive it.
+            Token.objects.filter(user=user).delete()
         return Response(ProfileSerializer(user).data)
 
     @extend_schema(request=PasswordSerializer, responses={200: MessageSerializer})

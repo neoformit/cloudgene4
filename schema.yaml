@@ -1214,6 +1214,11 @@ paths:
         account is locked for ``security.lockout_duration`` seconds (429, code ``account_locked``).
         Unknown usernames and wrong passwords get the same message. API clients use a token
         (``Authorization: Token <key>``, created on the profile page) instead.
+
+        The lockout itself lives in ``accounts.backends.LockoutModelBackend`` plus the
+        ``user_login_failed``/``user_logged_in`` signal receivers (B-01), so it also applies to
+        ``/django-admin/login/`` and anything else that calls ``django.contrib.auth.authenticate()``
+        — this view only turns the outcome into the SPEC §3.4 error envelope.
       tags:
       - auth
       requestBody:

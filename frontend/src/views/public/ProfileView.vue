@@ -114,11 +114,15 @@ async function savePassword() {
   if (!p.current_password) pwErrors.value.current_password = 'Please enter your current password.'
   if (Object.keys(pwErrors.value).length) return
   pwSaving.value = true
+  const hadToken = !!tokenCreated.value
   try {
     const { data } = await updateProfile({ ...p })
     applyProfile(data)
     pw.value = { current_password: '', password: '', password_confirm: '' }
-    pwSuccess.value = 'Your password has been changed.'
+    // Changing the password revokes the API token (B-02), so it must be created again.
+    pwSuccess.value = hadToken
+      ? 'Your password has been changed. Your API token was revoked; create a new one below if you need it.'
+      : 'Your password has been changed.'
   } catch (e) {
     showServerErrors(e, pwErrors, pwError)
   } finally {
