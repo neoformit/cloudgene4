@@ -11,12 +11,14 @@ from __future__ import annotations
 import logging
 import os
 import shlex
+import shutil
 import signal
 import socket
 import subprocess
 import time
 from pathlib import Path
 
+from django.core.exceptions import ObjectDoesNotExist, ObjectNotUpdated
 from django.db import close_old_connections, connection
 from django.utils import timezone
 
@@ -257,6 +259,28 @@ class Execution:
                 pass
         self._finish(JobState.FAILED, message)
 
+    def vanish(self):
+        """C-03: the Job row (and its JobStep/JobMessage rows, ``on_delete=CASCADE``) was
+        deleted while this execution was running — e.g. the owning user was deleted. There is
+        no row left to update, so this is a designed shutdown path, not an error: kill the
+        process group and remove whatever the dying execution has written since, then stop."""
+        if self.finished:
+            return
+        self.finished = True
+        if self.proc is not None and self.proc.poll() is None:
+            _signal_group(self.job.pgid or self.proc.pid, signal.SIGTERM)
+            deadline = time.monotonic() + min(self.grace, 5)
+            while self.proc.poll() is None and time.monotonic() < deadline:
+                time.sleep(0.1)
+            _signal_group(self.job.pgid or self.proc.pid, signal.SIGKILL)
+            try:
+                self.proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                pass
+        shutil.rmtree(self.job_dir, ignore_errors=True)
+        logger.info('Job %s: row was deleted while running; execution stopped and workspace removed.',
+                   self.job.id)
+
     # -- progress ---------------------------------------------------------------------------
 
     def _read_progress(self, final=False):
@@ -417,6 +441,13 @@ class Worker:
         for job_id, execution in list(self.executions.items()):
             try:
                 done = execution.poll(cancel_requested=job_id in cancel_ids)
+            except (ObjectDoesNotExist, ObjectNotUpdated):
+                # C-03: the Job row (or one of its steps) vanished under us — most likely the
+                # owning user was deleted while the job was running. Designed path, not a bug:
+                # no traceback, just an informational log line.
+                logger.info('Job %s vanished while running (its row was deleted); stopping.', job_id)
+                execution.vanish()
+                done = True
             except Exception as exc:
                 logger.exception('Polling job %s failed', job_id)
                 execution.stop(f'Internal error while running the job: {exc}')

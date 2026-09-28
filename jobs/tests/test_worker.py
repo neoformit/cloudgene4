@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
+from unittest import mock
 
 from django.core.management import call_command
 from django.core.management.base import CommandError
@@ -295,6 +296,50 @@ class ShutdownTest(WorkerTestBase):
         self.assertIn('shut down', job.error_message)
         time.sleep(0.2)
         self.assertFalse(pid_alive(child))
+
+
+class DeletedWhileRunningTest(WorkerTestBase):
+    """C-03: deleting a Job row (e.g. cascading from a user deletion) while it is running must
+    not leave the workspace back on disk, and the worker must not log a traceback for it."""
+
+    def test_deleting_a_running_job_kills_it_and_the_worker_treats_it_as_a_designed_vanish(self):
+        make_app('slow', mode='sleep')
+        job = self.submit('slow')
+        child_file = cloudgene_config.job_dir(job.id) / 'work' / 'child.pid'
+        self.run_until(child_file.exists)
+        job.refresh_from_db()
+        nf_pid = job.pid
+        child = int(child_file.read_text())
+        workspace = cloudgene_config.job_dir(job.id)
+        self.assertTrue(pid_alive(nf_pid))
+
+        with self.assertLogs('cloudgene.jobs', 'INFO') as jlogs:
+            with self.captureOnCommitCallbacks(execute=True):
+                job.delete()
+        self.assertTrue(any('killed=True' in m for m in jlogs.output), jlogs.output)
+
+        # the post_delete signal killed the process group before removing the workspace
+        self.assertFalse(pid_alive(nf_pid))
+        self.assertFalse(pid_alive(child))
+        self.assertFalse(workspace.exists())
+
+        # the worker still holds the Execution for this job; its next poll must not blow up
+        with self.assertLogs('cloudgene.worker', 'INFO') as logs:
+            self.worker.poll_executions()
+        self.assertNotIn(str(job.id), self.worker.executions)
+        self.assertFalse(any(r.levelno >= 40 for r in logs.records), logs.output)  # no ERROR/exception
+        self.assertTrue(any('vanished' in m for m in logs.output), logs.output)
+
+    def test_deleting_a_finished_job_does_not_try_to_kill_anything(self):
+        make_app('hello')
+        job = self.submit()
+        self.run_until(lambda: self.state(job) == JobState.SUCCESS)
+        workspace = cloudgene_config.job_dir(job.id)
+        with mock.patch('jobs.worker.kill_orphan_group') as killer:
+            with self.captureOnCommitCallbacks(execute=True):
+                job.delete()
+        killer.assert_not_called()
+        self.assertFalse(workspace.exists())
 
 
 class RunWorkerCommandTest(WorkerTestBase):

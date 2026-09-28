@@ -91,9 +91,6 @@ def test_c02_invalid_settings_value_does_not_take_the_site_down(stack, restart_w
 # C-03 — deleting a user leaves the workspace of their running job on disk
 # ---------------------------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, reason='C-03: the post_delete rmtree runs while the job is '
-                                       'still executing, so the worker/Nextflow recreate the '
-                                       'workspace and it survives the user deletion')
 def test_c03_deleting_user_removes_the_workspace_of_a_running_job(stack, api, requires_worker):
     import shutil
 
