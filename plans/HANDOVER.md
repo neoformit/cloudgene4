@@ -50,7 +50,11 @@ stack sets `INSECURE_FAST_PASSWORD_HASHING=1` (opt out with `E2E_REAL_HASHING=1`
 never be set in production.
 
 ### 3. Known gaps in the testing itself
-- No Postgres run anywhere; everything is SQLite (A-03 is partly an artefact of that).
+- ~~No Postgres run anywhere~~ (T09b, 2026-09-28): PostgreSQL 16.13 installed and verified — unit
+  suite (321 tests) and the full E2E suite (183 passed) both green against it, plus a dedicated
+  concurrency test proving the worker's claim UPDATE is race-free. See `plans/SPEC.md` §3.1 and
+  `e2e/README.md`. A-03's SQLite write-contention finding itself is still fixed only via the WAL +
+  `transaction_mode=IMMEDIATE` settings (Postgres never had that failure mode).
 - Not probed: worker killed mid-job beyond scenario Q3, `max_running_jobs: 0`, maintenance toggled
   mid-run, very large pipeline logs, `local-file`/`local-folder` path semantics, HTTPS `Referer`
   checks, load/DoS.
