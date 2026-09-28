@@ -235,13 +235,79 @@ the full `pytest e2e` after the last. Expected end state: 0 xfailed findings tes
 
 ## Phase 4 — Production readiness
 
-> **HOLD (user instruction, 2026-09-20): do not start Phase 4 until the user has reviewed Phase 3.**
+> HOLD lifted by the user on 2026-09-28 after reviewing T08.
 
-### T09 Deployment & ops ☐
-Postgres support verified (run unit suite against Postgres via docker-less local install or skip
-with clear note), gunicorn + whitenoise static serving, systemd unit examples for web & worker,
-`cleanup_jobs` scheduling, structured logging, security settings for prod (HSTS, secure cookies),
-upload size limits, `docs/` rewritten (admin guide, workflow YAML reference, deployment), final README.
+### T09 Production readiness ◐
+Three parallel sonnet agents (T09a ‖ T09b ‖ T09c-part-1), then T09c-part-2 after T09a/T09b merge.
+Rules from the top of this file apply. Every behaviour change needs a test; `scripts/test.sh unit`
+green, targeted E2E green. Only the orchestrator's merge agent runs the full `pytest e2e`.
+
+**Orchestrator decisions (2026-09-28):**
+- **Password hashing:** switch the default to **Argon2id** (`argon2-cffi`, Django's
+  `Argon2PasswordHasher` first in `PASSWORD_HASHERS`, PBKDF2 kept after it so existing hashes still
+  verify and are upgraded on the next login). Rationale: memory-hard, OWASP's first choice, and far
+  cheaper in CPU time than PBKDF2 at 1M+ iterations on a small host (the ~3 s logins). The E2E
+  `INSECURE_FAST_PASSWORD_HASHING` switch stays as is; add a startup check that refuses to run
+  with it when `DEBUG` is off unless the E2E stack sets an explicit second variable
+  (`CLOUDGENE_E2E=1`), so it can't leak into production.
+- **Deployment target:** a single Linux host: nginx (TLS, `/static` optional) → gunicorn (web) +
+  `manage.py run_worker` (one instance), both systemd services, Postgres. SQLite stays supported
+  for development and small single-user installs only. No Docker in scope.
+- **Logging:** keep the DB log handler (SPEC §3.8); add an opt-in JSON console formatter
+  (`LOG_FORMAT=json`) for journald/log shippers; default stays human-readable.
+
+#### T09a Deploy & ops ☐
+Owned: `cloudgene_django/settings.py` (security, logging, hashers — not DATABASES), `requirements.txt`,
+new `deploy/` directory, `core/checks.py` (new), `docs/DEPLOYMENT.md` (new).
+1. `gunicorn` in requirements; `deploy/gunicorn.conf.py` (workers from env, sensible timeouts for
+   large uploads, `forwarded_allow_ips`). Verify whitenoise serves the built SPA + static with
+   `DEBUG=False` under gunicorn (a smoke test: start gunicorn, fetch `/`, a hashed asset, `/api/health`).
+2. `deploy/systemd/cloudgene-web.service`, `cloudgene-worker.service` (Restart=always, a single
+   worker; the worker's lock already prevents two), `cloudgene-cleanup.service` + `.timer`
+   (daily `cleanup_jobs` + `cleanup_logs`), an `EnvironmentFile` example `deploy/cloudgene.env.example`
+   listing every env var the app reads (grep `os.environ` to be complete), and `deploy/nginx.conf.example`
+   (TLS, `client_max_body_size` tied to `server.max_upload_mb`, `X-Forwarded-Proto`, long upload timeouts).
+3. Security: production defaults when `DEBUG` is off: warn loudly via a Django system check
+   (`core/checks.py`, tagged `deploy`) when secure cookies / SSL redirect / HSTS are not set, when
+   `SECRET_KEY` is the dev default, when `ALLOWED_HOSTS` is `*`, when SQLite is used, or when
+   `INSECURE_FAST_PASSWORD_HASHING` is on (an error in that last case, per the decision above).
+   `manage.py check --deploy` must be clean with the example env file.
+4. Argon2 hashing as decided above, with a unit test that a PBKDF2 hash is upgraded on login. Measure
+   and record login time before/after on this host (real hasher, not the E2E one).
+5. `LOG_FORMAT=json` formatter as decided; unit test.
+6. Upload limits: confirm `server.max_upload_mb`, `DATA_UPLOAD_MAX_NUMBER_FILES`,
+   `DATA_UPLOAD_MAX_MEMORY_SIZE` and nginx's `client_max_body_size` are consistent and documented.
+   Also address QA note I-4 (a JSON body size limit on API endpoints, e.g. 1–10 MB → 413 envelope).
+7. `docs/DEPLOYMENT.md`: install, configure, first admin (`create_admin`), upgrade (migrate +
+   collectstatic + restart), backups (DB + `CLOUDGENE_HOME`), log locations, health monitoring.
+
+#### T09b Postgres ☐
+Owned: DATABASES block of `settings.py`, migrations (only if a real incompatibility needs one),
+`e2e/stack.py` + `e2e/conftest.py` (DB selection only), `scripts/test.sh` (a `--postgres` option).
+1. Install PostgreSQL locally (apt or another docker-less route; note exactly what worked). Create
+   a role/db for tests.
+2. Run `manage.py test` against Postgres (`DATABASE_URL=postgres://…`); fix every incompatibility
+   in app code or tests (case-insensitive `Lower()` unique constraints, ordering assumptions,
+   `select_for_update`, JSON fields, transaction behaviour in the worker claim path, etc.).
+3. Make the E2E stack able to run on Postgres (`E2E_DATABASE_URL`, one database per xdist worker,
+   dropped at teardown) and run the full E2E suite on Postgres once (the only full run you may do;
+   coordinate by running it when your own work is done). Report the counts.
+4. Worker concurrency on Postgres: a unit/integration test that two concurrent claims never take the
+   same job (the claim path must be race-free on Postgres, not only on SQLite's global lock).
+5. Record in SPEC §3.1/§5 and HANDOVER what's verified on Postgres and which version.
+
+#### T09c Docs & README ☐
+Part 1 (now, parallel): delete the merged T08 worktrees/branches (`git worktree remove` +
+`git branch -D` for `worktree-agent-a74e7a2fc7a306905`, `worktree-agent-a9cd305e6472ecf2e`,
+`worktree-agent-ad6ddfe7a071a1df4`; there are no remote copies). Then rewrite `docs/` from the
+**code and SPEC**, not the old docs: `docs/ADMIN_GUIDE.md` (replaces `ADMIN_CONFIGURATION.md` +
+`ADMIN_PANEL_GUIDE.md`: settings.yaml keys, admin panel pages, users/groups, workflows install/access,
+queue/maintenance, logs), `docs/WORKFLOW_YAML_REFERENCE.md` (every `cloudgene.yaml` key and input
+type from `workflows/definition.py` + SPEC §4, with a complete example that passes validation — add a
+unit test that validates the example), `docs/API.md` (a short guide: auth by session/CSRF or token,
+error envelope, pointer to `schema.yaml` / swagger). Delete stale docs.
+Part 2 (after T09a/T09b merge, orchestrator dispatches): final `README.md` (what it is, dev
+quick-start web + worker, tests, link to DEPLOYMENT/ADMIN/WORKFLOW docs) and a docs link check.
 
 ---
 
