@@ -168,6 +168,19 @@ by updating this section.
   block the writer); `OPTIONS['timeout']` (20 s) still covers real contention. Read paths must not
   write on a plain read regardless of engine — see the workflow registry below
   (QA_FINDINGS A-03).
+  **Verified on Postgres (T09b, 2026-09-28):** PostgreSQL 16.13 (Ubuntu 24.04 `postgresql-16`
+  apt package, started with `pg_ctlcluster 16 main start` — no systemd on this host). The full
+  Django unit suite (321 tests) is green against it with **zero app-code changes** — the
+  case-insensitive `Lower()` unique constraints, `JSONField` handling, ordering and the worker's
+  claim path all behave identically to SQLite. The worker's claim (a conditional
+  `UPDATE jobs_job SET status='running' WHERE id=... AND status='waiting'`, `jobs/worker.py
+  Worker.claim`) is proven race-free against Postgres by
+  `jobs/tests/test_claim_concurrency.py` (several threads with separate DB connections racing the
+  same UPDATE; exactly one succeeds per job) — skipped on SQLite, where the single-writer lock
+  makes the race not meaningful. Run it: `scripts/test.sh unit --postgres` (reads
+  `TEST_DATABASE_URL`, default `postgres://cloudgene:cloudgene@127.0.0.1:5432/cloudgene`). The E2E
+  suite also runs against Postgres: `E2E_DATABASE_URL=postgres://...` (see `e2e/README.md`) — one
+  database per xdist worker, created at start-up and dropped at teardown.
 - No Redis. No WebSockets. **[D]** Live status = client polling (2 s while job active, backoff to 10 s)
   of a cheap status endpoint. This mirrors Cloudgene 3 and is robust behind any proxy.
 
@@ -713,7 +726,11 @@ stores a snapshot of the YAML it was submitted with (`Job.workflow_yaml`) and ru
   path traversal protection on downloads/pages; CSRF on session auth; no mass-assignment of privilege
   fields; uploads size-limited (`max_upload_mb` setting); secrets never returned by settings APIs
   (mail password write-only).
-- Works with SQLite (dev/test) and Postgres (prod).
+- Works with SQLite (dev/test) and Postgres (prod). `scripts/test.sh unit --postgres` runs the
+  Django unit suite against Postgres (`TEST_DATABASE_URL`, default
+  `postgres://cloudgene:cloudgene@127.0.0.1:5432/cloudgene`); `E2E_DATABASE_URL=postgres://...`
+  runs the full E2E suite against Postgres (one database per xdist worker, dropped at teardown —
+  see `e2e/README.md`). See §3.1 for what has been verified and how.
 
 ## 6. Changelog of spec decisions
 - 2026-09-27 (T08a fix round, B-01/B-02/B-03/B-04): the lockout now lives in
