@@ -163,6 +163,36 @@ class DeployEnvExampleTest(SimpleTestCase):
         self.assertIn('no issues', result.stdout + result.stderr)
 
 
+class HstsPreloadDefaultTest(SimpleTestCase):
+    """Preload must be opt-in only, never implied by DJANGO_HSTS_SECONDS (orchestrator decision,
+    2026-09-28): it is a hard-to-reverse commitment (browser preload lists, all subdomains)."""
+
+    def _secure_hsts_preload(self, env_overrides):
+        env = {
+            'PATH': os.environ.get('PATH', '/usr/bin:/bin'),
+            'DJANGO_SETTINGS_MODULE': 'cloudgene_django.settings',
+            'CLOUDGENE_HOME': '/tmp/cloudgene-hsts-preload-test-home',
+        }
+        env.update(env_overrides)
+        result = subprocess.run(
+            [sys.executable, '-c',
+             'import django; django.setup(); from django.conf import settings; '
+             'print(settings.SECURE_HSTS_PRELOAD)'],
+            cwd=settings.BASE_DIR, env=env, capture_output=True, text=True, timeout=30,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        return result.stdout.strip()
+
+    def test_preload_off_by_default_even_with_hsts_seconds_set(self):
+        value = self._secure_hsts_preload({'DJANGO_HSTS_SECONDS': '31536000'})
+        self.assertEqual(value, 'False')
+
+    def test_preload_on_only_with_explicit_env_var(self):
+        value = self._secure_hsts_preload({'DJANGO_HSTS_SECONDS': '31536000',
+                                           'DJANGO_HSTS_PRELOAD': '1'})
+        self.assertEqual(value, 'True')
+
+
 class JsonFormatterTest(SimpleTestCase):
     def test_produces_valid_json_with_expected_keys(self):
         formatter = JsonFormatter()

@@ -228,8 +228,12 @@ by updating this section.
   into `$CLOUDGENE_HOME/config/secret_key`; `DEBUG` default off; `ALLOWED_HOSTS`;
   `CSRF_TRUSTED_ORIGINS`; `DATABASE_URL`; `CLOUDGENE_HOME` default `./home`; `LOG_LEVEL`;
   `DJANGO_SECURE_COOKIES`, `DJANGO_SECURE_SSL_REDIRECT`, `DJANGO_HSTS_SECONDS`,
-  `DJANGO_HSTS_INCLUDE_SUBDOMAINS`/`DJANGO_HSTS_PRELOAD` (default on once
-  `DJANGO_HSTS_SECONDS>0`, off otherwise), `DJANGO_BEHIND_TLS_PROXY`;
+  `DJANGO_HSTS_INCLUDE_SUBDOMAINS` (default on once `DJANGO_HSTS_SECONDS>0`, off otherwise),
+  `DJANGO_HSTS_PRELOAD` (default **off** always, opt-in only regardless of `DJANGO_HSTS_SECONDS`
+  — submitting to browsers' HSTS preload lists is a hard-to-reverse commitment covering every
+  subdomain, so it is never implied by turning HSTS on; while it is off, `security.W021` is
+  silenced in `settings.py` with a comment explaining why, so `check --deploy` stays clean
+  without pressuring an operator to flip it on), `DJANGO_BEHIND_TLS_PROXY`;
   `DJANGO_DATA_UPLOAD_MAX_NUMBER_FILES` — Django's
   `DATA_UPLOAD_MAX_NUMBER_FILES`, default `10000` so a folder input with hundreds of files
   doesn't 500 (A-02); the real per-submission ceiling is `server.max_upload_mb`, enforced in

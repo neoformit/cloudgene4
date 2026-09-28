@@ -59,6 +59,12 @@ At minimum, set:
 - `DJANGO_SECURE_COOKIES=1`, `DJANGO_SECURE_SSL_REDIRECT=1`, `DJANGO_BEHIND_TLS_PROXY=1`,
   `DJANGO_HSTS_SECONDS=31536000` — once nginx is serving this over HTTPS (all default off, so a
   first boot without TLS still works for smoke-testing before you have a certificate).
+  `DJANGO_HSTS_INCLUDE_SUBDOMAINS` defaults to on once HSTS is on. `DJANGO_HSTS_PRELOAD` defaults
+  **off** and stays opt-in: submitting to browsers' HSTS preload lists is a hard-to-reverse
+  commitment (it ships baked into browser binaries and applies to every subdomain), so only set
+  `DJANGO_HSTS_PRELOAD=1` once you are certain every subdomain will always be served over HTTPS.
+  While preload is off, `security.W021` is silenced in settings (deliberately, not an oversight)
+  so `manage.py check --deploy` stays clean without pushing you to flip it on.
 
 Application-level configuration (server name, queue limits, mail, Nextflow binary/profile,
 navbar, installed workflows) lives in `$CLOUDGENE_HOME/config/settings.yaml`, not the env file —

@@ -19,7 +19,9 @@ Environment variables:
                          default is human-readable text
   DJANGO_SECURE_COOKIES  "1" → Secure session/CSRF cookies (set behind HTTPS)
   DJANGO_SECURE_SSL_REDIRECT, DJANGO_HSTS_SECONDS, DJANGO_BEHIND_TLS_PROXY
-  DJANGO_HSTS_INCLUDE_SUBDOMAINS, DJANGO_HSTS_PRELOAD  (default: on once DJANGO_HSTS_SECONDS>0)
+  DJANGO_HSTS_INCLUDE_SUBDOMAINS  (default: on once DJANGO_HSTS_SECONDS>0)
+  DJANGO_HSTS_PRELOAD    "1" to submit to browsers' HSTS preload lists (default: off — opt-in only,
+                         see the comment above SECURE_HSTS_PRELOAD; hard to reverse once submitted)
   DJANGO_DATA_UPLOAD_MAX_NUMBER_FILES  Django's DATA_UPLOAD_MAX_NUMBER_FILES (default: 10000)
   API_JSON_BODY_MAX_MB   max non-multipart /api/ request body size in MB, rejected by
                          Content-Length before it is read (default: 10; QA_FINDINGS I-4)
@@ -234,13 +236,23 @@ SESSION_COOKIE_SECURE = CSRF_COOKIE_SECURE = env_bool('DJANGO_SECURE_COOKIES', F
 SECURE_SSL_REDIRECT = env_bool('DJANGO_SECURE_SSL_REDIRECT', False)
 SECURE_HSTS_SECONDS = int(os.environ.get('DJANGO_HSTS_SECONDS', '0'))
 # Only meaningful once SECURE_HSTS_SECONDS is set; default True when HSTS is on at all, since
-# enabling HSTS without them is itself a deliberate, judgment-call opt-out `manage.py
-# check --deploy` would otherwise nag about forever (security.W005/W021).
+# enabling include-subdomains without it is itself a deliberate, judgment-call opt-out
+# `manage.py check --deploy` would otherwise nag about forever (security.W005).
 SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool('DJANGO_HSTS_INCLUDE_SUBDOMAINS', bool(SECURE_HSTS_SECONDS))
-SECURE_HSTS_PRELOAD = env_bool('DJANGO_HSTS_PRELOAD', bool(SECURE_HSTS_SECONDS))
+# Preload is NOT on the same default: submitting to browsers' HSTS preload lists is a hard-to-
+# reverse commitment (it ships in browser binaries and covers every subdomain), so it must be an
+# explicit opt-in via DJANGO_HSTS_PRELOAD, never implied by turning HSTS on. Default off.
+SECURE_HSTS_PRELOAD = env_bool('DJANGO_HSTS_PRELOAD', False)
 if env_bool('DJANGO_BEHIND_TLS_PROXY', False):
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 X_FRAME_OPTIONS = 'DENY'
+
+if not SECURE_HSTS_PRELOAD:
+    # Django's own deploy check nags for security.W021 (HSTS preload not enabled) whenever HSTS
+    # is on at all; since preload is a deliberate opt-in here (see above), silence it while
+    # preload is off so `check --deploy` doesn't push operators toward flipping it on just to
+    # quiet the check.
+    SILENCED_SYSTEM_CHECKS = list(globals().get('SILENCED_SYSTEM_CHECKS', [])) + ['security.W021']
 
 
 # REST framework
