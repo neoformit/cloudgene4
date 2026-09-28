@@ -15,8 +15,17 @@ Environment variables:
   DATABASE_URL           e.g. postgres://user:pw@host/db (default: sqlite db.sqlite3)
   CLOUDGENE_HOME         data/config directory (default: <repo>/home)
   LOG_LEVEL              root log level (default: INFO)
+  LOG_FORMAT             "json" for a structured console formatter (journald/log shippers);
+                         default is human-readable text
   DJANGO_SECURE_COOKIES  "1" → Secure session/CSRF cookies (set behind HTTPS)
   DJANGO_SECURE_SSL_REDIRECT, DJANGO_HSTS_SECONDS, DJANGO_BEHIND_TLS_PROXY
+  DJANGO_DATA_UPLOAD_MAX_NUMBER_FILES  Django's DATA_UPLOAD_MAX_NUMBER_FILES (default: 10000)
+  API_JSON_BODY_MAX_MB   max non-multipart /api/ request body size in MB, rejected by
+                         Content-Length before it is read (default: 10; QA_FINDINGS I-4)
+  INSECURE_FAST_PASSWORD_HASHING  test-only MD5 hasher switch; refused outside DEBUG unless
+                         CLOUDGENE_E2E=1 is also set (see core.checks, core.E001)
+  CLOUDGENE_E2E          "1" declares this process is the E2E test stack — the only context
+                         where INSECURE_FAST_PASSWORD_HASHING may be honoured outside DEBUG
 """
 
 import os
@@ -108,6 +117,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'core.middleware.ApiTrailingSlashMiddleware',
+    'core.middleware.JsonBodySizeLimitMiddleware',  # I-4: reject oversized JSON bodies fast
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -157,9 +167,24 @@ if DATABASES['default']['ENGINE'] == 'django.db.backends.sqlite3':
     _sqlite_opts.setdefault('init_command', 'PRAGMA journal_mode=WAL;')
 
 
-# Test-only escape hatch: PBKDF2 costs ~3 s per check on small hosts, which slows the E2E
-# suite and makes short lockout windows untestable. Never set this outside a test stack.
-if os.environ.get('INSECURE_FAST_PASSWORD_HASHING') == '1':
+# Argon2id first (memory-hard, OWASP's first choice, and far cheaper in CPU time than PBKDF2
+# at Django's default iteration count on a small host); PBKDF2 kept second so existing hashes
+# still verify and are upgraded to Argon2 automatically on next login (Django's own
+# check_password()/authenticate() behaviour — no extra code needed here).
+PASSWORD_HASHERS = [
+    'django.contrib.auth.hashers.Argon2PasswordHasher',
+    'django.contrib.auth.hashers.PBKDF2PasswordHasher',
+    'django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher',
+    'django.contrib.auth.hashers.ScryptPasswordHasher',
+]
+
+# Test-only escape hatch: real hashing costs real time per check, which slows the E2E suite
+# and makes short lockout windows untestable. Never set this outside a test stack: it also
+# requires CLOUDGENE_E2E=1 (a second, harder-to-set-by-accident switch) whenever DEBUG is off,
+# and core.checks reports an error (not just a warning) if it is ever on without that pair.
+if os.environ.get('INSECURE_FAST_PASSWORD_HASHING') == '1' and (
+    DEBUG or env_bool('CLOUDGENE_E2E', False)
+):
     PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -268,6 +293,9 @@ DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@localhost')
 # Logging
 
 LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO').upper()
+# 'json' for journald/log shippers (core.logging_formatters.JsonFormatter); default is
+# human-readable text. See SPEC §3.8.
+LOG_FORMAT = os.environ.get('LOG_FORMAT', 'standard').strip().lower()
 
 LOGGING = {
     'version': 1,
@@ -276,11 +304,14 @@ LOGGING = {
         'standard': {
             'format': '%(asctime)s %(levelname)s %(name)s [%(process)d] %(message)s',
         },
+        'json': {
+            '()': 'core.logging_formatters.JsonFormatter',
+        },
     },
     'handlers': {
         'console': {
             'class': 'logging.StreamHandler',
-            'formatter': 'standard',
+            'formatter': 'json' if LOG_FORMAT == 'json' else 'standard',
             'level': LOG_LEVEL,
         },
         # T05: cloudgene.* records at INFO+ → SystemLog (Admin → Logs), SPEC §3.8
