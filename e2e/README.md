@@ -17,6 +17,7 @@ Nextflow must be on `PATH` (or set `E2E_NEXTFLOW=/usr/local/bin/nextflow`).
 ## Running
 
 ```bash
+scripts/test.sh unit --postgres                     # Django unit suite against Postgres (TEST_DATABASE_URL)
 scripts/test.sh e2e                                 # same as below, via the repo entry point
 venv/bin/python -m pytest e2e                       # everything, headless
 venv/bin/python -m pytest e2e -n 4 -m "not serial"  # parallel (one stack per xdist worker)
@@ -29,9 +30,23 @@ venv/bin/python e2e/fixtures/verify_apps.py         # fixture pipelines with pla
 
 Each pytest process (each xdist worker) boots its own stack in `e2e/.artifacts/stack-<worker>/`:
 fresh `CLOUDGENE_HOME` (`config/settings.yaml`, `pages/*.html`, `apps/<fixture apps>`, `jobs/`),
-SQLite DB, `migrate`, seed, `manage.py runserver <free port> --insecure` and, if the command
+a DB, `migrate`, seed, `manage.py runserver <free port> --insecure` and, if the command
 exists, `manage.py run_worker`. The SPA is rebuilt (`npm run build`) only when `frontend/` sources
 are newer than `static/frontend/index.html`; set `E2E_SKIP_BUILD=1` to use the existing bundle.
+
+By default the DB is a SQLite file under the stack's root (`db.sqlite3`). Set
+`E2E_DATABASE_URL=postgres://user:pass@host:port/db` to run the whole suite against Postgres
+instead: each stack creates its own database (named `<url's db>_e2e_<worker>`, e.g.
+`cloudgene_e2e_main` or `cloudgene_e2e_gw0`) at start-up and drops it at teardown, so xdist
+workers never collide and a run never touches the URL's own database (which only needs to exist
+and be reachable — the role needs `CREATEDB`). Requires `psycopg2` (already in
+`requirements.txt`, installed in the shared venv). Example, matching the local role/db set up per
+`plans/TASKS.md` T09b:
+
+```bash
+E2E_DATABASE_URL=postgres://cloudgene:cloudgene@127.0.0.1:5432/cloudgene \
+  venv/bin/python -m pytest e2e -n 4 -m "not serial"
+```
 
 Every stack process runs with plain project settings configured by env (SPEC §3.2):
 `DJANGO_SETTINGS_MODULE=cloudgene_django.settings`, `CLOUDGENE_HOME=<stack>/home`,

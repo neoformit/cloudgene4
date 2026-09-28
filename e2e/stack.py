@@ -1,8 +1,16 @@
 """Boot and tear down the full Cloudgene stack for E2E tests.
 
-One stack per pytest process (per xdist worker): temp CLOUDGENE_HOME + SQLite DB under
+One stack per pytest process (per xdist worker): temp CLOUDGENE_HOME under
 `e2e/.artifacts/stack-<worker>/`, `manage.py runserver` serving the production SPA bundle, and
 `manage.py run_worker` when that command exists. Nothing here imports Django.
+
+Database: SQLite by default (a file under the stack's root, as before). Set `E2E_DATABASE_URL`
+(e.g. `postgres://cloudgene:cloudgene@127.0.0.1:5432/cloudgene`) to run the whole suite against
+Postgres instead — each stack (one per xdist worker) gets its own database, named after the
+worker (`<database-from-the-url>_e2e_<worker>`), created at start-up and dropped at teardown, so
+parallel workers never collide and a run never touches the URL's own database. Requires
+`psycopg2` (already in requirements.txt) and a reachable server with CREATEDB privilege for the
+given role.
 """
 import fcntl
 import json
@@ -15,6 +23,7 @@ import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 import requests
 import yaml
@@ -30,6 +39,62 @@ BUNDLE = REPO / 'static' / 'frontend'
 PYTHON = os.environ.get('E2E_PYTHON', sys.executable)
 OUTBOX_DIRNAME = 'mail'  # file-backend outbox = $CLOUDGENE_HOME/mail (settings.yaml + Django default)
 NEXTFLOW = os.environ.get('E2E_NEXTFLOW') or shutil.which('nextflow') or '/usr/local/bin/nextflow'
+E2E_DATABASE_URL = os.environ.get('E2E_DATABASE_URL')
+
+
+# ------------------------------------------------------------------------------------------------
+# Postgres: one database per stack (xdist worker), created at start-up, dropped at teardown.
+# ------------------------------------------------------------------------------------------------
+
+def _pg_admin_connect(base_url):
+    """Connect to the server named by `base_url` (any of its databases will do for admin
+    statements like CREATE/DROP DATABASE), autocommit (required for those statements)."""
+    import psycopg2
+    parts = urlsplit(base_url)
+    conn = psycopg2.connect(
+        host=parts.hostname or '127.0.0.1', port=parts.port or 5432,
+        user=parts.username, password=parts.password,
+        dbname=(parts.path or '/postgres').lstrip('/') or 'postgres',
+    )
+    conn.autocommit = True
+    return conn
+
+
+def _pg_db_name(base_url, worker):
+    base_name = (urlsplit(base_url).path or '/cloudgene').lstrip('/') or 'cloudgene'
+    return '%s_e2e_%s' % (base_name, worker)
+
+
+def _pg_url_for(base_url, db_name):
+    parts = urlsplit(base_url)
+    return urlunsplit((parts.scheme, parts.netloc, '/' + db_name, '', ''))
+
+
+def pg_create_database(base_url, db_name):
+    """Drop (if left over from a killed run) and (re)create `db_name` on the server in
+    `base_url`. Terminates any lingering backends first so a stale connection never blocks it."""
+    conn = _pg_admin_connect(base_url)
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                "WHERE datname = %s AND pid <> pg_backend_pid()", (db_name,))
+            cur.execute('DROP DATABASE IF EXISTS "%s"' % db_name)
+            cur.execute('CREATE DATABASE "%s"' % db_name)
+    finally:
+        conn.close()
+
+
+def pg_drop_database(base_url, db_name):
+    conn = _pg_admin_connect(base_url)
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                "WHERE datname = %s AND pid <> pg_backend_pid()", (db_name,))
+            cur.execute('DROP DATABASE IF EXISTS "%s"' % db_name)
+    finally:
+        conn.close()
 
 
 class StackError(RuntimeError):
@@ -148,12 +213,14 @@ class Stack:
     env: dict
     home: Path
     outbox_dir: Path
-    db_path: Path
+    db_path: Path | None
     log_dir: Path
     worker_available: bool = False
     worker_skip_reason: str = ''
     health_endpoint: bool = False
     procs: dict = field(default_factory=dict)
+    pg_admin_url: str | None = None  # set when running on Postgres (E2E_DATABASE_URL)
+    pg_db_name: str | None = None
 
     # -- process helpers -------------------------------------------------------------------------
     def manage(self, *args, check=True, timeout=300, log_name=None):
@@ -270,6 +337,10 @@ class Stack:
                     except ProcessLookupError:
                         pass
         self.procs.clear()
+        if self.pg_admin_url and self.pg_db_name:
+            # Web/worker processes above are dead, so their connections are already gone; drop
+            # the per-stack database so a run never leaves databases behind.
+            pg_drop_database(self.pg_admin_url, self.pg_db_name)
 
 
 def worker_ok(payload):
@@ -299,7 +370,6 @@ def start_stack(name='main'):
     log_dir.mkdir(parents=True)
     home = root / 'home'
     outbox = home / OUTBOX_DIRNAME
-    db_path = root / 'db.sqlite3'
     port = free_port()
     base_url = 'http://127.0.0.1:%d' % port
 
@@ -307,11 +377,21 @@ def start_stack(name='main'):
     build_home(home, base_url)
     outbox.mkdir()
 
+    db_path = None
+    pg_db_name = None
+    if E2E_DATABASE_URL:
+        pg_db_name = _pg_db_name(E2E_DATABASE_URL, name)
+        pg_create_database(E2E_DATABASE_URL, pg_db_name)
+        database_url = _pg_url_for(E2E_DATABASE_URL, pg_db_name)
+    else:
+        db_path = root / 'db.sqlite3'
+        database_url = 'sqlite:///' + str(db_path)  # absolute path -> sqlite:////...
+
     env = dict(os.environ)
     env.update({
         'DJANGO_SETTINGS_MODULE': 'cloudgene_django.settings',
         'CLOUDGENE_HOME': str(home),
-        'DATABASE_URL': 'sqlite:///' + str(db_path),  # absolute path -> sqlite:////...
+        'DATABASE_URL': database_url,
         'LOG_LEVEL': os.environ.get('E2E_LOG_LEVEL', 'INFO'),
         'DJANGO_SECRET_KEY': 'e2e-not-secret-' + name,
         'DEBUG': os.environ.get('E2E_DEBUG', 'False'),
@@ -327,7 +407,7 @@ def start_stack(name='main'):
         'PATH': os.path.dirname(NEXTFLOW) + os.pathsep + os.environ.get('PATH', ''),
     })
     stack = Stack(name=name, root=root, base_url=base_url, env=env, home=home, outbox_dir=outbox,
-                  db_path=db_path, log_dir=log_dir)
+                  db_path=db_path, log_dir=log_dir, pg_admin_url=E2E_DATABASE_URL, pg_db_name=pg_db_name)
     try:
         stack.manage('migrate', '--noinput', log_name='migrate.log')
         admin = constants.USERS['admin']
@@ -347,8 +427,10 @@ def start_stack(name='main'):
             stack.worker_skip_reason = ('no `manage.py run_worker` command (needs T03): '
                                         'worker-dependent test skipped')
         stack.run_seed('workflows')
+        db_summary = str(db_path) if db_path else 'postgres://%s:%s/%s' % (
+            urlsplit(database_url).hostname, urlsplit(database_url).port or 5432, pg_db_name)
         (root / 'stack.json').write_text(json.dumps({
-            'base_url': base_url, 'home': str(home), 'db': str(db_path), 'outbox': str(outbox),
+            'base_url': base_url, 'home': str(home), 'db': db_summary, 'outbox': str(outbox),
             'worker': stack.worker_available, 'health_endpoint': stack.health_endpoint}, indent=2))
     except BaseException:
         stack.stop()
