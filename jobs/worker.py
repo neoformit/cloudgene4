@@ -16,6 +16,7 @@ import signal
 import socket
 import subprocess
 import time
+import types
 from pathlib import Path
 
 from django.core.exceptions import ObjectDoesNotExist, ObjectNotUpdated
@@ -35,6 +36,12 @@ from .progress import (AnnotationParser, LineBuffer, MessageMerger, ProcessTrack
 logger = logging.getLogger('cloudgene.worker')
 
 CANCEL_GRACE_SECONDS = 10
+#: Command steps: at most this much of a stream is shown as a job message / copied to the job log;
+#: a step whose captured output grows beyond COMMAND_OUTPUT_LIMIT bytes per stream is stopped.
+COMMAND_MESSAGE_BYTES = 64 * 1024
+COMMAND_LOG_BYTES = 1024 * 1024
+COMMAND_OUTPUT_LIMIT = 256 * 1024 * 1024
+FAILURE_TAIL_BYTES = 4096
 ORPHAN_MESSAGE = 'The worker was restarted while this job was running; the job was stopped.'
 SHUTDOWN_MESSAGE = 'The worker was shut down while this job was running; the job was stopped.'
 
@@ -112,6 +119,20 @@ def _group_belongs_to_job(pgid, job_id) -> bool:
     return False
 
 
+def _tail_text(path, limit) -> str:
+    """Last ``limit`` bytes of a text file (with an omission marker), '' if unreadable."""
+    try:
+        size = path.stat().st_size
+        with open(path, 'rb') as fh:
+            if size > limit:
+                fh.seek(size - limit)
+                data = fh.read().split(b'\n', 1)[-1]
+                return f'[... {size - limit} bytes omitted ...]\n' + data.decode('utf-8', 'replace')
+            return fh.read().decode('utf-8', 'replace')
+    except OSError:
+        return ''
+
+
 def _signal_group(pgid, sig) -> bool:
     try:
         os.killpg(pgid, sig)
@@ -146,6 +167,9 @@ class Execution:
         self.term_sent_at = None
         self.kill_sent = False
         self.finished = False
+        self.kind = 'nextflow'
+        self.limit_exceeded = False
+        self.cmd = None
         try:
             self.definition = workflow_bridge.definition_from_yaml(job.workflow_yaml)
         except DefinitionError as exc:
@@ -202,6 +226,13 @@ class Execution:
             self._finish(JobState.FAILED, step.error or f'Step "{step.name}" is not supported.')
             return
 
+        self.kind = step.type
+        self.limit_exceeded = False
+        self.cmd = None
+        if step.type == 'command':
+            self._start_command(index, step)
+            return
+
         wf = self.job.workflow
         binary = runner.resolve_binary(cloudgene_config.get('nextflow.binary', 'nextflow'))
         prepared = runner.prepare_step(
@@ -253,6 +284,48 @@ class Execution:
             # actually starting. self.proc is already set, so the caller's vanish() kills it.
             raise Job.DoesNotExist(f'Job {self.job.pk} vanished right after Nextflow started')
 
+    def _start_command(self, index, step):
+        """``type: command``: one subprocess (own process group), no shell unless ``bash: true``.
+        stdout/stderr go to per-step files; the flagged streams are surfaced (see _read_command)."""
+        try:
+            prepared = runner.prepare_command(self.job, self.definition, index, app_dir=self.app_dir)
+        except ValueError as exc:
+            self._finish(JobState.FAILED, f'Step "{step.name}" failed: {exc}')
+            return
+        total = len(self.definition.steps)
+        self._log(f'Step {index + 1}/{total}: {step.name} (command)')
+        self._log('$ ' + prepared.display)
+        self.tracker = ProcessTracker({})
+        self.cmd = types.SimpleNamespace(
+            prepared=prepared, offsets={'stdout': 0, 'stderr': 0}, logged={'stdout': 0, 'stderr': 0},
+            headers=set())
+        for path in (prepared.stdout_path, prepared.stderr_path):
+            path.write_bytes(b'')
+        if not Job.objects.filter(pk=self.job.pk).exists():
+            raise Job.DoesNotExist(f'Job {self.job.pk} vanished before the command could start')
+        out, err = open(prepared.stdout_path, 'ab'), open(prepared.stderr_path, 'ab')
+        try:
+            self.proc = subprocess.Popen(
+                prepared.argv, cwd=prepared.cwd, env=prepared.env, stdin=subprocess.DEVNULL,
+                stdout=out, stderr=err, start_new_session=True,
+            )
+        except OSError as exc:
+            self._finish(JobState.FAILED,
+                         f'Step "{step.name}" failed: could not start command '
+                         f'"{prepared.argv[0]}": {exc.strerror or exc}')
+            return
+        finally:
+            out.close()
+            err.close()
+        pgid = self.proc.pid
+        try:
+            pgid = os.getpgid(self.proc.pid)
+        except OSError:
+            pass
+        self.job.pid, self.job.pgid = self.proc.pid, pgid
+        if not Job.objects.filter(pk=self.job.pk).update(pid=self.proc.pid, pgid=pgid):
+            raise Job.DoesNotExist(f'Job {self.job.pk} vanished right after the command started')
+
     def request_cancel(self):
         if self.proc is not None and self.term_sent_at is None and not self.finished:
             self._log('Cancel requested: sending SIGTERM to the process group')
@@ -280,7 +353,9 @@ class Execution:
         _signal_group(self.job.pgid or self.proc.pid, signal.SIGKILL)
         self._read_progress(final=True)
         row = self.step_rows[self.index]
-        if self.term_sent_at is not None:
+        if self.limit_exceeded:
+            self._finish(JobState.FAILED, self._failure_message(rc))
+        elif self.term_sent_at is not None:
             self._finish(JobState.CANCELLED, 'Job cancelled.')
         elif rc == 0:
             self._save_processes()
@@ -335,6 +410,9 @@ class Execution:
     # -- progress ---------------------------------------------------------------------------
 
     def _read_progress(self, final=False):
+        if self.cmd is not None:
+            self._read_command(final)
+            return
         messages = []
         try:
             size = self.stdout_path.stat().st_size
@@ -374,7 +452,77 @@ class Execution:
             row.save(update_fields=['processes'])
             self.tracker.changed = False
 
+    # -- command steps ----------------------------------------------------------------------
+
+    def _stream_path(self, name):
+        return getattr(self.cmd.prepared, f'{name}_path')
+
+    def _read_command(self, final=False):
+        """Copy new output of the flagged streams into the job log (capped) and, when the step
+        is over, add the captured text as job messages. Unflagged streams stay in their step
+        file only. A stream growing beyond COMMAND_OUTPUT_LIMIT stops the step."""
+        step = self.definition.steps[self.index]
+        for name in ('stdout', 'stderr'):
+            path = self._stream_path(name)
+            try:
+                size = path.stat().st_size
+            except OSError:
+                continue
+            if size > COMMAND_OUTPUT_LIMIT and not self.limit_exceeded and self.term_sent_at is None:
+                self.limit_exceeded = True
+                self._log(f'The {name} of the command exceeded {COMMAND_OUTPUT_LIMIT} bytes; stopping it')
+                self.request_cancel()
+            offset = self.cmd.offsets[name]
+            if getattr(step, name) and size > offset:
+                room = COMMAND_LOG_BYTES - self.cmd.logged[name]
+                if room > 0:
+                    with open(path, 'rb') as fh:
+                        fh.seek(offset)
+                        chunk = fh.read(min(size - offset, room))
+                    self._append_job_log(name, step, chunk)
+                    self.cmd.logged[name] += len(chunk)
+                    if self.cmd.logged[name] >= COMMAND_LOG_BYTES:
+                        self._log(f'[{name} of step "{step.name}" truncated in this log after '
+                                  f'{COMMAND_LOG_BYTES} bytes; the full text is in {path.name}]')
+            self.cmd.offsets[name] = size
+        if final:
+            messages = []
+            for name, level in (('stdout', 'info'), ('stderr', 'warning')):
+                if getattr(step, name):
+                    text = _tail_text(self._stream_path(name), COMMAND_MESSAGE_BYTES).strip()
+                    if text:
+                        messages.append((level, text))
+            self.add_messages(messages)
+
+    def _append_job_log(self, name, step, chunk):
+        path = self.job_dir / 'logs' / 'stdout.txt'
+        with open(path, 'ab') as fh:
+            if name not in self.cmd.headers:
+                self.cmd.headers.add(name)
+                fh.write(f'[cloudgene] --- {name} of step "{step.name}" ---\n'.encode())
+            fh.write(chunk)
+            if not chunk.endswith(b'\n'):
+                fh.write(b'\n')
+
+    def _command_failure_message(self, rc) -> str:
+        step = self.definition.steps[self.index]
+        if self.limit_exceeded:
+            return (f'Step "{step.name}" failed: its output exceeded '
+                    f'{COMMAND_OUTPUT_LIMIT // (1024 * 1024)} MiB and the command was stopped.')
+        detail = _tail_text(self.cmd.prepared.stderr_path, FAILURE_TAIL_BYTES).strip()
+        if rc < 0:
+            try:
+                what = f'was killed by signal {signal.Signals(-rc).name}'
+            except ValueError:
+                what = f'was killed by signal {-rc}'
+        else:
+            what = f'exited with code {rc}'
+        msg = f'Step "{step.name}" failed: the command {what}.'
+        return f'{msg}\nstderr (last lines):\n{detail}' if detail else msg
+
     def _failure_message(self, rc) -> str:
+        if self.cmd is not None:
+            return self._command_failure_message(rc)
         text = ''
         try:
             with open(self.stdout_path, 'rb') as fh:
@@ -389,7 +537,16 @@ class Execution:
             detail = '\n'.join(block)
         step = self.definition.steps[self.index].name
         msg = f'Step "{step}" failed: Nextflow exited with code {rc}.'
-        return f'{msg}\n{detail}' if detail else msg
+        if detail:
+            msg = f'{msg}\n{detail}'
+        # Cloudgene 3: `stdout: true` adds the raw output to the failure message.
+        cfg = self.definition.steps[self.index]
+        if (cfg.stdout or cfg.stderr) and text.strip():
+            tail = text.strip()
+            if len(tail) > FAILURE_TAIL_BYTES:
+                tail = '[...]\n' + tail[-FAILURE_TAIL_BYTES:]
+            msg = f'{msg}\nOutput (last lines):\n{tail}'
+        return msg
 
     def _finish(self, state, message):
         if self.finished:

@@ -118,6 +118,7 @@ def make_app(app_id, yaml_text=None, *, mode='success', name=None, public=True, 
     (app / 'cloudgene.yaml').write_text(textwrap.dedent(text))
     (app / 'main.nf').write_text('// fake\n')
     for rel, content in (files or {}).items():
+        (app / rel).parent.mkdir(parents=True, exist_ok=True)
         (app / rel).write_text(content)
     return registry.install(str(app), public=public, groups=list(groups), enabled=enabled,
                             replace=True)

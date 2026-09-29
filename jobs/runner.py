@@ -14,12 +14,15 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
 from core import config as cloudgene_config
 from workflows.definition import Step, WorkflowDefinition
+
+from . import stepvars
 
 TRACE_FIELDS = ('task_id,hash,native_id,process,tag,name,status,exit,workdir,'
                 'submit,start,complete,duration,realtime')
@@ -75,9 +78,13 @@ def output_path(job_dir: Path, output_id: str) -> Path:
     return job_dir / 'output' / output_id
 
 
-def build_params(definition: WorkflowDefinition, step: Step, parameters: dict, job_dir: Path) -> dict:
-    """params.json content: step ``params`` + serialisable inputs + serialisable outputs."""
+def build_params(definition: WorkflowDefinition, step: Step, parameters: dict, job_dir: Path,
+                 variables: dict | None = None) -> dict:
+    """params.json content: step ``params`` (``$name``/``${name}`` substituted when ``variables``
+    is given) + serialisable inputs + serialisable outputs."""
     params = dict(step.params or {})
+    if variables is not None:
+        params = stepvars.substitute_params(params, variables)
     for p in definition.value_inputs:
         if not p.serialize or p.id not in parameters:
             continue
@@ -145,9 +152,7 @@ def work_dir_for(job, configured: str) -> Path:
     return cloudgene_config.job_dir(job.id) / 'work'
 
 
-def prepare_step(job, definition: WorkflowDefinition, index: int, *, binary: str, profile: str,
-                 work_dir: str, app_dir: Path) -> PreparedStep:
-    step = definition.steps[index]
+def _prepare_workspace(job, definition: WorkflowDefinition) -> tuple[Path, Path]:
     job_dir = cloudgene_config.job_dir(job.id)
     logs = job_dir / 'logs'
     logs.mkdir(parents=True, exist_ok=True)
@@ -157,12 +162,60 @@ def prepare_step(job, definition: WorkflowDefinition, index: int, *, binary: str
             path.mkdir(parents=True, exist_ok=True)
         else:
             path.parent.mkdir(parents=True, exist_ok=True)
+    return job_dir, logs
+
+
+@dataclass
+class PreparedCommand:
+    argv: list                 # the exec'd command (``[bash, -c, script]`` when ``bash: true``)
+    env: dict
+    cwd: Path
+    stdout_path: Path          # this step's own stdout / stderr capture files
+    stderr_path: Path
+    display: str               # the command as logged (after substitution)
+
+
+def find_bash() -> str:
+    return '/bin/bash' if os.access('/bin/bash', os.X_OK) else (shutil.which('bash') or 'bash')
+
+
+def prepare_command(job, definition: WorkflowDefinition, index: int, *, app_dir: Path) -> PreparedCommand:
+    """Build the argv/env for a ``type: command`` step (see ``jobs/stepvars.py`` for the quoting)."""
+    step = definition.steps[index]
+    job_dir, logs = _prepare_workspace(job, definition)
+    env = build_env(job, definition, app_dir)
+    variables = stepvars.build_variables(definition, job.parameters or {}, job_dir, env)
+    if step.bash:
+        script = stepvars.quote_into_shell(step.cmd, variables)
+        argv = [find_bash(), '-c', script]
+        display = script.strip()
+    else:
+        argv = stepvars.split_command(step.cmd, variables)
+        if not argv:
+            raise ValueError('The command is empty after variable substitution')
+        display = shlex.join(argv)
+        exe = argv[0]
+        if os.path.sep not in exe:
+            exe = shutil.which(exe, path=env.get('PATH')) or exe
+        argv[0] = exe
+    prefix = f'step{index + 1}-'
+    return PreparedCommand(
+        argv=argv, env=env, cwd=job_dir, stdout_path=logs / f'{prefix}command.stdout.txt',
+        stderr_path=logs / f'{prefix}command.stderr.txt', display=display)
+
+
+def prepare_step(job, definition: WorkflowDefinition, index: int, *, binary: str, profile: str,
+                 work_dir: str, app_dir: Path) -> PreparedStep:
+    step = definition.steps[index]
+    job_dir, logs = _prepare_workspace(job, definition)
+    env = build_env(job, definition, app_dir)
+    variables = stepvars.build_variables(definition, job.parameters or {}, job_dir, env)
     work = work_dir_for(job, work_dir)
     work.mkdir(parents=True, exist_ok=True)
 
     prefix = step_prefix(index)
     params_path = job_dir / f'{prefix}params.json'
-    params = build_params(definition, step, job.parameters or {}, job_dir)
+    params = build_params(definition, step, job.parameters or {}, job_dir, variables)
     params_path.write_text(json.dumps(params, indent=2, ensure_ascii=False), encoding='utf-8')
     cg_config = job_dir / 'cloudgene.config'
     cg_config.write_text(CLOUDGENE_CONFIG, encoding='utf-8')
@@ -185,7 +238,7 @@ def prepare_step(job, definition: WorkflowDefinition, index: int, *, binary: str
             '-with-timeline', str(logs / f'{prefix}timeline.html'),
             '-ansi-log', 'false']
     return PreparedStep(
-        command=cmd, env=build_env(job, definition, app_dir), cwd=job_dir,
+        command=cmd, env=env, cwd=job_dir,
         stdout_path=logs / 'stdout.txt', trace_path=trace, log_path=log_path,
         params_path=params_path,
     )

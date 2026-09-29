@@ -17,12 +17,17 @@ VARIABLES = [
     ('CLOUDGENE_SMTP_USER', 'global', 'SMTP user (mail.user)'),
     ('CLOUDGENE_SMTP_PASSWORD', 'global', 'SMTP password (mail.password)'),
     ('CLOUDGENE_SMTP_SENDER', 'global', 'Sender address (mail.from_email)'),
+    ('CLOUDGENE_WORKSPACE_TYPE', 'global', 'Workspace type (always "local")'),
+    ('CLOUDGENE_WORKSPACE_HOME', 'global',
+     'Directory holding all job workspaces; ${CLOUDGENE_WORKSPACE_HOME}/${CLOUDGENE_JOB_ID} is a job\'s workspace'),
     ('CLOUDGENE_APP_ID', 'app', 'Workflow id'),
     ('CLOUDGENE_APP_NAME', 'app', 'Workflow name'),
     ('CLOUDGENE_APP_VERSION', 'app', 'Workflow version'),
     ('CLOUDGENE_APP_LOCATION', 'app', 'Directory containing the cloudgene.yaml'),
     ('CLOUDGENE_JOB_ID', 'job', 'Job id (UUID)'),
     ('CLOUDGENE_JOB_NAME', 'job', 'Job name as entered by the user'),
+    ('CLOUDGENE_JOB_LOCATION', 'job', 'The job workspace directory'),
+    ('CLOUDGENE_JOB_SUBMITTED_ON', 'job', 'Submission time (ISO 8601)'),
     ('CLOUDGENE_USER_NAME', 'job', 'Username of the submitter'),
     ('CLOUDGENE_USER_EMAIL', 'job', 'E-mail of the submitter'),
     ('CLOUDGENE_USER_FULL_NAME', 'job', 'Full name of the submitter'),
@@ -40,6 +45,8 @@ def cloudgene_variables(workflow=None, job=None, user=None) -> dict:
         'CLOUDGENE_SMTP_USER': s['mail']['user'],
         'CLOUDGENE_SMTP_PASSWORD': s['mail']['password'],
         'CLOUDGENE_SMTP_SENDER': s['mail']['from_email'],
+        'CLOUDGENE_WORKSPACE_TYPE': 'local',
+        'CLOUDGENE_WORKSPACE_HOME': str(config.jobs_dir()),
     }
     if workflow is not None:
         out.update({
@@ -49,7 +56,11 @@ def cloudgene_variables(workflow=None, job=None, user=None) -> dict:
             'CLOUDGENE_APP_LOCATION': getattr(workflow, 'app_location', '') or '',
         })
     if job is not None:
-        out.update({'CLOUDGENE_JOB_ID': str(job.id), 'CLOUDGENE_JOB_NAME': job.name or ''})
+        out.update({
+            'CLOUDGENE_JOB_ID': str(job.id), 'CLOUDGENE_JOB_NAME': job.name or '',
+            'CLOUDGENE_JOB_LOCATION': str(config.job_dir(job.id)),
+            'CLOUDGENE_JOB_SUBMITTED_ON': job.submitted_at.isoformat() if job.submitted_at else '',
+        })
         user = user or getattr(job, 'user', None)
     if user is not None:
         out.update({
