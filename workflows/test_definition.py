@@ -187,7 +187,7 @@ class LoadDefinitionTest(SimpleTestCase):
     def test_unsupported_steps_load_with_error(self):
         d = load_definition('id: a\nname: A\nworkflow:\n  steps:\n'
                             '    - {name: Java, classname: cloudgene.Foo}\n'
-                            '    - {name: Cmd, cmd: /bin/echo hi}\n'
+                            '    - {name: Groovy, type: groovy, script: x.groovy}\n'
                             '    - {name: Dock, type: docker, image: x}\n')
         self.assertEqual([s.type for s in d.steps], ['unsupported'] * 3)
         self.assertIn('classname', d.steps[0].error)
@@ -207,3 +207,64 @@ class LoadDefinitionTest(SimpleTestCase):
         d = load_definition('id: a\nname: A\nworkflow:\n  steps: [{script: main.nf}]\n  inputs:\n'
                             '    - {id: c, type: checkbox, value: on-val, values: {true: on-val, false: off-val}}\n')
         self.assertIs(d.input('c').value, True)
+
+
+class CommandStepParsingTest(SimpleTestCase):
+    def wf(self, *steps):
+        return 'id: a\nname: A\nworkflow:\n  steps:\n' + ''.join(steps)
+
+    def test_command_step_keys(self):
+        d = load_definition(self.wf(
+            '    - {name: C, type: command, cmd: "/bin/echo $x", bash: true, stdout: true}\n'))
+        step = d.steps[0]
+        self.assertEqual((step.type, step.cmd, step.bash, step.stdout, step.stderr),
+                         ('command', '/bin/echo $x', True, True, False))
+        self.assertTrue(step.supported)
+        self.assertEqual(d.warnings, [])
+
+    def test_cmd_without_type_and_exec_alias(self):
+        d = load_definition(self.wf('    - {name: A, cmd: /bin/true}\n',
+                                    '    - {name: B, type: command, exec: /bin/false}\n'))
+        self.assertEqual([(s.type, s.cmd) for s in d.steps],
+                         [('command', '/bin/true'), ('command', '/bin/false')])
+
+    def test_missing_or_empty_cmd_is_an_error(self):
+        for body in ('{name: C, type: command}', '{name: C, type: command, cmd: ""}',
+                     '{name: C, type: command, cmd: "  "}'):
+            with self.assertRaises(DefinitionError) as cm:
+                load_definition(self.wf(f'    - {body}\n'))
+            self.assertIn('cmd', cm.exception.errors[0])
+
+    def test_unbalanced_quotes_error_unless_bash(self):
+        with self.assertRaises(DefinitionError):
+            load_definition(self.wf('    - {name: C, type: command, cmd: "echo \'x"}\n'))
+        load_definition(self.wf('    - {name: C, type: command, cmd: "echo \'x", bash: true}\n'))
+
+    def test_bad_flags_are_errors(self):
+        with self.assertRaises(DefinitionError):
+            load_definition(self.wf('    - {name: C, type: command, cmd: x, stdout: maybe}\n'))
+
+    def test_nextflow_step_with_stdout_flags(self):
+        d = load_definition(self.wf('    - {name: N, stdout: true, stderr: true}\n'))
+        self.assertEqual((d.steps[0].type, d.steps[0].script, d.steps[0].stdout, d.steps[0].stderr),
+                         ('nextflow', 'main.nf', True, True))
+
+    def test_taxodactyl_definition(self):
+        path = Path(__file__).parent / 'fixtures' / 'taxodactyl-v1.5.0.yml'
+        d = load_definition(path.read_text())
+        self.assertEqual(d.warnings, [])
+        self.assertEqual([s.type for s in d.steps], ['nextflow', 'command', 'command', 'command'])
+        self.assertEqual(d.steps[0].script, 'main.nf')
+        self.assertTrue(d.steps[0].stdout and d.steps[0].stderr)
+        self.assertTrue(d.steps[1].bash)
+        self.assertIn('$outdir/run.log', d.steps[1].cmd)
+        self.assertFalse(d.steps[2].bash)
+        self.assertEqual(d.steps[3].cmd,
+                         '/usr/bin/bash ${CLOUDGENE_APP_LOCATION}/bin/zip_reports.sh --dir $outdir')
+        self.assertEqual([p.id for p in d.inputs], ['metadata', 'sequences', 'ncbi_api_key', 'facility_name'])
+        self.assertEqual(d.input('metadata').accept, '.csv')
+        self.assertTrue(d.input('metadata').help.startswith('https://'))
+        self.assertIn('Right click', d.input('metadata').details)
+        self.assertFalse(d.input('sequences').required)
+        self.assertEqual((d.author.split(',')[0], d.output('outdir').type), ('Magdalena Antczak', 'folder'))
+        self.assertTrue(d.logo.startswith('https://'))

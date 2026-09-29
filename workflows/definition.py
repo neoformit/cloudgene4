@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -140,22 +141,27 @@ class OutputParam:
 @dataclass
 class Step:
     name: str
-    type: str = 'nextflow'       # 'nextflow' or 'unsupported'
+    type: str = 'nextflow'       # 'nextflow', 'command' or 'unsupported'
     script: str = ''
     revision: str = ''
     params: dict = field(default_factory=dict)
     processes: list = field(default_factory=list)   # [{'process', 'label', 'view', 'group'}]
     error: str = ''              # why the step is unsupported (the job fails with this message)
+    cmd: str = ''                # command steps: the command template (``$name`` / ``${name}``)
+    bash: bool = False           # command steps: run through ``bash -c`` (values shell-quoted)
+    stdout: bool = False         # surface the step's stdout on the job page / job log
+    stderr: bool = False         # surface the step's stderr on the job page / job log
     raw: dict = field(default_factory=dict)
 
     @property
     def supported(self) -> bool:
-        return self.type == 'nextflow'
+        return self.type in ('nextflow', 'command')
 
     def to_dict(self) -> dict:
         return {'name': self.name, 'type': self.type, 'script': self.script,
                 'revision': self.revision, 'params': dict(self.params),
-                'processes': [dict(p) for p in self.processes], 'error': self.error}
+                'processes': [dict(p) for p in self.processes], 'error': self.error,
+                'cmd': self.cmd, 'bash': self.bash, 'stdout': self.stdout, 'stderr': self.stderr}
 
 
 @dataclass
@@ -432,6 +438,28 @@ def _parse_output(raw, where, errors) -> OutputParam | None:
     )
 
 
+def _parse_command_step(step: Step, raw: dict, where: str, errors) -> Step:
+    """``type: command`` (Cloudgene 3 ``BashCommandStep``): ``cmd`` (alias ``exec``), ``bash``."""
+    step.type = 'command'
+    cmd = raw.get('exec') if raw.get('exec') is not None else raw.get('cmd')
+    if cmd is None or not _str(cmd).strip():
+        errors.append(f'{where}.cmd: is required for a command step and must not be empty')
+        return step
+    if isinstance(cmd, (dict, list)):
+        errors.append(f'{where}.cmd: must be a string')
+        return step
+    step.cmd = _str(cmd)
+    step.bash = _bool(raw.get('bash'), False, f'{where}.bash', errors)
+    if not step.bash:
+        try:
+            if not shlex.split(step.cmd):
+                errors.append(f'{where}.cmd: must not be empty')
+        except ValueError as exc:
+            errors.append(f'{where}.cmd: cannot be split into arguments ({exc}); '
+                          f'fix the quoting or set bash: true')
+    return step
+
+
 def _parse_step(raw, where, errors, warnings) -> Step | None:
     if not isinstance(raw, dict):
         errors.append(f'{where}: must be a mapping')
@@ -439,16 +467,23 @@ def _parse_step(raw, where, errors, warnings) -> Step | None:
     name = _str(raw.get('name')).strip() or 'Step'
     step = Step(name=name, raw=dict(raw))
     stype = _str(raw.get('type')).strip().lower()
+    step.stdout = _bool(raw.get('stdout'), False, f'{where}.stdout', errors)
+    step.stderr = _bool(raw.get('stderr'), False, f'{where}.stderr', errors)
+    # Cloudgene 3 (BashCommandStep) accepts `exec` as an alias of `cmd`; a step with `cmd`/`exec`
+    # but neither `type` nor `script` is read as a command step (Cloudgene 2 style).
+    is_command = stype == 'command' or (
+        not stype and not raw.get('script') and not raw.get('classname')
+        and (raw.get('cmd') is not None or raw.get('exec') is not None))
     if raw.get('classname'):
         step.type = 'unsupported'
         step.error = (f'Step "{name}" uses classname "{raw.get("classname")}" (Java step); '
-                      f'only Nextflow steps are supported.')
+                      f'only Nextflow and command steps are supported.')
+    elif is_command:
+        return _parse_command_step(step, raw, where, errors)
     elif stype and stype != 'nextflow':
         step.type = 'unsupported'
-        step.error = f'Step "{name}" has unsupported type "{stype}"; only Nextflow steps are supported.'
-    elif not stype and raw.get('cmd') and not raw.get('script'):
-        step.type = 'unsupported'
-        step.error = f'Step "{name}" is a command step; only Nextflow steps are supported.'
+        step.error = (f'Step "{name}" has unsupported type "{stype}"; '
+                      f'only Nextflow and command steps are supported.')
     if step.type != 'nextflow':
         warnings.append(f'{where}: {step.error}')
         return step
