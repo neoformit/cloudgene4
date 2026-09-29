@@ -382,13 +382,15 @@ Soft delete: `Job.deleted_at` (user-deleted jobs are hidden everywhere and their
   = absolute workspace path, unset optional = `""`), outputs (`<job>/output/<id>` absolute), and all
   `CLOUDGENE_*` (now also `WORKSPACE_HOME` = jobs root, `WORKSPACE_TYPE`, `JOB_LOCATION`,
   `JOB_SUBMITTED_ON`); unknown names are left as written. stdout/stderr go to
-  `logs/stepN-command.stdout.txt` / `.stderr.txt`; a stream whose flag (`stdout`/`stderr`) is true is
-  appended live to `logs/stdout.txt` (≤ 1 MiB) and added at step end as a `JobMessage` of the step
-  (stdout `info`, stderr `warning`, ≤ 64 KiB, tail kept); a stream over 256 MiB stops the step and
-  fails it. Non-zero exit fails the step and the job (`… the command exited with code N.` + the last
-  4 KiB of stderr, regardless of the flag); later steps become `cancelled`. Files written into an
+  `logs/stepN-command.stdout.txt` / `.stderr.txt` on disk; **a stream is visible to the job owner only
+  when its flag (`stdout`/`stderr`) is true**: then it is appended live to `logs/stdout.txt` (≤ 1 MiB;
+  served by `GET /api/jobs/{id}/log`), added at step end as a `JobMessage` of the step (stdout `info`,
+  stderr `warning`, ≤ 64 KiB, tail kept) and its last 4 KiB is added to the failure message; an unflagged
+  stream reaches none of these. A stream over 256 MiB stops the step and fails it. Non-zero exit fails
+  the step and the job (`Step "X" failed (exit code N).`); later steps become `cancelled`. Files written into an
   output folder are collected like published Nextflow files. Nextflow steps: `stdout`/`stderr` true
-  append the output tail to the failure message (as Cloudgene 3).
+  append the output tail to the failure message (as Cloudgene 3); their `ERROR ~` report, raw job log
+  and `nextflow.log` tail stay visible regardless of the flags (`::message::` always shown).
 - **Progress**: stdout task lines (`[PROCESS ab/123456] NAME (1)` / `… Submitted process > …`) and
   the trace file (read incrementally) give per-process counts `{name, label, submitted, running,
   completed, failed, total}` stored on `JobStep.processes`. Annotations `::message::`, `::notice::`,
@@ -746,7 +748,7 @@ Rules enforced by the parser (`workflows/definition.py`, owned by T03):
 - Steps: `type: nextflow` or no `type` (default `script: main.nf`); `type: command` (or `cmd`/`exec`
   with neither `type` nor `script`) with `cmd` (required, non-empty; `exec` alias), `bash` (bool,
   default false; with `bash: false` the template must be `shlex`-splittable); `stdout`/`stderr`
-  (bool, default false) on both kinds. Steps with `classname:` or another `type` load with
+  (bool, default false) on both kinds: a stream is shown to the owner only when its flag is true. Steps with `classname:` or another `type` load with
   `type: "unsupported"` + `error` and a definition warning; a job that reaches such a step fails with
   that message (never silently succeeds). See docs/WORKFLOW_YAML_REFERENCE.md for variables/quoting.
 

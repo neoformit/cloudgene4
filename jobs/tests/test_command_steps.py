@@ -252,8 +252,8 @@ class CommandStepWorkerTest(WorkerTestBase):
         job.refresh_from_db()
         self.assertEqual(job.status, JobState.FAILED)
         self.assertIn('Boom', job.error_message)
-        self.assertIn('exited with code 3', job.error_message)
-        self.assertIn('it broke badly', job.error_message)
+        self.assertIn('failed (exit code 3)', job.error_message)
+        self.assertNotIn('it broke badly', job.error_message)   # stderr flag is off
         self.assertEqual(list(job.steps.values_list('status', flat=True)), ['failed', 'cancelled'])
         self.assertIn(('info', 'out'), job.messages.values_list('level', 'text'))
         self.assertFalse((cloudgene_config.job_dir(job.id) / 'output' / 'outdir' / 'never').exists())
@@ -331,3 +331,59 @@ class CommandStepWorkerTest(WorkerTestBase):
         self.worker.drain(timeout=30, tick_seconds=0.05)
         job2.refresh_from_db()
         self.assertNotIn('Output (last lines):', job2.error_message)
+
+
+class StreamVisibilityTest(WorkerTestBase):
+    """A stream whose flag is false must not reach anything the owner can see (only the step's
+    log file on disk); with the flag true it is shown (T10 follow-up)."""
+    SECRET = 'SECRET-TOKEN-hunter2'   # assembled by the shell so the command line itself does not contain it
+
+    def run_failing(self, stream, flag):
+        cmd = f"p=SECRET-TOKEN; echo $p-hunter2 {'>&2' if stream == 'stderr' else ''}; exit 1"
+        yaml_text = textwrap.dedent(f"""
+            id: vis
+            name: Vis
+            workflow:
+              steps:
+                - name: Leaky
+                  type: command
+                  bash: true
+                  cmd: "{cmd}"
+                  {stream}: {'true' if flag else 'false'}
+        """)
+        make_app('vis', yaml_text, files={})
+        job = self.submit('vis')
+        self.worker.drain(timeout=30, tick_seconds=0.05)
+        job.refresh_from_db()
+        self.assertEqual(job.status, JobState.FAILED)
+        return job
+
+    def visible(self, job):
+        from rest_framework.test import APIClient
+        client = APIClient()
+        client.force_authenticate(self.user)
+        parts = []
+        for path in ('', 'status/', 'log/'):
+            r = client.get(f'/api/jobs/{job.id}/{path}')
+            self.assertEqual(r.status_code, 200, path)
+            parts.append(r.content.decode())
+        r = client.get('/api/jobs/')
+        parts.append(r.content.decode())
+        return '\n'.join(parts)
+
+    def test_hidden_streams_stay_on_disk(self):
+        for stream in ('stderr', 'stdout'):
+            with self.subTest(stream=stream):
+                job = self.run_failing(stream, False)
+                self.assertIn('failed (exit code 1)', job.error_message)
+                self.assertNotIn(self.SECRET, self.visible(job))
+                disk = cloudgene_config.job_dir(job.id) / 'logs' / f'step1-command.{stream}.txt'
+                self.assertIn(self.SECRET, disk.read_text())
+
+    def test_flagged_streams_are_shown(self):
+        for stream in ('stderr', 'stdout'):
+            with self.subTest(stream=stream):
+                job = self.run_failing(stream, True)
+                self.assertIn(self.SECRET, self.visible(job))
+                self.assertIn('failed (exit code 1)', job.error_message)
+                self.assertIn(self.SECRET, job.error_message)

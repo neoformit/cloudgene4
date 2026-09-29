@@ -107,7 +107,11 @@ app's `main.nf`. `$name` / `${name}` in string values of `params` are substitute
 *Variables* below), e.g. `trace_file: ${CLOUDGENE_WORKSPACE_HOME}/${CLOUDGENE_JOB_ID}/logs/step1-trace.csv`;
 values without a variable (such as `./tmp`) are passed through untouched. `stdout: true` (or
 `stderr: true`; Nextflow's two streams are merged) adds the tail of Nextflow's output to the
-failure message of a failed step, as in Cloudgene 3. `::message::` annotations are always read.
+failure message of a failed step, as in Cloudgene 3. `::message::` annotations are authored for users
+and are always shown. *Deviation from the command-step rule:* for Nextflow steps the Nextflow error
+report (`ERROR ~` block), the raw job log (`logs/stdout.txt`) and the `nextflow.log` tail stay visible on
+the job page / Logs tab regardless of the flags (existing documented behaviour), so `stdout`/`stderr`
+only add the output tail to the failure message.
 
 ### Command steps (`type: command`)
 
@@ -132,16 +136,18 @@ failure message of a failed step, as in Cloudgene 3. `::message::` annotations a
   Nextflow (`CLOUDGENE_*` variables plus `nextflow.env` contents), one step after the other in the
   order written — before, between or after Nextflow steps. Files it writes into an output folder
   (e.g. `$outdir/reports.zip`) are collected as job outputs like published Nextflow files.
-- **Exit code**: non-zero fails the step and the job (`Step "X" failed: the command exited with
-  code 3.` plus the last lines of stderr, whatever the `stderr` flag); later steps do not run.
-  There is no continue-on-error flag (Cloudgene 3 has none either). A command that cannot be
-  started (missing/not executable) fails the step with that reason.
-- **`stdout` / `stderr`**: both streams are always written to `logs/stepN-command.stdout.txt` /
-  `.stderr.txt` in the workspace. With the flag on, the stream is also appended to the job log
-  (Logs tab) live and shown on the job page as a message of the step (stdout as `info`, stderr as
-  `warning`) once the step ends. With the flag off, it is not surfaced. Messages are capped at
-  64 KiB (the tail is kept), the job-log copy at 1 MiB per stream, and a step writing more than
-  256 MiB to one stream is stopped and fails.
+- **Exit code**: non-zero fails the step and the job with `Step "X" failed (exit code 3).`; later
+  steps do not run. There is no continue-on-error flag (Cloudgene 3 has none either). A command
+  that cannot be started (missing/not executable) fails the step with that reason.
+- **`stdout` / `stderr` (visibility rule)**: a stream is shown to the job's owner **only if its
+  flag is `true`**. Both streams are always written to `logs/stepN-command.stdout.txt` / `.stderr.txt`
+  in the job workspace on disk (operators only; never served by the API). With the flag on, the
+  stream is appended live to the job log (Logs tab / `GET /api/jobs/{id}/log`), shown on the job
+  page as a message of the step once the step ends (stdout `info`, stderr `warning`), and its last
+  lines are added to the failure message. With the flag off, it appears in none of these: the
+  failure message is just the exit code. Messages are capped at 64 KiB (the tail is kept), the
+  job-log copy at 1 MiB per stream, and a step writing more than 256 MiB to one stream is stopped
+  and fails. Files the command writes into an output folder are outputs and unaffected.
 - **Cancel**: SIGTERM to the step's process group, SIGKILL after 10 s (same as Nextflow).
 
 ### Variables

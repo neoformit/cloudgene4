@@ -509,16 +509,22 @@ class Execution:
         if self.limit_exceeded:
             return (f'Step "{step.name}" failed: its output exceeded '
                     f'{COMMAND_OUTPUT_LIMIT // (1024 * 1024)} MiB and the command was stopped.')
-        detail = _tail_text(self.cmd.prepared.stderr_path, FAILURE_TAIL_BYTES).strip()
         if rc < 0:
             try:
-                what = f'was killed by signal {signal.Signals(-rc).name}'
+                what = f'killed by signal {signal.Signals(-rc).name}'
             except ValueError:
-                what = f'was killed by signal {-rc}'
+                what = f'killed by signal {-rc}'
         else:
-            what = f'exited with code {rc}'
-        msg = f'Step "{step.name}" failed: the command {what}.'
-        return f'{msg}\nstderr (last lines):\n{detail}' if detail else msg
+            what = f'exit code {rc}'
+        msg = f'Step "{step.name}" failed ({what}).'
+        # Only streams the workflow author opted into (`stdout:`/`stderr:` true) are ever shown;
+        # the others stay in the step's log file on disk.
+        for name in ('stdout', 'stderr'):
+            if getattr(step, name):
+                detail = _tail_text(self._stream_path(name), FAILURE_TAIL_BYTES).strip()
+                if detail:
+                    msg += f'\n{name} (last lines):\n{detail}'
+        return msg
 
     def _failure_message(self, rc) -> str:
         if self.cmd is not None:

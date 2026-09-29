@@ -506,3 +506,9 @@ Cloudgene 3 semantics matched/deviated from: see the Log line below and `docs/WO
   per stream). Verified: unit SQLite + Postgres 372 OK, vitest 144, E2E full run 0 failed (new:
   `e2e/tests/test_command_steps.py`, 4 tests). Real install check of the taxodactyl shape via
   `install_workflow`: valid, 0 warnings, 4 inputs; Taxodactyl itself was not run (no BLAST DB).
+- 2026-09-29 T10 follow-up (user decision): `stdout`/`stderr` are visibility gates. A command step's
+  unflagged stream goes only to `logs/stepN-command.*.txt` on disk; the failure message is the generic
+  `Step "X" failed (exit code N).` and gains the stream tail only for a flagged stream (this supersedes
+  the "stderr tail is always in the failure message" deviation above). Nextflow step unchanged: its
+  `ERROR ~` report, raw `logs/stdout.txt` and `nextflow.log` tail stay visible in the Logs tab / failure
+  message regardless of flags (existing SPEC/E2E J5 behaviour); `::message::` always shown.

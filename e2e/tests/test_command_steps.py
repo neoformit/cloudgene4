@@ -4,7 +4,8 @@ C1 run form shows `details`, a `help` link and `accept` on the file input
 C2 Nextflow step + command steps run in order; steps with `stdout: true` show their output on the
    job page (a `bash: true` pipeline included), unflagged output stays hidden; a value with shell
    metacharacters reaches the script literally; `reports.zip` written by a command step is downloadable
-C3 a failing command step fails the job with its exit code + stderr and later steps do not run
+C3 a failing command step fails the job with its exit code (its unflagged stderr stays hidden)
+   and later steps do not run
 C4 cancelling during a long command step stops it (and its children)
 """
 import time
@@ -96,12 +97,14 @@ def test_failing_command_step_fails_the_job(page, login, api, requires_worker):
         login(page, 'alice')
         job = JobPage(page).open(job_id)
         job.expect_state('failed')
-        expect(job.messages('error').filter(has_text='exited with code 7')).not_to_have_count(0)
-        expect(job.messages('error').filter(has_text='about to fail')).not_to_have_count(0)
+        expect(job.messages('error').filter(has_text='failed (exit code 7)')).not_to_have_count(0)
+        expect(job.messages().filter(has_text='about to fail')).to_have_count(0)   # stderr: false -> hidden
         detail = alice.get_job(job_id)
         assert [s['state'] for s in detail['steps']] == ['success', 'success', 'success', 'failed', 'cancelled']
-        assert 'exited with code 7' in detail['error_message']
+        assert 'failed (exit code 7)' in detail['error_message']
         assert not any('zip_reports' in m['text'] for m in detail['messages'])
+        assert 'about to fail' not in str(detail)
+        assert 'about to fail' not in alice.get('/api/jobs/%s/log' % job_id).text
     finally:
         _cleanup(alice, job_id)
 
