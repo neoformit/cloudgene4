@@ -16,6 +16,7 @@ APPS = {
     'fail': {'public': False, 'groups': ['admin']},
     'slow': {'public': False, 'groups': ['admin']},
     'multi-process': {'public': False, 'groups': ['admin']},
+    'command-steps': {'public': False, 'groups': ['researchers']},
 }
 
 # Queue limits written to settings.yaml (Q1 relies on max_running_jobs == 2).

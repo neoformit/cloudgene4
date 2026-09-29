@@ -1,0 +1,82 @@
+id: command-steps
+name: Command steps
+version: 1.0.0
+description: 'E2E fixture shaped like Taxodactyl: a Nextflow step followed by Cloudgene 3 <code>command</code> steps.'
+author: E2E Author
+website: https://example.org/command-steps
+logo: https://example.org/command-steps/logo.png
+category: e2e
+
+workflow:
+  steps:
+    - name: Run pipeline
+      params:
+        who: ${CLOUDGENE_USER_EMAIL}
+        trace_file: ${CLOUDGENE_WORKSPACE_HOME}/${CLOUDGENE_JOB_ID}/logs/step1-trace.csv
+        temp_root_dir: ./tmp
+        sleep_seconds: $sleep
+      stdout: true
+      stderr: true
+
+    - name: Show retrieved secrets
+      type: command
+      cmd: >
+        /usr/bin/grep 'Vault:'
+        $outdir/run.log
+        | /usr/bin/sed 's/^.* - DEBUG - //'
+        | /usr/bin/sort -u
+      bash: true
+      stdout: true
+      stderr: true
+
+    - name: Check for errors
+      type: command
+      cmd: /usr/bin/bash ${CLOUDGENE_APP_LOCATION}/bin/collect_errors.sh --dir $outdir --label $label
+      stdout: true
+      stderr: true
+
+    - name: Long command
+      type: command
+      cmd: /usr/bin/bash ${CLOUDGENE_APP_LOCATION}/bin/maybe_fail.sh $mode $sleep
+      stdout: false
+      stderr: false
+
+    - name: Zip workflow reports
+      type: command
+      stdout: true
+      stderr: true
+      cmd: /usr/bin/bash ${CLOUDGENE_APP_LOCATION}/bin/zip_reports.sh --dir $outdir
+
+  inputs:
+    - id: label
+      description: Sample label
+      type: text
+      value: sample one
+      details: |
+        Free text that is passed to a command step verbatim (never through a shell).
+      help: https://example.org/command-steps/help.html
+    - id: mode
+      description: Mode
+      type: list
+      value: ok
+      values:
+        ok: Succeed
+        fail: Exit with code 7
+        sleep: Sleep in the long command
+    - id: sleep
+      description: Seconds for the long command
+      type: number
+      value: 0
+      required: false
+    - id: sequences
+      description: Optional FASTA
+      type: file
+      accept: .fasta, .fa
+      required: false
+      help: https://example.org/command-steps/example.fasta
+      details: Only .fasta / .fa files are accepted.
+
+  outputs:
+    - id: outdir
+      description: Outputs
+      type: folder

@@ -66,6 +66,15 @@ def check_multi(ws, params, proc, rows):
     assert len(list(Path(params['outdir']).glob('report_*.txt'))) == 5
 
 
+def check_command_steps(ws, params, proc, rows):
+    # Only the Nextflow step is run here; the command steps are exercised by the E2E tests.
+    assert proc.returncode == 0, proc.returncode
+    out = Path(params['outdir'])
+    assert 'Vault: key-a' in (out / 'run.log').read_text()
+    assert (out / 'result.txt').read_text() == 'analyst=%s\n' % params['who']
+    assert [r['status'] for r in rows] == ['COMPLETED']
+
+
 def params_for(app, ws):
     outdir = str(ws / 'output' / 'outdir')
     if app == 'hello':
@@ -84,6 +93,8 @@ def params_for(app, ws):
             'data_folder': str(inp / 'data_folder'), 'hidden_param': 'hidden-default',
             'agb': True, 'terms': True, 'step_param': 'from-step', 'outdir': outdir,
         }
+    if app == 'command-steps':
+        return {'who': 'alice@e2e.test', 'label': 'x', 'mode': 'ok', 'outdir': outdir}
     if app == 'slow':
         return {'seconds': int(os.environ.get('SLOW_SECONDS', '60')), 'outdir': outdir}
     if app == 'multi-process':
@@ -92,7 +103,8 @@ def params_for(app, ws):
 
 
 CHECKS = {'hello': check_hello, 'all-inputs': check_all_inputs, 'fail': check_fail,
-          'slow': check_slow, 'multi-process': check_multi}
+          'slow': check_slow, 'multi-process': check_multi,
+          'command-steps': check_command_steps}
 
 
 def run_app(app, nextflow, keep):

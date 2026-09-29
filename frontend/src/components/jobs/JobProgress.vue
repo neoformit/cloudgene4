@@ -59,7 +59,7 @@ function percent(proc) {
       </div>
       <div class="card-body">
         <div v-if="!step.processes.length && step.state === 'running'" class="text-muted small">
-          Starting Nextflow…
+          Running…
         </div>
         <div v-for="proc in step.processes" :key="proc.name" class="mb-2" data-testid="job-process"
              :data-process="proc.name" :data-completed="proc.completed" :data-total="proc.total"
