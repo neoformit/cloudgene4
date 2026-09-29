@@ -32,6 +32,20 @@ workflow:
       script: main.nf
       params:
         step: analyse
+        analyst: ${CLOUDGENE_USER_EMAIL}     # $name / ${name} are substituted in params values
+      stdout: true                            # on failure, include the Nextflow output in the error
+
+    - name: Summarise            # a Cloudgene 3 command step (no shell unless `bash: true`)
+      type: command
+      cmd: /usr/bin/bash ${CLOUDGENE_APP_LOCATION}/bin/summarise.sh --dir $results --name $sample_name
+      stdout: true                # show the command's stdout on the job page
+      stderr: true                # ... and its stderr (as warnings)
+
+    - name: Count lines
+      type: command
+      cmd: /usr/bin/wc -l $results/report.txt | /usr/bin/sort
+      bash: true                  # run through `bash -c`; substituted values are shell-quoted
+      stdout: true
 
   inputs:
     # --- display-only inputs: never submitted, never appear in params.json ---

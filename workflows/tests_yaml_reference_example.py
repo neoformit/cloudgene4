@@ -37,11 +37,14 @@ class YamlReferenceExampleTest(SimpleTestCase):
         self.assertEqual(self.definition.warnings, [])
 
     def test_steps(self):
-        self.assertEqual(len(self.definition.steps), 2)
-        for step in self.definition.steps:
+        steps = self.definition.steps
+        self.assertEqual([s.type for s in steps], ['nextflow', 'nextflow', 'command', 'command'])
+        for step in steps:
             self.assertTrue(step.supported)
-            self.assertEqual(step.type, 'nextflow')
-            self.assertEqual(step.script, 'main.nf')
+        self.assertEqual([s.script for s in steps[:2]], ['main.nf', 'main.nf'])
+        self.assertFalse(steps[2].bash)
+        self.assertTrue(steps[3].bash)
+        self.assertTrue(steps[2].stdout and steps[2].stderr)
 
     def test_every_input_type_is_demonstrated(self):
         used_types = {i.type for i in self.definition.inputs}

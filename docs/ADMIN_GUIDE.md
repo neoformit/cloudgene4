@@ -157,7 +157,9 @@ pipeline (see next section).
 The worker exports (`workflows.template_utils.VARIABLES`/`cloudgene_variables()`), in addition to
 the global and per-app `nextflow.env` contents: `CLOUDGENE_JOB_ID`, `CLOUDGENE_JOB_NAME`,
 `CLOUDGENE_USER_NAME`, `CLOUDGENE_USER_EMAIL`, `CLOUDGENE_USER_FULL_NAME`, `CLOUDGENE_APP_ID`,
-`CLOUDGENE_APP_VERSION`, `CLOUDGENE_APP_LOCATION`, plus service/SMTP variables. The admin
+`CLOUDGENE_APP_VERSION`, `CLOUDGENE_APP_LOCATION`, `CLOUDGENE_WORKSPACE_HOME` (the jobs root),
+`CLOUDGENE_JOB_LOCATION`, plus service/SMTP variables. The same values are substituted for
+`$name`/`${name}` in command steps and Nextflow `params` (see WORKFLOW_YAML_REFERENCE.md). The admin
 Nextflow settings page's "template variables" list is exactly this set — what a pipeline script
 can rely on being present in its environment.
 

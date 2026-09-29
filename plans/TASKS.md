@@ -310,6 +310,16 @@ error envelope, pointer to `schema.yaml` / swagger). Delete stale docs.
 Part 2 (after T09a/T09b merge, orchestrator dispatches): final `README.md` (what it is, dev
 quick-start web + worker, tests, link to DEPLOYMENT/ADMIN/WORKFLOW docs) and a docs link check.
 
+### T10 Cloudgene 3 `command` steps ☑ (branch `rebuild`)
+Owned: `workflows/definition.py`, `jobs/{stepvars,runner,worker}.py`, `workflows/template_utils.py`, docs, E2E fixture.
+Trigger: the production Taxodactyl workflow (`taxodactyl-v1.5.0.yml`: one Nextflow step + three
+`type: command` steps) was rejected. Scope: parse `type: command` (`cmd`, alias `exec`, `bash`,
+`stdout`, `stderr`), `$name`/`${name}` substitution in `cmd` and Nextflow `params` (inputs, outputs,
+`CLOUDGENE_*` incl. new `WORKSPACE_HOME`), worker execution with K3-safe quoting (argv mode =
+`shlex.split` before substitution; `bash: true` = shell-quoted values), stdout/stderr surfacing,
+exit-code failure, cancel, output collection; fixture app `e2e/fixtures/apps/command-steps/`.
+Cloudgene 3 semantics matched/deviated from: see the Log line below and `docs/WORKFLOW_YAML_REFERENCE.md`.
+
 ---
 
 ## Log
@@ -483,4 +493,16 @@ quick-start web + worker, tests, link to DEPLOYMENT/ADMIN/WORKFLOW docs) and a d
   `Content-Length` header for non-multipart `/api/` requests — a chunked-transfer-encoded body has
   no `Content-Length` to check against, so its real ceiling in production is nginx's
   `client_max_body_size` (see `deploy/nginx.conf.example`), not this middleware.
-
+- 2026-09-29 T10: Cloudgene 3 `command` steps. Matched (genepi/cloudgene3 `BashCommandStep`,
+  `CloudgeneStepFactory` type `command`, `Environment`, `Planner.evaluateWDL`, `NextflowStep`):
+  `cmd` with `exec` alias, `bash` (`/bin/bash -c`), `stdout` flag, working dir = job workspace, env =
+  `CLOUDGENE_*`, `$x`/`${x}` for inputs/outputs/env in the whole manifest, `WORKSPACE_HOME`,
+  no continue-on-error flag, Nextflow `stdout: true` adds output to the failure message. Deviations:
+  no Groovy templating (unknown `$names` left as written, not an error; unset optional input = `""`,
+  not `null`); `cmd` is `shlex`-split (Cloudgene 3 splits on single spaces); `bash: true` quotes
+  substituted values (Cloudgene 3 pastes them raw); `stderr` flag is new (Cloudgene 3 merges
+  stderr into stdout); no "command not found/not executable" pre-check (the exec error is reported);
+  stderr tail is always in the failure message; output caps (64 KiB message, 1 MiB job log, 256 MiB
+  per stream). Verified: unit SQLite + Postgres 372 OK, vitest 144, E2E full run 0 failed (new:
+  `e2e/tests/test_command_steps.py`, 4 tests). Real install check of the taxodactyl shape via
+  `install_workflow`: valid, 0 warnings, 4 inputs; Taxodactyl itself was not run (no BLAST DB).

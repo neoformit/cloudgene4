@@ -38,7 +38,7 @@ with (`Job.workflow_yaml`).
 
 Unknown top-level keys are ignored (forward-compatible); an unknown input/output `type` or a
 `workflow.steps` entry with `classname:` (a Java step from Cloudgene 3) or another unsupported
-`type:`/`cmd:` produces an **error at install/reload time** for the app itself, or is recorded as a
+`type:` (anything but `nextflow`/`command`) produces an **error at install/reload time** for the app itself, or is recorded as a
 **definition warning** and turned into a step that fails any job that reaches it with a clear
 message (never silently succeeds) — see *Steps* below for exactly which case applies.
 
@@ -91,16 +91,88 @@ to Nextflow as-is, so it can name a remote pipeline (e.g. `nf-core/rnaseq`). `pa
 mapping merged into that step's `params.json` alongside the submitted input values, letting a
 workflow author pass fixed, step-specific configuration that isn't a user-facing input.
 
-**Only Nextflow steps are executed.** A step is parsed as unsupported — and recorded as a
-definition **warning**, not an install-time error — in any of these cases:
-- it has a `classname:` key (a Java/Cloudgene-3-style step), or
-- it has an explicit `type:` other than `nextflow`, or
-- it has a `cmd:` key and no `script:` (a shell-command step).
+**Step types.** `nextflow` (default) and `command` are executed. A step is parsed as unsupported —
+and recorded as a definition **warning**, not an install-time error — if it has a `classname:` key
+(a Java/Cloudgene-3-style step) or an explicit `type:` other than `nextflow`/`command` (`groovy`,
+`java`, `docker`, ...). A workflow with an unsupported step still installs successfully (so the
+run form and the other steps are usable), but **a job that actually reaches that step fails** with
+the parser's explanatory message — it never silently "succeeds" as a no-op.
 
-A workflow with an unsupported step still installs successfully (so the rest of it — the run
-form, other steps — is usable), but **a job that actually reaches that step fails** with the
-parser's explanatory message (e.g. `Step "Legacy" uses classname "..." (Java step); only Nextflow
-steps are supported.`) — it never silently "succeeds" as a no-op.
+Both step types accept `stdout: true|false` and `stderr: true|false` (default `false`).
+
+### Nextflow steps
+
+A step without `type` and without `cmd`/`exec` is a Nextflow step; without `script` it runs the
+app's `main.nf`. `$name` / `${name}` in string values of `params` are substituted (see
+*Variables* below), e.g. `trace_file: ${CLOUDGENE_WORKSPACE_HOME}/${CLOUDGENE_JOB_ID}/logs/step1-trace.csv`;
+values without a variable (such as `./tmp`) are passed through untouched. `stdout: true` (or
+`stderr: true`; Nextflow's two streams are merged) adds the tail of Nextflow's output to the
+failure message of a failed step, as in Cloudgene 3. `::message::` annotations are always read.
+
+### Command steps (`type: command`)
+
+```yaml
+    - name: Zip workflow reports
+      type: command
+      cmd: /usr/bin/bash ${CLOUDGENE_APP_LOCATION}/bin/zip_reports.sh --dir $outdir
+      stdout: true       # show the command's stdout on the job page and in the job log
+      stderr: true       # show its stderr (as warnings)
+    - name: Show retrieved secrets
+      type: command
+      cmd: >             # folded/multi-line YAML is fine
+        /usr/bin/grep 'Vault:' $outdir/run.log
+        | /usr/bin/sort -u
+      bash: true         # run through `bash -c`; pipes, redirects, `&&` work
+```
+
+- `cmd` (required, non-empty; Cloudgene 3's `exec` is accepted as an alias, and a step with
+  `cmd`/`exec` but neither `type` nor `script` is read as a command step).
+- `bash` (default `false`): see *Quoting* below.
+- The command runs in the job workspace, in its own process group, with the same environment as
+  Nextflow (`CLOUDGENE_*` variables plus `nextflow.env` contents), one step after the other in the
+  order written — before, between or after Nextflow steps. Files it writes into an output folder
+  (e.g. `$outdir/reports.zip`) are collected as job outputs like published Nextflow files.
+- **Exit code**: non-zero fails the step and the job (`Step "X" failed: the command exited with
+  code 3.` plus the last lines of stderr, whatever the `stderr` flag); later steps do not run.
+  There is no continue-on-error flag (Cloudgene 3 has none either). A command that cannot be
+  started (missing/not executable) fails the step with that reason.
+- **`stdout` / `stderr`**: both streams are always written to `logs/stepN-command.stdout.txt` /
+  `.stderr.txt` in the workspace. With the flag on, the stream is also appended to the job log
+  (Logs tab) live and shown on the job page as a message of the step (stdout as `info`, stderr as
+  `warning`) once the step ends. With the flag off, it is not surfaced. Messages are capped at
+  64 KiB (the tail is kept), the job-log copy at 1 MiB per stream, and a step writing more than
+  256 MiB to one stream is stopped and fails.
+- **Cancel**: SIGTERM to the step's process group, SIGKILL after 10 s (same as Nextflow).
+
+### Variables
+
+`$name` and `${name}` in a command's `cmd` and in Nextflow `params` values are replaced with
+(later sources win): the value of the **input** `name` (file/folder/`writeFile` inputs: the absolute
+path of the uploaded file/folder in the job workspace; checkbox: `true`/`false`, or its mapped
+value; an optional input left empty: the empty string), the absolute path of the **output**
+folder/file `name` (e.g. `$outdir` — is where Nextflow published to, so a later step can read
+`$outdir/run.log`), and every **`CLOUDGENE_*`** variable the worker exports:
+`CLOUDGENE_JOB_ID`, `_JOB_NAME`, `_JOB_LOCATION` (the job workspace), `_JOB_SUBMITTED_ON`,
+`_USER_NAME`, `_USER_EMAIL`, `_USER_FULL_NAME`, `_APP_ID`, `_APP_NAME`, `_APP_VERSION`,
+`_APP_LOCATION`, `_SERVICE_NAME`, `_SERVICE_URL`, `_SMTP_*`, `_WORKSPACE_TYPE` (`local`) and
+`_WORKSPACE_HOME` (the jobs root: `${CLOUDGENE_WORKSPACE_HOME}/${CLOUDGENE_JOB_ID}` is the job
+workspace). Names are `[A-Za-z_][A-Za-z0-9_]*`; substitution is a single pass (a value is never
+re-scanned). **Unknown names are left as written** (`$HOME`, `${x:-y}`, `$1`) — Cloudgene 3
+would abort the job with a Groovy error instead; leaving them lets a `bash: true` command use
+ordinary shell variables.
+
+### Quoting (security)
+
+User-supplied values are never interpreted by a shell:
+
+- `bash: false` (default): the `cmd` template is split with `shlex.split` **first** (so quotes in
+  the template group words), then variables are substituted inside each argument, then the
+  program is exec'd directly — no shell, no globbing, no `;`/`|`/`$(...)` processing. A value with
+  spaces stays one argument. Pipes/redirects are not available in this mode.
+- `bash: true`: the command runs as `bash -c <script>`; only the workflow author's template text is
+  shell syntax. Every substituted value is quoted for the context it lands in — unquoted:
+  `shlex.quote`; inside `"..."`: escaped for double quotes; inside `'...'`: `'` becomes `'\''` — so
+  a value such as `x; touch /tmp/pwned` or `$(id)` is always one literal word. No `pipefail`.
 
 ## Inputs
 
@@ -203,7 +275,8 @@ from workflows.definition import load_definition, parse_definition, DefinitionEr
 d = load_definition(path_or_yaml)
 # -> WorkflowDefinition(
 #      id, name, version, description, website, author, logo, category,
-#      steps: [Step(name, type, script, revision, params, processes, error)],
+#      steps: [Step(name, type, script, revision, params, processes, error,
+#                   cmd, bash, stdout, stderr)],
 #      inputs: [InputParam(id, type, label, value, values, checkbox_values, required,
 #                           visible, help, details, write_file, serialize, accept, min, max)],
 #      outputs: [OutputParam(id, type, label, download, serialize)],

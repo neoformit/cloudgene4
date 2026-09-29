@@ -16,7 +16,7 @@ pytestmark = pytest.mark.serial
 VISIBLE = {
     None: ['hello'],
     'bob': ['hello'],
-    'alice': ['all-inputs', 'hello'],
+    'alice': ['all-inputs', 'command-steps', 'hello'],
     'admin': sorted(APPS),
 }
 
@@ -62,11 +62,11 @@ def test_w1_d4_disable_hides_workflow_and_enable_restores(page, login, user_page
     assert stack.read_settings()['apps'][0]['enabled'] is False  # hello is apps[0]
 
     alice = user_page('alice')
-    assert card_ids(alice) == ['all-inputs']
+    assert card_ids(alice) == ['all-inputs', 'command-steps']
 
     row.get_by_test_id('workflow-toggle').click()
     expect(row).to_have_attribute('data-enabled', 'true')
-    assert card_ids(alice) == ['all-inputs', 'hello']
+    assert card_ids(alice) == ['all-inputs', 'command-steps', 'hello']
 
 
 def test_d4_groups_and_public_via_settings_page(page, login, user_page, restore_apps, stack):

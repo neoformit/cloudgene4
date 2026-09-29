@@ -370,8 +370,25 @@ Soft delete: `Job.deleted_at` (user-deleted jobs are hidden everywhere and their
   `workflows.template_utils.VARIABLES` / `cloudgene_variables()` (W4), so the admin "template
   variables" list is what the pipeline really gets. `params.json` = step `params` + serialisable inputs (numbers as
   numbers, checkbox as its mapped value or bool, files/folders/`writeFile` as absolute paths) +
-  each serialisable output as `<job>/output/<output id>`. Steps that are not Nextflow steps
-  (`classname:`, `cmd:`, other `type:`) fail the job with the parser's message.
+  each serialisable output as `<job>/output/<output id>`; `$name`/`${name}` in string values of the
+  step's `params` are substituted first (below). Steps that are neither Nextflow nor command steps
+  (`classname:`, other `type:`) fail the job with the parser's message.
+- **Command steps** (T10, Cloudgene 3 `type: command` = `BashCommandStep`): the worker runs
+  `cmd` as its own step (same lifecycle: `JobStep` row, one process group, cwd = job workspace, same
+  environment as Nextflow, SIGTERM → 10 s → SIGKILL on cancel). `runner.prepare_command` builds the
+  argv; **user values never reach a shell (K3)** — `bash: false`: `shlex.split(template)` first, then
+  substitute inside each argument, exec without a shell; `bash: true`: `bash -c <script>` with every
+  substituted value quoted for its shell context (`jobs/stepvars.py`). Variables: inputs (file/folder
+  = absolute workspace path, unset optional = `""`), outputs (`<job>/output/<id>` absolute), and all
+  `CLOUDGENE_*` (now also `WORKSPACE_HOME` = jobs root, `WORKSPACE_TYPE`, `JOB_LOCATION`,
+  `JOB_SUBMITTED_ON`); unknown names are left as written. stdout/stderr go to
+  `logs/stepN-command.stdout.txt` / `.stderr.txt`; a stream whose flag (`stdout`/`stderr`) is true is
+  appended live to `logs/stdout.txt` (≤ 1 MiB) and added at step end as a `JobMessage` of the step
+  (stdout `info`, stderr `warning`, ≤ 64 KiB, tail kept); a stream over 256 MiB stops the step and
+  fails it. Non-zero exit fails the step and the job (`… the command exited with code N.` + the last
+  4 KiB of stderr, regardless of the flag); later steps become `cancelled`. Files written into an
+  output folder are collected like published Nextflow files. Nextflow steps: `stdout`/`stderr` true
+  append the output tail to the failure message (as Cloudgene 3).
 - **Progress**: stdout task lines (`[PROCESS ab/123456] NAME (1)` / `… Submitted process > …`) and
   the trace file (read incrementally) give per-process counts `{name, label, submitted, running,
   completed, failed, total}` stored on `JobStep.processes`. Annotations `::message::`, `::notice::`,
@@ -680,8 +697,15 @@ workflow:
       type: nextflow   # default when `script` present
       script: main.nf  # relative to app dir, or a GitHub repo (owner/repo)
       revision: 1.0    # optional
-      params: {..}     # extra params merged into params.json
+      params: {..}     # extra params merged into params.json ($name / ${name} substituted)
+      stdout: false    # true: add Nextflow's output tail to a failure message
       processes: [{process: X, label: .., view: ..}]   # optional progress rendering hints
+    - name: Zip
+      type: command      # Cloudgene 3 command step (alias key: exec)
+      cmd: /usr/bin/bash ${CLOUDGENE_APP_LOCATION}/bin/zip.sh --dir $outdir   # $name / ${name} vars
+      bash: false        # true: `bash -c`, substituted values shell-quoted
+      stdout: true       # show stdout on the job page + job log
+      stderr: true
   inputs:
     - id: name         # required, becomes params key
       description: Label shown in UI
@@ -703,7 +727,8 @@ workflow:
       download: true
       serialize: true
 ```
-Unknown `type` → validation error at install/reload. `classname:` steps (Java) → unsupported error.
+Unknown input/output `type` → validation error at install/reload. `classname:` steps (Java) and
+other step types → unsupported error.
 
 Rules enforced by the parser (`workflows/definition.py`, owned by T03):
 - `id` (app) must match `^[a-z0-9][a-z0-9_-]{0,63}$` (it is also the app dir name); `name` required;
@@ -718,16 +743,19 @@ Rules enforced by the parser (`workflows/definition.py`, owned by T03):
   `separator`/`info`/`label` are display-only (never submitted, never in params). `local-file` /
   `local-folder` behave like `file` / `folder` (browser upload). Output `download` and `serialize`
   default to `true`; output `type` defaults to `folder`.
-- Steps: `type: nextflow` or no `type` (default `script: main.nf`). Steps with `classname:`, `cmd:`
-  or another `type` load with `type: "unsupported"` + `error` and a definition warning; a job that
-  reaches such a step fails with that message (never silently succeeds).
+- Steps: `type: nextflow` or no `type` (default `script: main.nf`); `type: command` (or `cmd`/`exec`
+  with neither `type` nor `script`) with `cmd` (required, non-empty; `exec` alias), `bash` (bool,
+  default false; with `bash: false` the template must be `shlex`-splittable); `stdout`/`stderr`
+  (bool, default false) on both kinds. Steps with `classname:` or another `type` load with
+  `type: "unsupported"` + `error` and a definition warning; a job that reaches such a step fails with
+  that message (never silently succeeds). See docs/WORKFLOW_YAML_REFERENCE.md for variables/quoting.
 
 Python API (stable contract for the registry, T05):
 ```python
 from workflows.definition import load_definition, parse_definition, DefinitionError
 d = load_definition(path_or_yaml)   # app dir | path to cloudgene.yaml | YAML str/bytes | dict
 # -> WorkflowDefinition(id, name, version, description, website, author, logo, category,
-#      steps: [Step(name, type, script, revision, params, processes, error)],
+#      steps: [Step(name, type, script, revision, params, processes, error, cmd, bash, stdout, stderr)],
 #      inputs: [InputParam(id, type, label, value, values[{key,label}], checkbox_values,
 #               required, visible, help, details, write_file, serialize, accept, min, max)],
 #      outputs: [OutputParam(id, type, label, download, serialize)],
