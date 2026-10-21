@@ -110,7 +110,10 @@ requirement uses `—` in the requirement column.
 7.1 Every MUST requirement is covered by at least one named test (existing or planned) listed under
 the file's **Acceptance tests**, with its layer: `unit` (Django/vitest), `contract`, `e2e`
 (Playwright full stack), `smoke` (a script in `scripts/` that exits non-zero on failure) or
-`config` (static checks of deploy and CI files). Planned tests are marked `(planned)` and MAY be named by their intended
+`config` (static checks of deploy and CI files).
+A deployment requirement that binds the operator's host rather than the repository (for example
+monitoring or host file modes) may instead cite `—` with the note "host obligation" and a manual
+verification step; `tests.md` counts these separately. Planned tests are marked `(planned)` and MAY be named by their intended
 `path::Class::method`; the name is a placeholder until the test exists, and `tests.md` lists it as
 a gap. Acceptance tests tables have a Layer column and list one requirement ID per row (or an
 explicit comma-separated ID list, never a range). Tests are cited by exact name:
@@ -155,7 +158,7 @@ Amendments it is unsure of go under **Pending amendments** for later human revie
 - 2026-10-21 — v1.2: 4.1 makes keyword-less requirements invalid.
 - 2026-10-21 — v1.3: 7.1 fixes the Acceptance tests citation format. Files written before v1.3
   may use older formats until they are next edited.
-- 2026-10-21 — v1.4: 7.1 adds the `smoke` and `config` test layers.
+- 2026-10-21 — v1.4: 7.1 adds the `smoke` and `config` test layers and host obligations.
 
 ## Pending amendments
 
