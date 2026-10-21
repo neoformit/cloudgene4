@@ -83,11 +83,11 @@ Namespace and content
 
 Admin log endpoint (`admin_logs_list`, `GET /api/admin/logs/`)
 
-- **BE-LOG-014** Access: admin only. Anonymous → 401, authenticated non-admin → 403, both with
+- **BE-LOG-014** Access MUST be admin only. Anonymous → 401, authenticated non-admin → 403, both with
   the error envelope.
 - **BE-LOG-015** Results MUST be ordered newest first (`-timestamp`, `-id`) and paginated with
   the standard pagination (`page`, `page_size` ≤ 200).
-- **BE-LOG-016** Query filters, combinable: `level` (exact, case-insensitive input),
+- **BE-LOG-016** The endpoint MUST support these query filters, combinable: `level` (exact, case-insensitive input),
   `min_level` (that level and more severe, order `debug < info < warning < error < critical`),
   `component` (exact), `search` (case-insensitive substring of `message`).
 - **BE-LOG-017** An unknown `level` or `min_level` value MUST return 400 with the error

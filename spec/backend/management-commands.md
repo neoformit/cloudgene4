@@ -54,7 +54,7 @@ Out of scope:
 ### install_workflow
 
 - **BE-CMD-020** `install_workflow PATH [--public] [--groups g1,g2] [--disabled] [--copy] [--replace]` MUST register the app (a directory containing `cloudgene.yaml`, or the YAML file) in `settings.yaml` `apps[]` and sync the workflow cache, with the semantics of `registry.install` ([workflow-registry.md](workflow-registry.md)).
-- **BE-CMD-021** Options: `--public` makes it available to all users; `--groups` gives comma-separated group names (missing groups are created); `--disabled` installs it disabled; `--copy` first copies the app to `$CLOUDGENE_HOME/apps/<id>/`; `--replace` re-points an already installed id at this path, keeping its access rules.
+- **BE-CMD-021** The command MUST support these options: `--public` makes it available to all users; `--groups` gives comma-separated group names (missing groups are created); `--disabled` installs it disabled; `--copy` first copies the app to `$CLOUDGENE_HOME/apps/<id>/`; `--replace` re-points an already installed id at this path, keeping its access rules.
 - **BE-CMD-022** A relative `PATH` that exists relative to the current directory MUST be used as such (made absolute); otherwise it is resolved against `$CLOUDGENE_HOME/apps`, then `$CLOUDGENE_HOME`.
 - **BE-CMD-023** On success it MUST print `Installed <id> (<name> <version>) from <stored path>` and exit 0.
 - **BE-CMD-024** Not found, an invalid `cloudgene.yaml`, an id already installed without `--replace`, or an existing `--copy` target MUST exit 1 with the registry's message followed by one `  - <error>` line per validation error, and MUST NOT change `settings.yaml`.

@@ -48,9 +48,9 @@ Out of scope:
 
 ### States
 
-- **BE-QUEUE-001** A job's `status` is one of `waiting`, `running`, `success`, `failed`,
+- **BE-QUEUE-001** A job's `status` MUST be one of `waiting`, `running`, `success`, `failed`,
   `cancelled`. `waiting` and `running` are active; the other three are final.
-- **BE-QUEUE-002** Only these transitions may happen:
+- **BE-QUEUE-002** A job's `status` MUST NOT change except by these transitions:
 
   | From | To | By | Trigger |
   |------|----|----|---------|
@@ -62,13 +62,13 @@ Out of scope:
   | `running` | `cancelled` | worker | `cancel_requested` and process group stopped |
   | `failed`/`cancelled` | `waiting` | web (admin) | restart, only if workspace not purged |
 
-- **BE-QUEUE-003** Every transition into a final state sets `finished_at`, clears `pid` and
-  `pgid`, and adds one job message (`success` / `warning` for cancelled / `error`). For `failed`
+- **BE-QUEUE-003** Every transition into a final state MUST set `finished_at`, clear `pid` and
+  `pgid`, and add one job message (`success` / `warning` for cancelled / `error`). For `failed`
   and `cancelled`, `error_message` holds that message; for `success` it is empty.
-- **BE-QUEUE-004** Step rows (`JobStep.status`) follow the job: the running step ends as
+- **BE-QUEUE-004** Step rows (`JobStep.status`) MUST follow the job: the running step ends as
   `success`/`failed`/`cancelled`; on any non-success end, steps not yet started become
   `cancelled`.
-- **BE-QUEUE-005** `queue_position()` is the 1-based rank of a waiting job by
+- **BE-QUEUE-005** `queue_position()` MUST return the 1-based rank of a waiting job by
   (`submitted_at`, `id`) among all waiting jobs, and `null` for any other state.
 
 ### Claiming and limits
@@ -77,24 +77,24 @@ Out of scope:
   with `cancel_requested`. A claim is one conditional update (`status=waiting AND
   cancel_requested=false` → `running`, `started_at=now`); a job whose update affects no row is
   skipped. Two workers racing for the same job MUST NOT both claim it.
-- **BE-QUEUE-007** At most `server.max_running_jobs` (minimum 1) jobs run at once. Settings are
+- **BE-QUEUE-007** The worker MUST NOT run more than `server.max_running_jobs` (minimum 1) jobs at once. Settings are
   re-read every tick, so a change to `max_running_jobs` or `queue.paused` applies without a
   restart.
-- **BE-QUEUE-008** While `queue.paused` is true the worker claims nothing; running jobs continue
+- **BE-QUEUE-008** While `queue.paused` is true the worker MUST claim nothing; running jobs continue
   and cancellations are still processed.
 - **BE-QUEUE-009** (K2) The queue MUST advance without any web request: when a running job ends,
   the next waiting job is claimed by the worker within one tick (default 1 s).
 - **BE-QUEUE-010** The waiting-queue size limit (`server.max_queue_size`) is enforced at
-  submission ([BE-JSUB-005](job-submission.md#requirements)); the worker never rejects a job
+  submission ([BE-JSUB-005](job-submission.md#requirements)); the worker MUST NOT reject a job
   for queue size.
 
 ### Worker process
 
-- **BE-QUEUE-011** Only one worker may run per `CLOUDGENE_HOME`: it holds an exclusive
+- **BE-QUEUE-011** Only one worker may run per `CLOUDGENE_HOME`: it MUST hold an exclusive
   non-blocking `flock` on `CLOUDGENE_HOME/config/worker.lock` (file content: its pid). A second
   `run_worker` exits with `CommandError` `Another worker is already running for this
   CLOUDGENE_HOME.` (exit status 1) and touches no job.
-- **BE-QUEUE-012** Every tick the worker upserts `WorkerHeartbeat` row `default` with
+- **BE-QUEUE-012** Every tick the worker MUST upsert `WorkerHeartbeat` row `default` with
   `last_seen=now`, `pid`, `hostname`, `started_at` and `info` =
   `{running, paused, max_running_jobs}`. A heartbeat older than 30 s means the worker is down.
 - **BE-QUEUE-013** A tick runs these phases in order: heartbeat, orphan reconcile, poll running
@@ -102,11 +102,11 @@ Out of scope:
   one phase MUST be logged and MUST NOT stop the other phases. A SQLite "database is locked"
   error is retried up to 3 times (backoff 0.05 s, doubling) before the phase gives up until the
   next tick; other errors are not retried.
-- **BE-QUEUE-014** On SIGTERM or SIGINT the worker stops claiming, finishes the current tick,
-  then for each running job sends SIGTERM to its process group, waits up to min(grace, 5) s,
-  sends SIGKILL, and marks the job `failed` with `The worker was shut down while this job was
+- **BE-QUEUE-014** On SIGTERM or SIGINT the worker MUST stop claiming, finish the current tick,
+  then for each running job send SIGTERM to its process group, wait up to min(grace, 5) s,
+  send SIGKILL, and mark the job `failed` with `The worker was shut down while this job was
   running; the job was stopped.` It then releases the lock and exits 0.
-- **BE-QUEUE-015** `run_worker --once` runs ticks until nothing runs and nothing is claimable
+- **BE-QUEUE-015** `run_worker --once` MUST run ticks until nothing runs and nothing is claimable
   (or the queue is paused), or `--timeout` seconds (default 3600) pass; jobs still running then
   are stopped as in BE-QUEUE-014. Options: `--interval` (tick seconds, default 1.0), `--grace`
   (SIGTERM→SIGKILL seconds, default 10).
@@ -123,39 +123,39 @@ Out of scope:
 
 ### Cancellation
 
-- **BE-QUEUE-018** Cancelling a `waiting` job sets it `cancelled` at once (with
+- **BE-QUEUE-018** Cancelling a `waiting` job MUST set it `cancelled` at once (with
   `cancel_requested=true`, `finished_at`, message `Job cancelled.` or `Job cancelled by an
   administrator.`). If the worker claimed it in the meantime, the running path applies.
-- **BE-QUEUE-019** Cancelling a `running` job only sets `cancel_requested=true` and adds
+- **BE-QUEUE-019** Cancelling a `running` job MUST only set `cancel_requested=true` and add
   `Cancellation requested.` (or `… by an administrator.`) once. Within one tick the worker sends
   SIGTERM to the job's process group; after the grace period (default 10 s) it sends SIGKILL.
   When the step process has exited the job becomes `cancelled` with message `Job cancelled.`,
   whatever its exit code.
-- **BE-QUEUE-020** A `waiting` job with `cancel_requested=true` is never claimed; the worker sets
+- **BE-QUEUE-020** A `waiting` job with `cancel_requested=true` MUST NOT be claimed; the worker sets
   it `cancelled` with `Job cancelled.`
-- **BE-QUEUE-021** Cancelling a job in a final state fails with 409, code `invalid_state`,
+- **BE-QUEUE-021** Cancelling a job in a final state MUST fail with 409, code `invalid_state`,
   message `The job is already <state>.`
 
 ### Failure while starting
 
-- **BE-QUEUE-022** If the job's stored workflow snapshot does not parse, the job becomes
+- **BE-QUEUE-022** If the job's stored workflow snapshot does not parse, the job MUST become
   `failed` with `The workflow definition is invalid: <reason>`. Any other error while starting
   gives `The job could not be started: <reason>`; an unexpected error while polling gives
   `Internal error while running the job: <reason>` after the process group is stopped.
 - **BE-QUEUE-023** If a claimed or running job's row is deleted (e.g. its user is deleted), the
-  worker kills the job's process group, waits for it to exit, removes the workspace and forgets
+  worker MUST kill the job's process group, wait for it to exit, remove the workspace and forget
   the job, logging at INFO without a traceback. For a deleted job that is not running, the web
   process removes the workspace after the transaction commits.
 
 ### Restart, delete, retention
 
-- **BE-QUEUE-024** Admin restart is allowed only for `failed`/`cancelled` jobs whose workspace is
+- **BE-QUEUE-024** Admin restart MUST be allowed only for `failed`/`cancelled` jobs whose workspace is
   not purged or deleted (else 409 `invalid_state` / `workspace_removed`) and whose workflow is
   still installed and enabled (else 409 `workflow_unavailable`). It removes `output/`, `logs/`,
   `work/`, `.nextflow/`, all `*params.json` and `cloudgene.config`, keeps `input/`, deletes
   steps, messages and outputs, re-snapshots the current workflow YAML and app dir, and sets
   `waiting` with a new `submitted_at` (end of the queue).
-- **BE-QUEUE-025** Delete is allowed only for final-state jobs (else 409 `invalid_state`,
+- **BE-QUEUE-025** Delete MUST be allowed only for final-state jobs (else 409 `invalid_state`,
   `Only finished jobs can be deleted. Cancel the job first.`). It sets `deleted_at` and
   `purged_at`, removes output rows and the workspace; the row stays.
 - **BE-QUEUE-026** Retention cleanup MUST only remove workspaces of final-state jobs (finished

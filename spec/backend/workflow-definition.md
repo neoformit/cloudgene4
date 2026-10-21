@@ -65,9 +65,9 @@ Top-level keys
 
 - **BE-WDEF-008** `id` is required and MUST match `^[a-z0-9][a-z0-9_-]{0,63}$`. An `id` that
   YAML reads as a boolean (e.g. `yes`) MUST be an error telling the author to quote it.
-- **BE-WDEF-009** `name` is required (non-blank after trimming).
+- **BE-WDEF-009** `name` MUST be present (non-blank after trimming).
 - **BE-WDEF-010** `version`, `description`, `website`, `author`, `logo`, `category` are optional
-  strings, default `''`. Non-string scalars are converted with `str()` (booleans to
+  strings, default `''`. Non-string scalars MUST be converted with `str()` (booleans to
   `'true'`/`'false'`). Their content is passed through unmodified (no HTML escaping, no URL
   validation); see BE-WDEF-031.
 - **BE-WDEF-011** `workflow` is required and MUST be a mapping. `workflow.steps` MUST be a
@@ -102,7 +102,7 @@ Inputs
   field names). `type` MUST be one of: `text`, `string`, `number`, `textarea`, `list`, `radio`,
   `checkbox`, `file`, `folder`, `local-file`, `local-folder`, `separator`, `info`, `label`,
   `terms_checkbox`, `agb_checkbox`. Unknown types are errors that list the supported types.
-- **BE-WDEF-017** Common attributes and defaults for every input: `label` from `description`,
+- **BE-WDEF-017** Every input MUST get these common attributes and defaults: `label` from `description`,
   else `label`, else the id; `required` true; `visible` true; `serialize` true; `help`,
   `details`, `accept` `''`. Boolean attributes accept YAML booleans or the strings
   `true/yes/1/false/no/0` (case-insensitive); anything else is the error `must be true or false`.
@@ -121,13 +121,13 @@ Inputs
   keys and becomes `checkbox_values = {true: …, false: …}`. `value` is a boolean: true for
   `true/yes/1/on` or when equal to the mapped `true` value, else false. `required` is always
   forced to `false`.
-- **BE-WDEF-022** `terms_checkbox` / `agb_checkbox`: `value` is always `false` (any YAML `value`
+- **BE-WDEF-022** `terms_checkbox` / `agb_checkbox`: `value` MUST always be `false` (any YAML `value`
   is ignored); `required` keeps its configured value (default true = must be ticked).
-- **BE-WDEF-023** File types (`file`, `folder`, `local-file`, `local-folder`): `value` is `None`.
+- **BE-WDEF-023** File types (`file`, `folder`, `local-file`, `local-folder`): `value` MUST be `None`.
   `folder` and `local-folder` accept several files. `accept` is kept verbatim; its
   extension list (`accept_extensions`) is the comma-separated tokens starting with `.`,
   lower-cased; other tokens (MIME types) are ignored.
-- **BE-WDEF-024** Display types (`separator`, `info`, `label`): `value` is the string `value`;
+- **BE-WDEF-024** Display types (`separator`, `info`, `label`): `value` MUST be the string `value`;
   `required` and `serialize` are forced to `false`. They are excluded from `value_inputs`.
 
 Outputs

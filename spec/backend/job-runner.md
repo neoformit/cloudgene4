@@ -52,9 +52,9 @@ Out of scope:
 
 ### Steps
 
-- **BE-RUN-001** Steps run one at a time in definition order. A step starts only after the
+- **BE-RUN-001** Steps MUST run one at a time in definition order. A step starts only after the
   previous one exited with status 0. The job succeeds when the last step exits 0.
-- **BE-RUN-002** A step whose type is not `nextflow` or `command` fails the job with the step's
+- **BE-RUN-002** A step whose type is not `nextflow` or `command` MUST fail the job with the step's
   parse error (e.g. a `classname` step) without starting a process.
 - **BE-RUN-003** Every step process MUST start in a new session (its own process group), with
   stdin from `/dev/null` and the job workspace as working directory. Its pid and process-group id
@@ -64,7 +64,7 @@ Out of scope:
 
 ### Nextflow steps
 
-- **BE-RUN-005** The binary is `nextflow.binary` (default `nextflow`). A value containing `/` is
+- **BE-RUN-005** The binary MUST be `nextflow.binary` (default `nextflow`). A value containing `/` is
   used as is; otherwise it is looked up in `PATH`, then in `/usr/local/bin`, else used as is.
 - **BE-RUN-006** The command line MUST be, in this order (`P` = `''` for step 1, `step<N>-` for
   step N ≥ 2):
@@ -80,51 +80,51 @@ Out of scope:
 
   The two optional `-c` files are passed only if they exist. The app file is the registry's
   `config_path`, else `<app dir>/nextflow.config`.
-- **BE-RUN-007** `<ws>/cloudgene.config` is (re)written before every Nextflow step with trace
+- **BE-RUN-007** `<ws>/cloudgene.config` MUST be (re)written before every Nextflow step with trace
   fields `task_id,hash,native_id,process,tag,name,status,exit,workdir,submit,start,complete,duration,realtime`
   and `overwrite = true` for trace, report and timeline. It is passed last, so it wins over
   workflow and admin config for those keys.
-- **BE-RUN-008** `<script>` is the step's `script` (default `main.nf`). If that path exists,
+- **BE-RUN-008** `<script>` MUST be the step's `script` (default `main.nf`). If that path exists,
   relative to the app directory or absolute, it is passed as an absolute path; otherwise it is
   passed verbatim as a remote pipeline name. `-r` is added only when `revision` is set.
-- **BE-RUN-009** `-profile` is the app's `profile`, else `nextflow.profile`; omitted when both are
+- **BE-RUN-009** `-profile` MUST be the app's `profile`, else `nextflow.profile`; omitted when both are
   empty.
-- **BE-RUN-010** The work directory is `<configured>/<job uuid>` when the app's `work_dir` or
+- **BE-RUN-010** The work directory MUST be `<configured>/<job uuid>` when the app's `work_dir` or
   else `nextflow.work_dir` is set (a relative value is under `CLOUDGENE_HOME`), otherwise
   `<ws>/work`. It is created before the step starts.
-- **BE-RUN-011** Nextflow's stdout and stderr go, merged, to `<ws>/logs/stdout.txt`, appended
+- **BE-RUN-011** Nextflow's stdout and stderr MUST go, merged, to `<ws>/logs/stdout.txt`, appended
   across steps.
 
 ### Command steps
 
-- **BE-RUN-012** With `bash: false`, the argv is the shell-word split of `cmd` with each token
+- **BE-RUN-012** With `bash: false`, the argv MUST be the shell-word split of `cmd` with each token
   substituted ([BE-JSUB-030](job-submission.md#requirements)); argv[0] without `/` is resolved
   in the step environment's `PATH`. No shell is involved. An argv that is empty after
   substitution fails the job with `Step "<name>" failed: The command is empty after variable
   substitution`.
-- **BE-RUN-013** With `bash: true`, the argv is `[<bash>, -c, <quoted script>]`, where `<bash>`
+- **BE-RUN-013** With `bash: true`, the argv MUST be `[<bash>, -c, <quoted script>]`, where `<bash>`
   is `/bin/bash` if executable, else `bash` from `PATH`.
-- **BE-RUN-014** A command step's stdout and stderr go to `<ws>/logs/step<N>-command.stdout.txt`
+- **BE-RUN-014** A command step's stdout and stderr MUST go to `<ws>/logs/step<N>-command.stdout.txt`
   and `<ws>/logs/step<N>-command.stderr.txt` (emptied at step start; `N` is 1-based for every
   step).
-- **BE-RUN-015** Only a stream whose `stdout:`/`stderr:` flag is true is shown: it is copied into
+- **BE-RUN-015** A stream MUST be shown only when its `stdout:`/`stderr:` flag is true: it is copied into
   `logs/stdout.txt` (header `[cloudgene] --- <stream> of step "<name>" ---`, at most 1 MiB per
   stream, then a truncation note naming the step file), and at step end its last 64 KiB becomes a
   job message (stdout: `info`, stderr: `warning`). An unflagged stream stays only in its step
   file.
-- **BE-RUN-016** If either captured stream grows beyond 256 MiB, the worker stops the step
-  (SIGTERM, grace, SIGKILL) and fails the job with `Step "<name>" failed: its output exceeded 256
+- **BE-RUN-016** If either captured stream grows beyond 256 MiB, the worker MUST stop the step
+  (SIGTERM, grace, SIGKILL) and fail the job with `Step "<name>" failed: its output exceeded 256
   MiB and the command was stopped.`
 
 ### Environment
 
-- **BE-RUN-017** The process environment is built in this order, later entries winning: the
+- **BE-RUN-017** The process environment MUST be built in this order, later entries winning: the
   worker's environment; `/usr/local/bin` appended to `PATH` if missing; `KEY=VALUE` lines of
   `CLOUDGENE_HOME/config/nextflow.env`; those of the app's env file (registry `env_path`, else
   `<app dir>/nextflow.env`); the job's `CLOUDGENE_*` variables; `NXF_ANSI_LOG=false`. In env
   files, `#` comments, `export ` and surrounding quotes are allowed, and `$VAR`/`${VAR}` expand
   against the environment built so far (unknown → empty).
-- **BE-RUN-018** The job's `CLOUDGENE_*` values come from the job's snapshot (`app_id`,
+- **BE-RUN-018** The job's `CLOUDGENE_*` values MUST come from the job's snapshot (`app_id`,
   `app_name`, `app_version`, `app_dir`), the job (id, name, workspace, submission time) and its
   user (username, e-mail, full name), plus the global service and SMTP values. Env files cannot
   override them.
@@ -137,20 +137,20 @@ Out of scope:
 
 ### Exit handling and logs
 
-- **BE-RUN-021** Each step start writes to `logs/stdout.txt` the lines `[cloudgene] Step <i>/<n>:
+- **BE-RUN-021** Each step start MUST write to `logs/stdout.txt` the lines `[cloudgene] Step <i>/<n>:
   <name>` (` (command)` for command steps) and `[cloudgene] $ <command>` (shell-quoted argv, or
   the substituted script for `bash: true`). Cancellation, SIGKILL after grace, and the final
   state are logged the same way (`[cloudgene] Job <state>: <first line of message>`).
-- **BE-RUN-022** A Nextflow step exiting non-zero fails the job with `Step "<name>" failed:
+- **BE-RUN-022** A Nextflow step exiting non-zero MUST fail the job with `Step "<name>" failed:
   Nextflow exited with code <rc>.`, followed by up to 15 non-blank lines starting at the first
   `ERROR ~` in this step's part of `logs/stdout.txt`, and — only if the step's `stdout` or `stderr`
   flag is set — `Output (last lines):` and the last 4096 characters of that output.
-- **BE-RUN-023** A command step exiting non-zero fails the job with `Step "<name>" failed (exit
+- **BE-RUN-023** A command step exiting non-zero MUST fail the job with `Step "<name>" failed (exit
   code <rc>).`, or `(killed by signal <SIGNAME>).` for a signal, followed for each flagged stream
   by `<stream> (last lines):` and its last 4096 bytes.
-- **BE-RUN-024** If the process cannot be started, the job fails with `Could not start Nextflow
+- **BE-RUN-024** If the process cannot be started, the job MUST fail with `Could not start Nextflow
   (<binary>): <error>` or `Step "<name>" failed: could not start command "<argv0>": <error>`.
-- **BE-RUN-025** The files a job writes are exactly those listed under Interfaces; no file
+- **BE-RUN-025** The files a job writes MUST be exactly those listed under Interfaces; no file
   outside the workspace is written except the Nextflow work directory when configured outside it.
 
 ## Interfaces

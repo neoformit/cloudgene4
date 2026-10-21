@@ -125,7 +125,7 @@ Out of scope (owned elsewhere):
   `jobs_cancel_create`, `jobs_destroy`, `jobs_log_retrieve`, `jobs_outputs_retrieve`) MUST return
   `404` `not_found` to an authenticated user who is neither the owner nor an admin, so the
   existence of other users' jobs is not revealed.
-- **BE-API-035** The "Auth" column of the catalogue is normative: `anonymous` = no
+- **BE-API-035** Every operation MUST enforce the "Auth" column of the catalogue: `anonymous` = no
   authentication needed (a user may still be authenticated, which can change the result);
   `user` = any authenticated active user; `owner` = owning user or admin; `admin` = admin only.
 

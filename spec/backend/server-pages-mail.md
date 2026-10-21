@@ -78,7 +78,7 @@ Out of scope (linked instead):
 ### Mail
 
 - **BE-SRV-050** All outgoing mail MUST go through `core.mail.send_mail`, which reads `mail.*` from `settings.yaml` at send time, so a saved change applies to the next message without a restart.
-- **BE-SRV-051** `mail.backend` selects delivery: `smtp` (host, port, user, password, `use_tls`/`use_ssl`, 30-second timeout; empty user/password means no authentication), `file` (one file per message in `mail.file_path`, relative paths resolved against `$CLOUDGENE_HOME`; the directory is created if missing), or `console` (written to stdout).
+- **BE-SRV-051** `mail.backend` MUST select delivery: `smtp` (host, port, user, password, `use_tls`/`use_ssl`, 30-second timeout; empty user/password means no authentication), `file` (one file per message in `mail.file_path`, relative paths resolved against `$CLOUDGENE_HOME`; the directory is created if missing), or `console` (written to stdout).
 - **BE-SRV-052** The sender address MUST be `mail.from_email`.
 - **BE-SRV-053** When Django's test runner has switched `EMAIL_BACKEND` to the in-memory backend, `send_mail` MUST use it regardless of `settings.yaml`, so tests never send real mail.
 - **BE-SRV-054** A delivery failure MUST raise to the caller (unless the caller passes `fail_silently=True`); each caller decides the user-facing outcome ([accounts.md](accounts.md), [admin-api.md](admin-api.md) BE-ADM-054).

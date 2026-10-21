@@ -50,20 +50,20 @@ Out of scope:
 
 ### Who may submit, and service state
 
-- **BE-JSUB-001** Only authenticated users may call `jobs_create`. An anonymous request gets 401
+- **BE-JSUB-001** Only authenticated users may call `jobs_create`. An anonymous request MUST receive 401
   with the error envelope.
 - **BE-JSUB-002** The request MUST name a workflow in `workflow` (alias `workflow_id`). A missing
   or empty value gives 400, code `invalid`, `fields.workflow`. A workflow that does not exist or
   that the user cannot access gives 404, code `not_found`, `fields.workflow` — the two cases are
   indistinguishable.
-- **BE-JSUB-003** A disabled workflow gives 409, code `workflow_disabled`.
-- **BE-JSUB-004** When `server.maintenance` is true, a non-admin submission gives 503, code
+- **BE-JSUB-003** A disabled workflow MUST give 409, code `workflow_disabled`.
+- **BE-JSUB-004** When `server.maintenance` is true, a non-admin submission MUST give 503, code
   `maintenance`, with `server.maintenance_message` as the message. Admins may still submit.
 - **BE-JSUB-005** When `server.max_queue_size` > 0 and the number of `waiting` jobs is at least
-  that value, any submission (admins included) gives 429, code `queue_full`, message
+  that value, any submission (admins included) MUST give 429, code `queue_full`, message
   `The job queue is full (<waiting> of <limit> jobs waiting). Please try again later.`
   `max_queue_size: 0` means no limit.
-- **BE-JSUB-006** A workflow whose stored `cloudgene.yaml` does not parse gives 409, code
+- **BE-JSUB-006** A workflow whose stored `cloudgene.yaml` does not parse MUST give 409, code
   `workflow_invalid`, message starting `The workflow definition is invalid:`.
 - **BE-JSUB-007** Checks MUST run in this order, and the first failing check decides the
   response: workflow (400/404/409) → maintenance (503) → queue full (429) → definition (409) →
@@ -71,11 +71,11 @@ Out of scope:
 
 ### Job name (K3)
 
-- **BE-JSUB-008** The job name is optional and read from `job_name`; if `job_name` is absent and
+- **BE-JSUB-008** The job name is optional and MUST be read from `job_name`; if `job_name` is absent and
   the workflow has no input with id `name`, the field `name` is used instead. ASCII control
   characters (`\x00`–`\x1f`, `\x7f`) are replaced by a space, then the value is trimmed. Inner
   spaces and any other Unicode characters are kept verbatim.
-- **BE-JSUB-009** A name longer than 255 characters (after cleaning) gives 400, code `invalid`,
+- **BE-JSUB-009** A name longer than 255 characters (after cleaning) MUST give 400, code `invalid`,
   `fields.job_name`. An empty name becomes `<workflow name> <YYYY-MM-DD HH:MM>` in server local
   time.
 - **BE-JSUB-010** The job name MUST NOT be used in any file-system path, command line, shell text
@@ -85,18 +85,18 @@ Out of scope:
 
 ### Input validation
 
-- **BE-JSUB-011** All inputs are validated before anything is written. If any input fails, the
+- **BE-JSUB-011** All inputs MUST be validated before anything is written. If any input fails, the
   response is 400, code `invalid`, message `<first field>: <first message>`, and `fields` maps
   every failing input id to its messages. No job row and no workspace remain.
-- **BE-JSUB-012** Inputs with `visible: false` ignore client values: checkbox → its default
+- **BE-JSUB-012** Inputs with `visible: false` MUST ignore client values: checkbox → its default
   state, terms → `true`, other non-file inputs → the YAML `value` (omitted when empty); hidden
   file inputs are omitted.
-- **BE-JSUB-013** A multipart file part sent for a non-file input gives a field error
+- **BE-JSUB-013** A multipart file part sent for a non-file input MUST give a field error
   `A file was uploaded for this field, which expects a text value, not a file.`
-- **BE-JSUB-014** `text`/`string`: trimmed. `textarea`: `\r\n` and `\r` become `\n`, not
+- **BE-JSUB-014** `text`/`string` values MUST be trimmed. `textarea`: `\r\n` and `\r` become `\n`, not
   trimmed. Empty (whitespace only) → `This field is required.` when required, otherwise omitted.
   More than 100 000 characters → `At most 100000 characters.`
-- **BE-JSUB-015** A `textarea` with `writeFile` stores its content UTF-8 encoded at
+- **BE-JSUB-015** A `textarea` with `writeFile` MUST store its content UTF-8 encoded at
   `input/<input id>/<writeFile>` and its parameter is that relative path.
 - **BE-JSUB-016** `number`: the value MUST match `^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$` with
   ASCII digits only (the run form's rule); integers are stored as int, others as float; NaN and
@@ -104,12 +104,12 @@ Out of scope:
   `Must be at most <max>.`
 - **BE-JSUB-017** `list`/`radio`: the value MUST be one of the declared keys (`Select a valid
   choice.`); empty → `Please select a value.` when required.
-- **BE-JSUB-018** `checkbox`: checked when the value is one of `true`, `on`, `1`, `yes`, `checked`
+- **BE-JSUB-018** A `checkbox` MUST be treated as checked when the value is one of `true`, `on`, `1`, `yes`, `checked`
   (case-insensitive) or equals the declared "true" value. The stored value is the declared
   true/false value, or a boolean when none is declared. A missing field means unchecked.
-- **BE-JSUB-019** Terms inputs: a required terms input that is not truthy gives `You must accept
+- **BE-JSUB-019** Terms inputs: a required terms input that is not truthy MUST give `You must accept
   this to submit the job.`
-- **BE-JSUB-020** File inputs: a required input with no upload gives `Please select a file.`
+- **BE-JSUB-020** File inputs: a required input with no upload MUST give `Please select a file.`
   (folder: `Please select at least one file.`); a non-folder input with more than one upload gives
   `Only one file can be uploaded here.`; each file whose name does not end with one of the
   `accept` extensions (case-insensitive) gives `"<name>" is not an accepted file type (<accept>).`
@@ -123,22 +123,22 @@ Out of scope:
   (case-insensitive) by adding `_1`, `_2`, … before the extension. User input therefore cannot
   escape `input/<input id>/` (Article 8.2).
 - **BE-JSUB-022** The original display name (basename, control characters removed, ≤ 255
-  characters), the relative path and the byte size of each upload are stored in `Job.uploads`
+  characters), the relative path and the byte size of each upload MUST be stored in `Job.uploads`
   per input id.
 - **BE-JSUB-023** When the total size of all uploads exceeds `server.max_upload_mb` × 1 MiB, the
-  response is 413, code `upload_too_large`, with the message in `fields` for every file input.
+  response MUST be 413, code `upload_too_large`, with the message in `fields` for every file input.
   A request with more files than `DATA_UPLOAD_MAX_NUMBER_FILES` (default 10 000, env
   `DJANGO_DATA_UPLOAD_MAX_NUMBER_FILES`) or a non-file body over `DATA_UPLOAD_MAX_MEMORY_SIZE`
   gives 413, code `upload_too_large` — never 500.
-- **BE-JSUB-024** The workspace is `CLOUDGENE_HOME/jobs/<job uuid>/` (see
+- **BE-JSUB-024** The workspace MUST be `CLOUDGENE_HOME/jobs/<job uuid>/` (see
   [configuration.md](configuration.md) for `job_dir`). Submission creates `input/`, `output/`,
   `logs/`; uploads go to `input/<input id>/<disk name>`. A file input's parameter is
   `input/<id>/<disk name>`; a folder input's parameter is `input/<id>`.
 - **BE-JSUB-025** If writing files or creating the row fails, the workspace MUST be removed and no
   job row created.
-- **BE-JSUB-026** A successful submission creates one `Job` with `status=waiting`, the typed
+- **BE-JSUB-026** A successful submission MUST create one `Job` with `status=waiting`, the typed
   parameters, the uploads metadata, and a snapshot of the workflow (`app_id`, `app_name`,
-  `app_version`, `workflow_yaml`, `app_dir`), and returns 201 with the `JobDetail` body.
+  `app_version`, `workflow_yaml`, `app_dir`), and return 201 with the `JobDetail` body.
 - **BE-JSUB-027** (SHOULD) The queue-full check SHOULD be race-free, so concurrent submissions
   cannot push the number of waiting jobs above `server.max_queue_size`.
 
@@ -148,7 +148,7 @@ Out of scope:
   booleans `true`/`false`; file, folder and `writeFile` inputs as absolute paths inside the
   workspace; a declared input with no value as the empty string), every output id as the absolute
   path `<workspace>/output/<id>`, and every `CLOUDGENE_*` variable of the job environment.
-- **BE-JSUB-029** Substitution replaces `$name` and `${name}` for known names in one pass;
+- **BE-JSUB-029** Substitution MUST replace `$name` and `${name}` for known names in one pass;
   substituted values are never re-scanned; unknown names and `$` not followed by an identifier are
   left unchanged.
 - **BE-JSUB-030** User values MUST NOT be interpreted by a shell. In argv mode (`bash: false`) the
@@ -156,7 +156,7 @@ Out of scope:
   a value is always part of exactly one argument. In bash mode (`bash: true`) each value is quoted
   for the quoting context it lands in (unquoted: single-quoted word; inside `"…"`: `\`, `"`, `$`,
   `` ` `` escaped; inside `'…'`: `'` closed/escaped/reopened), so it is one literal word.
-- **BE-JSUB-031** `params.json` for step N is `<workspace>/params.json` (N = 1) or
+- **BE-JSUB-031** `params.json` for step N MUST be `<workspace>/params.json` (N = 1) or
   `<workspace>/step<N>-params.json` (N ≥ 2), UTF-8 JSON. It contains the step's `params`
   (strings substituted recursively through lists and maps), then every input with `serialize`
   true and a non-null value (file/folder/`writeFile` inputs as absolute paths), then every output

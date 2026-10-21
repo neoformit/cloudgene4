@@ -42,7 +42,7 @@ Source of truth and paths
 - **BE-WREG-001** The set of installed apps and their `enabled`, `public`, `groups`, `profile`,
   `work_dir` MUST be read only from `settings.yaml` `apps[]`. The cache row MUST NOT be the
   source of any of them.
-- **BE-WREG-002** `apps[].path` resolution: an absolute path is used as is; a relative path is
+- **BE-WREG-002** `apps[].path` resolution: an absolute path MUST be used as is; a relative path is
   tried against `$CLOUDGENE_HOME/apps/` then `$CLOUDGENE_HOME/`. A directory resolves to its
   `cloudgene.yaml`, else `cloudgene.yml`; a file is used as is. No match is a registry error
   with code `not_found`.
@@ -57,7 +57,7 @@ Scan and validity
 - **BE-WREG-005** An entry is invalid when its path does not resolve, its YAML does not parse,
   the definition fails validation, or its id fails `SLUG_RE`. Invalid entries MUST still be
   listed (never dropped) with their errors.
-- **BE-WREG-006** Id of an entry: the definition id when valid; else the YAML `id` when it is a
+- **BE-WREG-006** The id of an entry MUST be the definition id when valid; else the YAML `id` when it is a
   readable slug; else a slug derived from the path (directory name, max 64 chars, `app` if
   empty).
 - **BE-WREG-007** When two entries have the same id, the later entry MUST be marked invalid with

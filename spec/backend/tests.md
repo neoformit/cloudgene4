@@ -224,8 +224,7 @@ Path aliases used in the table: `acct` = `accounts/tests.py`, `acct-c` =
 `workflows/test_definition.py`, `wf-reg` = `workflows/test_registry.py`, `wf-yref` =
 `workflows/tests_yaml_reference_example.py`, `e2e:x` = `e2e/tests/test_x.py`, `fe:` =
 `frontend/src/`. Other paths are written in full (mostly planned new files). `::name` continues
-the previous `file::Class`. `(p)` = planned test. **Lvl** `MUST*` = the requirement has no RFC 2119
-keyword and is counted as MUST (see Known gaps). **Status**: `exists` = at least one cited test
+the previous `file::Class`. `(p)` = planned test. **Status**: `exists` = at least one cited test
 exists; `exists+planned` = exists, with further planned tests; `planned` = only planned tests;
 `none` = no test cited.
 
@@ -355,7 +354,7 @@ was missing.
 | BE-API-032 | MUST | `core-api::TokenAuthTest::test_unauthenticated_protected_endpoint_is_401_envelope`, `::test_bad_token_is_401_envelope`; `adm::PermissionMatrixTest::test_anonymous_gets_401` | unit | exists |
 | BE-API-033 | MUST | `core-api::AdminPermissionTest::test_admin_endpoints_use_is_admin`; `adm::PermissionMatrixTest::test_non_admin_gets_403_and_nothing_changes`; `acct::PermissionMatrixTest::test_matrix` | unit | exists |
 | BE-API-034 | MUST | `jobs-api::JobLifecycleApiTest::test_other_users_get_404_admin_gets_access`, `::test_output_traversal_and_foreign_ids` | unit | exists |
-| BE-API-035 | MUST* | auth matrix over all operations (BE-TEST-008) (p) | — | planned |
+| BE-API-035 | MUST | auth matrix over all operations (BE-TEST-008) (p) | — | planned |
 | BE-API-040 | MUST | `core-api::MiscRoutingTest::test_pagination_page_size` | unit | exists |
 | BE-API-041 | MUST | unpaginated-list shape test (p) | — | planned |
 | BE-API-050 | MUST | via BE-TEST-003 (p) | — | planned |
@@ -508,22 +507,22 @@ was missing.
 | BE-WDEF-006 | MUST | `wf-def::LoadDefinitionTest::test_required_fields`, `::test_invalid_ids_and_duplicates`, `::test_unknown_input_type` | unit | exists |
 | BE-WDEF-007 | MUST | `wf-def::LoadDefinitionTest::test_unsupported_steps_load_with_error` | unit | exists |
 | BE-WDEF-008 | MUST | `wf-def::LoadDefinitionTest::test_required_fields`, `::test_boolean_id_must_be_quoted` (p) | unit | exists+planned |
-| BE-WDEF-009 | MUST* | `wf-def::LoadDefinitionTest::test_required_fields` | unit | exists |
-| BE-WDEF-010 | MUST* | `wf-def::LoadDefinitionTest::test_all_input_types` | unit | exists |
+| BE-WDEF-009 | MUST | `wf-def::LoadDefinitionTest::test_required_fields` | unit | exists |
+| BE-WDEF-010 | MUST | `wf-def::LoadDefinitionTest::test_all_input_types` | unit | exists |
 | BE-WDEF-011 | MUST | `wf-def::LoadDefinitionTest::test_required_fields` | unit | exists |
 | BE-WDEF-012 | MUST | `wf-def::CommandStepParsingTest` | unit | exists |
 | BE-WDEF-013 | MUST | `wf-def::LoadDefinitionTest::test_unsupported_steps_load_with_error`; `wf-def::CommandStepParsingTest::test_taxodactyl_definition` | unit | exists |
 | BE-WDEF-014 | MUST | `wf-def::LoadDefinitionTest::test_all_input_types`, `::test_default_script_is_main_nf`; `wf-def::CommandStepParsingTest::test_taxodactyl_definition` | unit | exists |
 | BE-WDEF-015 | MUST | `wf-def::CommandStepParsingTest::test_taxodactyl_definition` | unit | exists |
 | BE-WDEF-016 | MUST | `wf-def::LoadDefinitionTest::test_invalid_ids_and_duplicates`, `::test_unknown_input_type`; `wf-def::CommandStepParsingTest::test_taxodactyl_definition`; `wf-yref::YamlReferenceExampleTest`; `e2e:run_form::test_all_input_types_render_with_defaults` | unit, e2e | exists |
-| BE-WDEF-017 | MUST* | `wf-def::LoadDefinitionTest::test_all_input_types`; `e2e:run_form::test_all_input_types_render_with_defaults` | unit, e2e | exists |
+| BE-WDEF-017 | MUST | `wf-def::LoadDefinitionTest::test_all_input_types`; `e2e:run_form::test_all_input_types_render_with_defaults` | unit, e2e | exists |
 | BE-WDEF-018 | MUST | `wf-def::LoadDefinitionTest::test_all_input_types`, `::test_list_needs_values_and_number_bounds`, `::test_write_file_must_be_plain_name` (p); `e2e:run_form::test_all_input_types_render_with_defaults` | unit, e2e | exists+planned |
 | BE-WDEF-019 | MUST | `wf-def::LoadDefinitionTest::test_all_input_types`, `::test_list_needs_values_and_number_bounds`; `e2e:run_form::test_all_input_types_render_with_defaults` | unit, e2e | exists |
 | BE-WDEF-020 | MUST | `wf-def::LoadDefinitionTest::test_all_input_types`, `::test_list_needs_values_and_number_bounds`, `::test_bad_default_for_list_is_ignored_with_warning`; `e2e:run_form::test_all_input_types_render_with_defaults` | unit, e2e | exists |
 | BE-WDEF-021 | MUST | `wf-def::LoadDefinitionTest::test_all_input_types`, `::test_list_needs_values_and_number_bounds`, `::test_checkbox_default_by_mapped_value`; `e2e:run_form::test_all_input_types_render_with_defaults` | unit, e2e | exists |
-| BE-WDEF-022 | MUST* | `wf-def::LoadDefinitionTest::test_all_input_types`, `::test_terms_value_ignored` (p); `e2e:run_form::test_all_input_types_render_with_defaults` | unit, e2e | exists+planned |
-| BE-WDEF-023 | MUST* | `wf-def::LoadDefinitionTest::test_all_input_types`; `wf-def::CommandStepParsingTest::test_taxodactyl_definition`; `e2e:run_form::test_all_input_types_render_with_defaults` | unit, e2e | exists |
-| BE-WDEF-024 | MUST* | `wf-def::LoadDefinitionTest::test_all_input_types`; `wf-yref::YamlReferenceExampleTest`; `e2e:run_form::test_all_input_types_render_with_defaults` | unit, e2e | exists |
+| BE-WDEF-022 | MUST | `wf-def::LoadDefinitionTest::test_all_input_types`, `::test_terms_value_ignored` (p); `e2e:run_form::test_all_input_types_render_with_defaults` | unit, e2e | exists+planned |
+| BE-WDEF-023 | MUST | `wf-def::LoadDefinitionTest::test_all_input_types`; `wf-def::CommandStepParsingTest::test_taxodactyl_definition`; `e2e:run_form::test_all_input_types_render_with_defaults` | unit, e2e | exists |
+| BE-WDEF-024 | MUST | `wf-def::LoadDefinitionTest::test_all_input_types`; `wf-yref::YamlReferenceExampleTest`; `e2e:run_form::test_all_input_types_render_with_defaults` | unit, e2e | exists |
 | BE-WDEF-025 | MUST | `wf-def::LoadDefinitionTest::test_all_input_types` | unit | exists |
 | BE-WDEF-026 | MUST | `wf-def::LoadDefinitionTest::test_invalid_ids_and_duplicates`, `::test_unknown_input_type` | unit | exists |
 | BE-WDEF-027 | MUST | `wf-def::LoadDefinitionTest::test_all_input_types` | unit | exists |
@@ -537,11 +536,11 @@ was missing.
 | ID | Lvl | Tests | Layer | Status |
 |---|---|---|---|---|
 | BE-WREG-001 | MUST | `wf-reg::RegistryInstallTest::test_install_app_dir_writes_settings_and_cache_row` | unit | exists |
-| BE-WREG-002 | MUST* | `wf-reg::RegistryInstallTest::test_install_app_dir_writes_settings_and_cache_row`, `::test_install_yaml_file_outside_apps_is_referenced_absolute`; `wf-reg::RegistrySyncTest::test_sync_from_hand_written_settings` | unit | exists |
+| BE-WREG-002 | MUST | `wf-reg::RegistryInstallTest::test_install_app_dir_writes_settings_and_cache_row`, `::test_install_yaml_file_outside_apps_is_referenced_absolute`; `wf-reg::RegistrySyncTest::test_sync_from_hand_written_settings` | unit | exists |
 | BE-WREG-003 | MUST | `wf-reg::RegistryInstallTest::test_install_app_dir_writes_settings_and_cache_row`, `::test_install_yaml_file_outside_apps_is_referenced_absolute` | unit | exists |
 | BE-WREG-004 | MUST | `wf-reg::RegistrySyncTest::test_sync_from_hand_written_settings` | unit | exists |
 | BE-WREG-005 | MUST | `wf-reg::RegistrySyncTest::test_sync_from_hand_written_settings` | unit | exists |
-| BE-WREG-006 | MUST* | `wf-reg::RegistrySyncTest::test_sync_from_hand_written_settings` | unit | exists |
+| BE-WREG-006 | MUST | `wf-reg::RegistrySyncTest::test_sync_from_hand_written_settings` | unit | exists |
 | BE-WREG-007 | MUST | `wf-reg::RegistrySyncTest::test_duplicate_ids_in_settings` | unit | exists |
 | BE-WREG-008 | MUST | `wf-reg::RegistryInstallTest::test_install_app_dir_writes_settings_and_cache_row` | unit | exists |
 | BE-WREG-009 | MUST | `wf-reg::RegistrySyncTest::test_sync_from_hand_written_settings`, `::test_app_becoming_invalid_disables_row` | unit | exists |
@@ -594,67 +593,67 @@ was missing.
 
 | ID | Lvl | Tests | Layer | Status |
 |---|---|---|---|---|
-| BE-JSUB-001 | MUST* | `jobs-api::SubmissionTest::test_workflow_access_and_disabled` | unit | exists |
+| BE-JSUB-001 | MUST | `jobs-api::SubmissionTest::test_workflow_access_and_disabled` | unit | exists |
 | BE-JSUB-002 | MUST | `jobs-api::SubmissionTest::test_workflow_access_and_disabled` | unit | exists |
-| BE-JSUB-003 | MUST* | `jobs-api::SubmissionTest::test_workflow_access_and_disabled` | unit | exists |
-| BE-JSUB-004 | MUST* | `jobs-api::SubmissionTest::test_maintenance_blocks_users_not_admins`; `e2e:queue::test_maintenance_blocks_users_not_admins` | unit, e2e | exists |
-| BE-JSUB-005 | MUST* | `jobs-api::SubmissionTest::test_queue_full`; `e2e:queue::test_queue_full_rejects_submission` | unit, e2e | exists |
-| BE-JSUB-006 | MUST* | `jobs-api::SubmissionTest::test_invalid_definition_gives_409` (p) | unit | planned |
+| BE-JSUB-003 | MUST | `jobs-api::SubmissionTest::test_workflow_access_and_disabled` | unit | exists |
+| BE-JSUB-004 | MUST | `jobs-api::SubmissionTest::test_maintenance_blocks_users_not_admins`; `e2e:queue::test_maintenance_blocks_users_not_admins` | unit, e2e | exists |
+| BE-JSUB-005 | MUST | `jobs-api::SubmissionTest::test_queue_full`; `e2e:queue::test_queue_full_rejects_submission` | unit, e2e | exists |
+| BE-JSUB-006 | MUST | `jobs-api::SubmissionTest::test_invalid_definition_gives_409` (p) | unit | planned |
 | BE-JSUB-007 | MUST | `jobs-api::SubmissionTest::test_check_order` (p) | unit | planned |
-| BE-JSUB-008 | MUST* | `jobs-api::SubmissionTest::test_name_too_long_and_control_chars`, `::test_legacy_name_field_and_json_body`, `::test_all_input_types_are_resolved_and_stored`; `e2e:jobs::test_submit_hello_with_unicode_job_name` | unit, e2e | exists |
-| BE-JSUB-009 | MUST* | `jobs-api::SubmissionTest::test_name_too_long_and_control_chars`, `::test_legacy_name_field_and_json_body`, `::test_all_input_types_are_resolved_and_stored`, `::test_defaults_and_unchecked_checkbox`; `e2e:jobs::test_submit_hello_with_unicode_job_name` | unit, e2e | exists |
+| BE-JSUB-008 | MUST | `jobs-api::SubmissionTest::test_name_too_long_and_control_chars`, `::test_legacy_name_field_and_json_body`, `::test_all_input_types_are_resolved_and_stored`; `e2e:jobs::test_submit_hello_with_unicode_job_name` | unit, e2e | exists |
+| BE-JSUB-009 | MUST | `jobs-api::SubmissionTest::test_name_too_long_and_control_chars`, `::test_legacy_name_field_and_json_body`, `::test_all_input_types_are_resolved_and_stored`, `::test_defaults_and_unchecked_checkbox`; `e2e:jobs::test_submit_hello_with_unicode_job_name` | unit, e2e | exists |
 | BE-JSUB-010 | MUST | `e2e:jobs::test_submit_hello_with_unicode_job_name`; `jobs-cmd::CommandStepWorkerTest::test_injection_is_literal_in_both_modes`; `jobs-worker::test_job_name_never_in_argv_or_paths` (p) | unit, e2e | exists+planned |
-| BE-JSUB-011 | MUST* | `jobs-api::SubmissionTest::test_field_errors`; `e2e:run_form::test_server_validation_field_errors` | unit, e2e | exists |
-| BE-JSUB-012 | MUST* | `jobs-api::SubmissionTest::test_all_input_types_are_resolved_and_stored`, `::test_defaults_and_unchecked_checkbox` | unit | exists |
-| BE-JSUB-013 | MUST* | `jobs-api::SubmissionTest::test_file_part_for_text_input_is_rejected`; `e2e:findings_jobs::test_a01_file_part_for_text_input_is_rejected` | unit, e2e | exists |
-| BE-JSUB-014 | MUST* | `jobs-api::SubmissionTest::test_all_input_types_are_resolved_and_stored`, `::test_defaults_and_unchecked_checkbox` | unit | exists |
-| BE-JSUB-015 | MUST* | `jobs-api::SubmissionTest::test_all_input_types_are_resolved_and_stored`, `::test_defaults_and_unchecked_checkbox` | unit | exists |
+| BE-JSUB-011 | MUST | `jobs-api::SubmissionTest::test_field_errors`; `e2e:run_form::test_server_validation_field_errors` | unit, e2e | exists |
+| BE-JSUB-012 | MUST | `jobs-api::SubmissionTest::test_all_input_types_are_resolved_and_stored`, `::test_defaults_and_unchecked_checkbox` | unit | exists |
+| BE-JSUB-013 | MUST | `jobs-api::SubmissionTest::test_file_part_for_text_input_is_rejected`; `e2e:findings_jobs::test_a01_file_part_for_text_input_is_rejected` | unit, e2e | exists |
+| BE-JSUB-014 | MUST | `jobs-api::SubmissionTest::test_all_input_types_are_resolved_and_stored`, `::test_defaults_and_unchecked_checkbox` | unit | exists |
+| BE-JSUB-015 | MUST | `jobs-api::SubmissionTest::test_all_input_types_are_resolved_and_stored`, `::test_defaults_and_unchecked_checkbox` | unit | exists |
 | BE-JSUB-016 | MUST | `jobs-api::SubmissionTest::test_number_min_and_nan`, `::test_number_rejects_what_the_run_form_rejects`; `e2e:findings_jobs::test_a05_number_input_rejects_values_the_form_rejects` | unit, e2e | exists |
 | BE-JSUB-017 | MUST | `jobs-api::SubmissionTest::test_all_input_types_are_resolved_and_stored`, `::test_defaults_and_unchecked_checkbox` | unit | exists |
-| BE-JSUB-018 | MUST* | `jobs-api::SubmissionTest::test_all_input_types_are_resolved_and_stored`, `::test_defaults_and_unchecked_checkbox` | unit | exists |
-| BE-JSUB-019 | MUST* | `jobs-api::SubmissionTest::test_field_errors` | unit | exists |
-| BE-JSUB-020 | MUST* | `jobs-api::SubmissionTest::test_file_accept_and_single_file`, `::test_field_errors` | unit | exists |
+| BE-JSUB-018 | MUST | `jobs-api::SubmissionTest::test_all_input_types_are_resolved_and_stored`, `::test_defaults_and_unchecked_checkbox` | unit | exists |
+| BE-JSUB-019 | MUST | `jobs-api::SubmissionTest::test_field_errors` | unit | exists |
+| BE-JSUB-020 | MUST | `jobs-api::SubmissionTest::test_file_accept_and_single_file`, `::test_field_errors` | unit | exists |
 | BE-JSUB-021 | MUST | `jobs-api::SafeFilenameTest::test_names`; `jobs-api::SubmissionTest::test_all_input_types_are_resolved_and_stored`; `e2e:jobs::test_all_inputs_uploads_folder_and_write_file` | unit, e2e | exists |
-| BE-JSUB-022 | MUST* | `jobs-api::SafeFilenameTest::test_names`; `jobs-api::SubmissionTest::test_all_input_types_are_resolved_and_stored`; `e2e:jobs::test_all_inputs_uploads_folder_and_write_file` | unit, e2e | exists |
-| BE-JSUB-023 | MUST* | `jobs-api::SubmissionTest::test_upload_size_limit`, `::test_many_files_in_folder_input_is_a_client_error_not_500`; `e2e:findings_jobs::test_a02_many_files_in_folder_input_is_a_client_error` | unit, e2e | exists |
-| BE-JSUB-024 | MUST* | `jobs-api::SafeFilenameTest::test_names`; `jobs-api::SubmissionTest::test_all_input_types_are_resolved_and_stored`; `e2e:jobs::test_all_inputs_uploads_folder_and_write_file` | unit, e2e | exists |
+| BE-JSUB-022 | MUST | `jobs-api::SafeFilenameTest::test_names`; `jobs-api::SubmissionTest::test_all_input_types_are_resolved_and_stored`; `e2e:jobs::test_all_inputs_uploads_folder_and_write_file` | unit, e2e | exists |
+| BE-JSUB-023 | MUST | `jobs-api::SubmissionTest::test_upload_size_limit`, `::test_many_files_in_folder_input_is_a_client_error_not_500`; `e2e:findings_jobs::test_a02_many_files_in_folder_input_is_a_client_error` | unit, e2e | exists |
+| BE-JSUB-024 | MUST | `jobs-api::SafeFilenameTest::test_names`; `jobs-api::SubmissionTest::test_all_input_types_are_resolved_and_stored`; `e2e:jobs::test_all_inputs_uploads_folder_and_write_file` | unit, e2e | exists |
 | BE-JSUB-025 | MUST | `jobs-api::SubmissionTest::test_failed_write_removes_workspace` (p) | unit | planned |
-| BE-JSUB-026 | MUST* | `jobs-api::SubmissionTest::test_all_input_types_are_resolved_and_stored` | unit | exists |
+| BE-JSUB-026 | MUST | `jobs-api::SubmissionTest::test_all_input_types_are_resolved_and_stored` | unit | exists |
 | BE-JSUB-027 | SHOULD | — | — | none |
 | BE-JSUB-028 | MUST | `jobs-cmd::SubstitutionTest`; `jobs-cmd::CommandStepWorkerTest::test_injection_is_literal_in_both_modes` | unit | exists |
-| BE-JSUB-029 | MUST* | `jobs-cmd::SubstitutionTest`; `jobs-cmd::CommandStepWorkerTest::test_injection_is_literal_in_both_modes` | unit | exists |
+| BE-JSUB-029 | MUST | `jobs-cmd::SubstitutionTest`; `jobs-cmd::CommandStepWorkerTest::test_injection_is_literal_in_both_modes` | unit | exists |
 | BE-JSUB-030 | MUST | `jobs-cmd::SubstitutionTest`; `jobs-cmd::CommandStepWorkerTest::test_injection_is_literal_in_both_modes` | unit | exists |
-| BE-JSUB-031 | MUST* | `jobs-api::SubmissionTest::test_all_input_types_are_resolved_and_stored`; `jobs-cmd::SubstitutionTest::test_params_substitution_is_recursive_and_only_touches_strings` | unit | exists |
+| BE-JSUB-031 | MUST | `jobs-api::SubmissionTest::test_all_input_types_are_resolved_and_stored`; `jobs-cmd::SubstitutionTest::test_params_substitution_is_recursive_and_only_touches_strings` | unit | exists |
 
 ### [job-queue-worker.md](job-queue-worker.md)
 
 | ID | Lvl | Tests | Layer | Status |
 |---|---|---|---|---|
-| BE-QUEUE-001 | MUST* | `jobs-worker::WorkerSuccessTest::test_job_runs_to_success_with_progress_messages_and_outputs`; `jobs-worker::WorkerFailureTest::test_failed_pipeline`; `jobs-worker::WorkerCancelTest::test_cancel_running_kills_process_tree`; `jobs-cmd::CommandStepWorkerTest::test_failing_command_fails_job_with_exit_code_and_stderr_tail` | unit | exists |
-| BE-QUEUE-002 | MUST* | `jobs-worker::WorkerSuccessTest::test_job_runs_to_success_with_progress_messages_and_outputs`; `jobs-worker::WorkerFailureTest::test_failed_pipeline`; `jobs-worker::WorkerCancelTest::test_cancel_running_kills_process_tree`; `jobs-cmd::CommandStepWorkerTest::test_failing_command_fails_job_with_exit_code_and_stderr_tail` | unit | exists |
-| BE-QUEUE-003 | MUST* | `jobs-worker::WorkerSuccessTest::test_job_runs_to_success_with_progress_messages_and_outputs`; `jobs-worker::WorkerFailureTest::test_failed_pipeline`; `jobs-worker::WorkerCancelTest::test_cancel_running_kills_process_tree`; `jobs-cmd::CommandStepWorkerTest::test_failing_command_fails_job_with_exit_code_and_stderr_tail` | unit | exists |
-| BE-QUEUE-004 | MUST* | `jobs-worker::WorkerSuccessTest::test_job_runs_to_success_with_progress_messages_and_outputs`; `jobs-worker::WorkerFailureTest::test_failed_pipeline`; `jobs-worker::WorkerCancelTest::test_cancel_running_kills_process_tree`; `jobs-cmd::CommandStepWorkerTest::test_failing_command_fails_job_with_exit_code_and_stderr_tail` | unit | exists |
-| BE-QUEUE-005 | MUST* | `jobs-api::JobLifecycleApiTest::test_queue_positions` | unit | exists |
+| BE-QUEUE-001 | MUST | `jobs-worker::WorkerSuccessTest::test_job_runs_to_success_with_progress_messages_and_outputs`; `jobs-worker::WorkerFailureTest::test_failed_pipeline`; `jobs-worker::WorkerCancelTest::test_cancel_running_kills_process_tree`; `jobs-cmd::CommandStepWorkerTest::test_failing_command_fails_job_with_exit_code_and_stderr_tail` | unit | exists |
+| BE-QUEUE-002 | MUST | `jobs-worker::WorkerSuccessTest::test_job_runs_to_success_with_progress_messages_and_outputs`; `jobs-worker::WorkerFailureTest::test_failed_pipeline`; `jobs-worker::WorkerCancelTest::test_cancel_running_kills_process_tree`; `jobs-cmd::CommandStepWorkerTest::test_failing_command_fails_job_with_exit_code_and_stderr_tail` | unit | exists |
+| BE-QUEUE-003 | MUST | `jobs-worker::WorkerSuccessTest::test_job_runs_to_success_with_progress_messages_and_outputs`; `jobs-worker::WorkerFailureTest::test_failed_pipeline`; `jobs-worker::WorkerCancelTest::test_cancel_running_kills_process_tree`; `jobs-cmd::CommandStepWorkerTest::test_failing_command_fails_job_with_exit_code_and_stderr_tail` | unit | exists |
+| BE-QUEUE-004 | MUST | `jobs-worker::WorkerSuccessTest::test_job_runs_to_success_with_progress_messages_and_outputs`; `jobs-worker::WorkerFailureTest::test_failed_pipeline`; `jobs-worker::WorkerCancelTest::test_cancel_running_kills_process_tree`; `jobs-cmd::CommandStepWorkerTest::test_failing_command_fails_job_with_exit_code_and_stderr_tail` | unit | exists |
+| BE-QUEUE-005 | MUST | `jobs-api::JobLifecycleApiTest::test_queue_positions` | unit | exists |
 | BE-QUEUE-006 | MUST | `jobs-claim::ClaimConcurrencyTest::test_two_concurrent_claims_never_take_the_same_job`, `::test_many_jobs_claimed_by_racing_workers_are_each_claimed_exactly_once` | unit | exists |
-| BE-QUEUE-007 | MUST* | `jobs-worker::WorkerQueueTest::test_max_running_and_queue_advances_without_requests`; `e2e:queue::test_queue_limits_and_advances_after_cancel` | unit, e2e | exists |
-| BE-QUEUE-008 | MUST* | `jobs-worker::WorkerQueueTest::test_paused_queue_claims_nothing`; `e2e:queue::test_pause_and_resume_queue` | unit, e2e | exists |
+| BE-QUEUE-007 | MUST | `jobs-worker::WorkerQueueTest::test_max_running_and_queue_advances_without_requests`; `e2e:queue::test_queue_limits_and_advances_after_cancel` | unit, e2e | exists |
+| BE-QUEUE-008 | MUST | `jobs-worker::WorkerQueueTest::test_paused_queue_claims_nothing`; `e2e:queue::test_pause_and_resume_queue` | unit, e2e | exists |
 | BE-QUEUE-009 | MUST | `jobs-worker::WorkerQueueTest::test_max_running_and_queue_advances_without_requests`; `e2e:queue::test_queue_limits_and_advances_after_cancel` | unit, e2e | exists |
-| BE-QUEUE-010 | MUST* | see BE-JSUB-005 (`jobs-api::SubmissionTest::test_queue_full`, `e2e:queue::test_queue_full_rejects_submission`) | unit, e2e | exists |
-| BE-QUEUE-011 | MUST* | `jobs-worker::RunWorkerCommandTest::test_once_and_single_instance_lock` | unit | exists |
-| BE-QUEUE-012 | MUST* | `jobs-worker::WorkerQueueTest::test_heartbeat` | unit | exists |
+| BE-QUEUE-010 | MUST | see BE-JSUB-005 (`jobs-api::SubmissionTest::test_queue_full`, `e2e:queue::test_queue_full_rejects_submission`) | unit, e2e | exists |
+| BE-QUEUE-011 | MUST | `jobs-worker::RunWorkerCommandTest::test_once_and_single_instance_lock` | unit | exists |
+| BE-QUEUE-012 | MUST | `jobs-worker::WorkerQueueTest::test_heartbeat` | unit | exists |
 | BE-QUEUE-013 | MUST | `jobs-worker::TickPhaseIsolationTest`; `jobs-worker::RetryOnLockedTest` | unit | exists |
-| BE-QUEUE-014 | MUST* | `jobs-worker::ShutdownTest::test_shutdown_stops_running_jobs`; `jobs-worker::RunWorkerCommandTest::test_sigterm_stops_gracefully` (p) | unit | exists+planned |
-| BE-QUEUE-015 | MUST* | `jobs-worker::RunWorkerCommandTest::test_once_and_single_instance_lock` | unit | exists |
+| BE-QUEUE-014 | MUST | `jobs-worker::ShutdownTest::test_shutdown_stops_running_jobs`; `jobs-worker::RunWorkerCommandTest::test_sigterm_stops_gracefully` (p) | unit | exists+planned |
+| BE-QUEUE-015 | MUST | `jobs-worker::RunWorkerCommandTest::test_once_and_single_instance_lock` | unit | exists |
 | BE-QUEUE-016 | MUST | `jobs-worker::OrphanTest::test_orphan_running_job_is_failed_and_its_group_killed`, `::test_foreign_process_group_is_not_killed`; `e2e:queue::test_worker_restart_fails_orphans_and_queue_continues` | unit, e2e | exists |
 | BE-QUEUE-017 | MUST | `jobs-worker::OrphanTest::test_orphan_running_job_is_failed_and_its_group_killed`, `::test_foreign_process_group_is_not_killed`; `e2e:queue::test_worker_restart_fails_orphans_and_queue_continues` | unit, e2e | exists |
-| BE-QUEUE-018 | MUST* | `jobs-api::JobLifecycleApiTest::test_cancel_waiting_and_delete_rules`; `e2e:jobs::test_cancel_waiting_and_delete_finished` | unit, e2e | exists |
-| BE-QUEUE-019 | MUST* | `jobs-api::JobLifecycleApiTest::test_cancel_running_sets_flag`; `jobs-worker::WorkerCancelTest::test_cancel_running_kills_process_tree`, `::test_sigkill_after_grace`; `e2e:jobs::test_cancel_running_job_from_job_page` | unit, e2e | exists |
-| BE-QUEUE-020 | MUST* | `jobs-worker::WorkerCancelTest::test_waiting_cancel_race_handled_by_worker` | unit | exists |
-| BE-QUEUE-021 | MUST* | `jobs-api::JobLifecycleApiTest::test_cancel_waiting_and_delete_rules`; `e2e:jobs::test_cancel_waiting_and_delete_finished` | unit, e2e | exists |
-| BE-QUEUE-022 | MUST* | `jobs-worker::WorkerFailureTest::test_invalid_snapshot`, `::test_poll_error_fails_job` (p) | unit | exists+planned |
-| BE-QUEUE-023 | MUST* | `jobs-worker::DeletedWhileRunningTest`; `jobs-api::CleanupCommandTest::test_deleting_a_user_removes_job_workspaces` | unit | exists |
-| BE-QUEUE-024 | MUST* | `jobs-api::AdminJobsApiTest::test_restart`, `::test_restart_needs_enabled_workflow` | unit | exists |
-| BE-QUEUE-025 | MUST* | `jobs-api::JobLifecycleApiTest::test_cancel_waiting_and_delete_rules`; `e2e:jobs::test_cancel_waiting_and_delete_finished` | unit, e2e | exists |
+| BE-QUEUE-018 | MUST | `jobs-api::JobLifecycleApiTest::test_cancel_waiting_and_delete_rules`; `e2e:jobs::test_cancel_waiting_and_delete_finished` | unit, e2e | exists |
+| BE-QUEUE-019 | MUST | `jobs-api::JobLifecycleApiTest::test_cancel_running_sets_flag`; `jobs-worker::WorkerCancelTest::test_cancel_running_kills_process_tree`, `::test_sigkill_after_grace`; `e2e:jobs::test_cancel_running_job_from_job_page` | unit, e2e | exists |
+| BE-QUEUE-020 | MUST | `jobs-worker::WorkerCancelTest::test_waiting_cancel_race_handled_by_worker` | unit | exists |
+| BE-QUEUE-021 | MUST | `jobs-api::JobLifecycleApiTest::test_cancel_waiting_and_delete_rules`; `e2e:jobs::test_cancel_waiting_and_delete_finished` | unit, e2e | exists |
+| BE-QUEUE-022 | MUST | `jobs-worker::WorkerFailureTest::test_invalid_snapshot`, `::test_poll_error_fails_job` (p) | unit | exists+planned |
+| BE-QUEUE-023 | MUST | `jobs-worker::DeletedWhileRunningTest`; `jobs-api::CleanupCommandTest::test_deleting_a_user_removes_job_workspaces` | unit | exists |
+| BE-QUEUE-024 | MUST | `jobs-api::AdminJobsApiTest::test_restart`, `::test_restart_needs_enabled_workflow` | unit | exists |
+| BE-QUEUE-025 | MUST | `jobs-api::JobLifecycleApiTest::test_cancel_waiting_and_delete_rules`; `e2e:jobs::test_cancel_waiting_and_delete_finished` | unit, e2e | exists |
 | BE-QUEUE-026 | MUST | `jobs-api::CleanupCommandTest::test_retention` | unit | exists |
 | BE-QUEUE-027 | MUST (planned) | `jobs-api::CleanupCommandTest::test_external_work_dir_removed` (p) | unit | planned |
 
@@ -662,31 +661,31 @@ was missing.
 
 | ID | Lvl | Tests | Layer | Status |
 |---|---|---|---|---|
-| BE-RUN-001 | MUST* | `jobs-worker::WorkerSuccessTest::test_multi_step_and_remote_script`; `jobs-cmd::CommandStepWorkerTest::test_taxodactyl_shaped_job`, `::test_failing_command_fails_job_with_exit_code_and_stderr_tail` | unit | exists |
-| BE-RUN-002 | MUST* | `jobs-worker::WorkerFailureTest::test_unsupported_step_fails_with_clear_message` | unit | exists |
+| BE-RUN-001 | MUST | `jobs-worker::WorkerSuccessTest::test_multi_step_and_remote_script`; `jobs-cmd::CommandStepWorkerTest::test_taxodactyl_shaped_job`, `::test_failing_command_fails_job_with_exit_code_and_stderr_tail` | unit | exists |
+| BE-RUN-002 | MUST | `jobs-worker::WorkerFailureTest::test_unsupported_step_fails_with_clear_message` | unit | exists |
 | BE-RUN-003 | MUST | `jobs-worker::WorkerCancelTest::test_cancel_running_kills_process_tree`; `jobs-cmd::CommandStepWorkerTest::test_cancel_during_long_command_kills_the_process_group`; `jobs-worker::test_children_killed_after_normal_exit` (p) | unit | exists+planned |
 | BE-RUN-004 | MUST | `jobs-worker::WorkerCancelTest::test_cancel_running_kills_process_tree`; `jobs-cmd::CommandStepWorkerTest::test_cancel_during_long_command_kills_the_process_group`; `jobs-worker::test_children_killed_after_normal_exit` (p) | unit | exists+planned |
-| BE-RUN-005 | MUST* | `jobs-worker::WorkerFailureTest::test_missing_binary`; `jobs-cmd::CommandStepWorkerTest::test_missing_executable` | unit | exists |
+| BE-RUN-005 | MUST | `jobs-worker::WorkerFailureTest::test_missing_binary`; `jobs-cmd::CommandStepWorkerTest::test_missing_executable` | unit | exists |
 | BE-RUN-006 | MUST | `jobs-worker::WorkerSuccessTest::test_env_files_profile_and_app_config`, `::test_multi_step_and_remote_script`; `jobs-api::JobLifecycleApiTest::test_a04_per_app_work_dir_is_an_allowed_output_root`; `e2e:findings_jobs::test_a04_per_app_work_dir_is_an_allowed_output_root` | unit, e2e | exists |
-| BE-RUN-007 | MUST* | `jobs-worker::WorkerSuccessTest::test_job_runs_to_success_with_progress_messages_and_outputs` | unit | exists |
-| BE-RUN-008 | MUST* | `jobs-worker::WorkerSuccessTest::test_env_files_profile_and_app_config`, `::test_multi_step_and_remote_script`; `jobs-api::JobLifecycleApiTest::test_a04_per_app_work_dir_is_an_allowed_output_root`; `e2e:findings_jobs::test_a04_per_app_work_dir_is_an_allowed_output_root` | unit, e2e | exists |
-| BE-RUN-009 | MUST* | `jobs-worker::WorkerSuccessTest::test_env_files_profile_and_app_config`, `::test_multi_step_and_remote_script`; `jobs-api::JobLifecycleApiTest::test_a04_per_app_work_dir_is_an_allowed_output_root`; `e2e:findings_jobs::test_a04_per_app_work_dir_is_an_allowed_output_root` | unit, e2e | exists |
-| BE-RUN-010 | MUST* | `jobs-worker::WorkerSuccessTest::test_env_files_profile_and_app_config`, `::test_multi_step_and_remote_script`; `jobs-api::JobLifecycleApiTest::test_a04_per_app_work_dir_is_an_allowed_output_root`; `e2e:findings_jobs::test_a04_per_app_work_dir_is_an_allowed_output_root` | unit, e2e | exists |
-| BE-RUN-011 | MUST* | `jobs-api::JobLifecycleApiTest::test_list_detail_status_log_and_download`; `e2e:jobs::test_live_progress_multi_process` | unit, e2e | exists |
-| BE-RUN-012 | MUST* | `jobs-cmd::CommandStepWorkerTest::test_injection_is_literal_in_both_modes`; `jobs-cmd::SubstitutionTest`; `e2e:command_steps::test_command_steps_run_and_show_output` | unit, e2e | exists |
-| BE-RUN-013 | MUST* | `jobs-cmd::CommandStepWorkerTest::test_injection_is_literal_in_both_modes`; `jobs-cmd::SubstitutionTest`; `e2e:command_steps::test_command_steps_run_and_show_output` | unit, e2e | exists |
-| BE-RUN-014 | MUST* | `jobs-cmd::StreamVisibilityTest::test_hidden_streams_stay_on_disk`, `::test_flagged_streams_are_shown` | unit | exists |
-| BE-RUN-015 | MUST* | `jobs-cmd::StreamVisibilityTest::test_hidden_streams_stay_on_disk`, `::test_flagged_streams_are_shown` | unit | exists |
-| BE-RUN-016 | MUST* | `jobs-cmd::CommandStepWorkerTest::test_runaway_output_is_capped` | unit | exists |
-| BE-RUN-017 | MUST* | `jobs-worker::WorkerSuccessTest::test_env_files_profile_and_app_config`; `jobs-cmd::SubstitutionTest::test_build_variables` | unit | exists |
-| BE-RUN-018 | MUST* | `jobs-worker::WorkerSuccessTest::test_env_files_profile_and_app_config`; `jobs-cmd::SubstitutionTest::test_build_variables` | unit | exists |
+| BE-RUN-007 | MUST | `jobs-worker::WorkerSuccessTest::test_job_runs_to_success_with_progress_messages_and_outputs` | unit | exists |
+| BE-RUN-008 | MUST | `jobs-worker::WorkerSuccessTest::test_env_files_profile_and_app_config`, `::test_multi_step_and_remote_script`; `jobs-api::JobLifecycleApiTest::test_a04_per_app_work_dir_is_an_allowed_output_root`; `e2e:findings_jobs::test_a04_per_app_work_dir_is_an_allowed_output_root` | unit, e2e | exists |
+| BE-RUN-009 | MUST | `jobs-worker::WorkerSuccessTest::test_env_files_profile_and_app_config`, `::test_multi_step_and_remote_script`; `jobs-api::JobLifecycleApiTest::test_a04_per_app_work_dir_is_an_allowed_output_root`; `e2e:findings_jobs::test_a04_per_app_work_dir_is_an_allowed_output_root` | unit, e2e | exists |
+| BE-RUN-010 | MUST | `jobs-worker::WorkerSuccessTest::test_env_files_profile_and_app_config`, `::test_multi_step_and_remote_script`; `jobs-api::JobLifecycleApiTest::test_a04_per_app_work_dir_is_an_allowed_output_root`; `e2e:findings_jobs::test_a04_per_app_work_dir_is_an_allowed_output_root` | unit, e2e | exists |
+| BE-RUN-011 | MUST | `jobs-api::JobLifecycleApiTest::test_list_detail_status_log_and_download`; `e2e:jobs::test_live_progress_multi_process` | unit, e2e | exists |
+| BE-RUN-012 | MUST | `jobs-cmd::CommandStepWorkerTest::test_injection_is_literal_in_both_modes`; `jobs-cmd::SubstitutionTest`; `e2e:command_steps::test_command_steps_run_and_show_output` | unit, e2e | exists |
+| BE-RUN-013 | MUST | `jobs-cmd::CommandStepWorkerTest::test_injection_is_literal_in_both_modes`; `jobs-cmd::SubstitutionTest`; `e2e:command_steps::test_command_steps_run_and_show_output` | unit, e2e | exists |
+| BE-RUN-014 | MUST | `jobs-cmd::StreamVisibilityTest::test_hidden_streams_stay_on_disk`, `::test_flagged_streams_are_shown` | unit | exists |
+| BE-RUN-015 | MUST | `jobs-cmd::StreamVisibilityTest::test_hidden_streams_stay_on_disk`, `::test_flagged_streams_are_shown` | unit | exists |
+| BE-RUN-016 | MUST | `jobs-cmd::CommandStepWorkerTest::test_runaway_output_is_capped` | unit | exists |
+| BE-RUN-017 | MUST | `jobs-worker::WorkerSuccessTest::test_env_files_profile_and_app_config`; `jobs-cmd::SubstitutionTest::test_build_variables` | unit | exists |
+| BE-RUN-018 | MUST | `jobs-worker::WorkerSuccessTest::test_env_files_profile_and_app_config`; `jobs-cmd::SubstitutionTest::test_build_variables` | unit | exists |
 | BE-RUN-019 | MUST (planned) | `jobs-worker::test_server_secrets_not_in_step_env` (p) | unit | planned |
 | BE-RUN-020 | MUST | `jobs-cmd::CommandStepWorkerTest::test_injection_is_literal_in_both_modes`; `jobs-cmd::SubstitutionTest`; `e2e:command_steps::test_command_steps_run_and_show_output` | unit, e2e | exists |
-| BE-RUN-021 | MUST* | `jobs-api::JobLifecycleApiTest::test_list_detail_status_log_and_download`; `e2e:jobs::test_live_progress_multi_process` | unit, e2e | exists |
-| BE-RUN-022 | MUST* | `jobs-worker::WorkerFailureTest::test_failed_pipeline`; `jobs-cmd::CommandStepWorkerTest::test_nextflow_stdout_flag_adds_output_to_failure_message`; `e2e:jobs::test_failing_workflow` | unit, e2e | exists |
-| BE-RUN-023 | MUST* | `jobs-cmd::CommandStepWorkerTest::test_failing_command_fails_job_with_exit_code_and_stderr_tail`; `e2e:command_steps::test_failing_command_step_fails_the_job` | unit, e2e | exists |
-| BE-RUN-024 | MUST* | `jobs-worker::WorkerFailureTest::test_missing_binary`; `jobs-cmd::CommandStepWorkerTest::test_missing_executable` | unit | exists |
-| BE-RUN-025 | MUST* | `jobs-worker::test_only_workspace_files_written` (p) | unit | planned |
+| BE-RUN-021 | MUST | `jobs-api::JobLifecycleApiTest::test_list_detail_status_log_and_download`; `e2e:jobs::test_live_progress_multi_process` | unit, e2e | exists |
+| BE-RUN-022 | MUST | `jobs-worker::WorkerFailureTest::test_failed_pipeline`; `jobs-cmd::CommandStepWorkerTest::test_nextflow_stdout_flag_adds_output_to_failure_message`; `e2e:jobs::test_failing_workflow` | unit, e2e | exists |
+| BE-RUN-023 | MUST | `jobs-cmd::CommandStepWorkerTest::test_failing_command_fails_job_with_exit_code_and_stderr_tail`; `e2e:command_steps::test_failing_command_step_fails_the_job` | unit, e2e | exists |
+| BE-RUN-024 | MUST | `jobs-worker::WorkerFailureTest::test_missing_binary`; `jobs-cmd::CommandStepWorkerTest::test_missing_executable` | unit | exists |
+| BE-RUN-025 | MUST | `jobs-worker::test_only_workspace_files_written` (p) | unit | planned |
 
 ### [job-progress-outputs.md](job-progress-outputs.md)
 
@@ -822,7 +821,7 @@ was missing.
 | BE-SRV-042 | MUST | `core-api::MiscRoutingTest::test_spa_catch_all_sets_csrf_cookie`, `::test_spa_missing_build_message`, `::test_unknown_api_path_is_json_404`; `e2e:deep_links::test_user_route_deep_link_and_refresh` | unit, e2e | exists |
 | BE-SRV-043 | MUST | `core-api::AuthSessionTest::test_session_write_without_csrf_rejected` | unit | exists |
 | BE-SRV-050 | MUST | `adm::MailSettingsTest::test_send_test_mail_to_admin`; `e2e:admin_settings::test_d5_mail_test_lands_in_outbox` | unit, e2e | exists |
-| BE-SRV-051 | MUST* | `adm::MailSettingsTest::test_send_test_mail_to_admin`; `e2e:admin_settings::test_d5_mail_test_lands_in_outbox` | unit, e2e | exists |
+| BE-SRV-051 | MUST | `adm::MailSettingsTest::test_send_test_mail_to_admin`; `e2e:admin_settings::test_d5_mail_test_lands_in_outbox` | unit, e2e | exists |
 | BE-SRV-052 | MUST | `adm::MailSettingsTest::test_send_test_mail_to_admin`; `e2e:admin_settings::test_d5_mail_test_lands_in_outbox` | unit, e2e | exists |
 | BE-SRV-053 | MUST | `acct::RegistrationTest::test_register_sends_activation_mail_and_stores_hashed_key` | unit | exists |
 | BE-SRV-054 | MUST | SMTP failure unit test (mocked) (p) | — | planned |
@@ -845,9 +844,9 @@ was missing.
 | BE-LOG-011 | MUST | `adm::LogsTest::test_actions_record_acting_user` (p) | unit | planned |
 | BE-LOG-012 | MUST | `acct::LogSecretsTest::test_no_secret_in_system_log` (p) | unit | planned |
 | BE-LOG-013 | MUST | `core-api::ErrorEnvelopeHandlerTest::test_unhandled_exception_becomes_500_envelope` | unit | exists |
-| BE-LOG-014 | MUST* | `adm::PermissionMatrixTest::test_anonymous_gets_401`, `::test_non_admin_gets_403_and_nothing_changes`; `e2e:findings_security::test_permission_matrix_admin_endpoints` | unit, e2e | exists |
+| BE-LOG-014 | MUST | `adm::PermissionMatrixTest::test_anonymous_gets_401`, `::test_non_admin_gets_403_and_nothing_changes`; `e2e:findings_security::test_permission_matrix_admin_endpoints` | unit, e2e | exists |
 | BE-LOG-015 | MUST | `adm::LogsTest::test_handler_and_filters` | unit | exists |
-| BE-LOG-016 | MUST* | `adm::LogsTest::test_handler_and_filters` | unit | exists |
+| BE-LOG-016 | MUST | `adm::LogsTest::test_handler_and_filters` | unit | exists |
 | BE-LOG-017 | MUST | `adm::LogsTest::test_unknown_level_filter_is_a_400_not_silently_empty` | unit | exists |
 | BE-LOG-018 | MUST | `adm::LogsTest::test_handler_and_filters` | unit | exists |
 | BE-LOG-019 | MUST | frontend admin-logs escaping test (p) | — | planned |
@@ -865,7 +864,7 @@ was missing.
 | BE-CMD-014 | MUST | `core-api::CreateAdminCommandTest::test_rejects_weak_password` (p), `::test_email_taken` (p) | unit | planned |
 | BE-CMD-015 | MUST | `core-api::CreateAdminCommandTest::test_rejects_weak_password` (p), `::test_email_taken` (p) | unit | planned |
 | BE-CMD-020 | MUST | `wf-reg::CommandsTest::test_install_workflow_command` | unit | exists |
-| BE-CMD-021 | MUST* | `wf-reg::CommandsTest::test_install_workflow_command` | unit | exists |
+| BE-CMD-021 | MUST | `wf-reg::CommandsTest::test_install_workflow_command` | unit | exists |
 | BE-CMD-022 | MUST | `wf-reg::CommandsTest::test_install_relative_path_order` (p) | unit | planned |
 | BE-CMD-023 | MUST | `wf-reg::CommandsTest::test_install_workflow_command` | unit | exists |
 | BE-CMD-024 | MUST | `wf-reg::CommandsTest::test_install_workflow_command_invalid` | unit | exists |
@@ -916,31 +915,31 @@ was missing.
 "Existing test" = at least one cited test exists (it may also have planned ones). Counts are of
 requirements, not tests.
 
-| File | Reqs | MUST (no keyword) | Existing test | Planned only | None |
+| File | Reqs | MUST | Existing test | Planned only | None |
 |---|---|---|---|---|---|
-| overview.md | 25 | 25 (0) | 19 | 6 | 0 |
-| api-contract.md | 30 | 29 (1) | 20 | 9 | 1 |
-| data-model.md | 18 | 18 (0) | 17 | 1 | 0 |
-| configuration.md | 20 | 20 (0) | 18 | 2 | 0 |
-| authentication.md | 26 | 25 (0) | 20 | 6 | 0 |
-| accounts.md | 26 | 26 (0) | 26 | 0 | 0 |
-| access-control.md | 16 | 16 (0) | 13 | 3 | 0 |
-| workflow-definition.md | 31 | 29 (6) | 28 | 1 | 2 |
-| workflow-registry.md | 28 | 28 (2) | 25 | 3 | 0 |
-| workflows-api.md | 20 | 20 (0) | 16 | 4 | 0 |
-| job-submission.md | 31 | 30 (21) | 27 | 3 | 1 |
-| job-queue-worker.md | 27 | 27 (20) | 26 | 1 | 0 |
-| job-runner.md | 25 | 25 (20) | 23 | 2 | 0 |
-| job-progress-outputs.md | 27 | 26 (0) | 25 | 2 | 0 |
-| jobs-api.md | 25 | 24 (0) | 22 | 2 | 1 |
-| admin-api.md | 41 | 39 (0) | 38 | 2 | 1 |
-| server-pages-mail.md | 27 | 27 (1) | 24 | 3 | 0 |
-| logging.md | 19 | 19 (2) | 13 | 6 | 0 |
-| management-commands.md | 28 | 28 (1) | 20 | 8 | 0 |
-| tests.md | 21 | 20 (0) | 11 | 9 | 1 |
-| **Total** | **511** | **501** (74) | **431** | **73** | **7** |
+| overview.md | 25 | 25 | 19 | 6 | 0 |
+| api-contract.md | 30 | 29 | 20 | 9 | 1 |
+| data-model.md | 18 | 18 | 17 | 1 | 0 |
+| configuration.md | 20 | 20 | 18 | 2 | 0 |
+| authentication.md | 26 | 25 | 20 | 6 | 0 |
+| accounts.md | 26 | 26 | 26 | 0 | 0 |
+| access-control.md | 16 | 16 | 13 | 3 | 0 |
+| workflow-definition.md | 31 | 29 | 28 | 1 | 2 |
+| workflow-registry.md | 28 | 28 | 25 | 3 | 0 |
+| workflows-api.md | 20 | 20 | 16 | 4 | 0 |
+| job-submission.md | 31 | 30 | 27 | 3 | 1 |
+| job-queue-worker.md | 27 | 27 | 26 | 1 | 0 |
+| job-runner.md | 25 | 25 | 23 | 2 | 0 |
+| job-progress-outputs.md | 27 | 26 | 25 | 2 | 0 |
+| jobs-api.md | 25 | 24 | 22 | 2 | 1 |
+| admin-api.md | 41 | 39 | 38 | 2 | 1 |
+| server-pages-mail.md | 27 | 27 | 24 | 3 | 0 |
+| logging.md | 19 | 19 | 13 | 6 | 0 |
+| management-commands.md | 28 | 28 | 20 | 8 | 0 |
+| tests.md | 21 | 20 | 11 | 9 | 1 |
+| **Total** | **511** | **501** | **431** | **73** | **7** |
 
-MUST requirements (incl. `MUST*`): 501, of which 429 have an existing test, 71 have only planned
+MUST requirements: 501, of which 429 have an existing test, 71 have only planned
 tests and 1 has none (BE-API-060, a process rule).
 
 ## Known gaps
@@ -952,7 +951,6 @@ tests and 1 has none (BE-API-060, a process rule).
 | BE-TEST-009, BE-TEST-010 | The default run uses SQLite, so `ClaimConcurrencyTest` always skips unless someone runs `--postgres` by hand; BE-QUEUE-006 is unproven in routine runs. | `jobs/tests/test_claim_concurrency.py:26`, `scripts/test.sh:50-57` | major |
 | BE-TEST-017 | 71 MUST requirements have only planned tests (see rows with status `planned`); 80 distinct planned test names do not exist yet, including whole planned files `jobs/tests/test_outputs.py`, `jobs/tests/test_contract.py`, `workflows/test_template_utils.py`. Largest clusters: api-contract (9), management-commands (8), overview (6), authentication (6), logging (6). | traceability table | major |
 | BE-TEST-020 | Traceability is checked by hand. Nothing fails when a spec cites a test that is renamed or deleted. (Today all 959 citations of existing tests resolve.) | — | minor |
-| — | 74 requirements carry no RFC 2119 keyword (Article 4.1), counted here as `MUST*`: job-submission 001, 003–006, 008, 009, 011–015, 018–020, 022–024, 026, 029, 031; job-queue-worker 001–005, 007, 008, 010–012, 014, 015, 018–025; job-runner 001, 002, 005, 007–018, 021–025; workflow-definition 009, 010, 017, 022–024; workflow-registry 002, 006; api-contract 035; server-pages-mail 051; logging 014, 016; management-commands 021. | those files' Requirements | minor |
 | BE-TEST-006, BE-TEST-007, BE-TEST-008 | Schema lint, error-code registry check and full authorisation matrix do not exist; `e2e/exploratory/matrix.py` enumerates `schema.yaml` but only prints. | `e2e/exploratory/matrix.py:1-10` | minor |
 | BE-TEST-011 | The runner's isolation (temp home, hasher) has no test of its own. | `core/test_runner.py:18-38` | minor |
 | BE-TEST-001 | `scripts/test.sh` forwards extra arguments only to pytest (e2e mode), so a single Django test cannot be run through it; `unit` always runs vitest (and `npm ci` when `node_modules` is missing), so a backend-only gate run needs Node. | `scripts/test.sh:14`, `:58-62` | minor |
@@ -975,5 +973,3 @@ yet: `jobs/tests/test_command_steps.py::CommandStepWorkerTest::test_taxodactyl_s
    guard), or is backend contract validation enough?
 3. Which CI host (BE-TEST-019), and should the Postgres run be required on every pull request or
    only nightly?
-4. Should the 74 `MUST*` requirements be reworded by their owners (Article 4.1), or should the
-   constitution state that declarative requirements without a keyword are read as MUST?
