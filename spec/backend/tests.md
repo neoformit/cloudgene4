@@ -340,6 +340,7 @@ was missing.
 | BE-API-005 | MUST | `core-schema::SchemaStalenessTest::test_committed_schema_is_up_to_date` | unit | exists |
 | BE-API-006 | MUST | `core/tests/contract.py` response validation (BE-TEST-003) (p) | — | planned |
 | BE-API-007 | SHOULD | per-operation error statuses check (p) | — | planned |
+| BE-API-008 | MUST (planned) | schema lint for nullable fields (p); `core/tests/contract.py` response validation (BE-TEST-003) (p) | contract | planned |
 | BE-API-010 | MUST | `core-api::AuthSessionTest::test_login_me_logout_flow_without_trailing_slash`; `core-api::HealthTest::test_health_without_worker` | unit | exists |
 | BE-API-011 | MUST | `core-api::AuthSessionTest::test_login_me_logout_flow_without_trailing_slash`; `core-api::HealthTest::test_health_without_worker` | unit | exists |
 | BE-API-012 | MUST | `core-api::MiscRoutingTest::test_unknown_api_path_is_json_404` | unit | exists |
@@ -656,6 +657,7 @@ was missing.
 | BE-QUEUE-025 | MUST | `jobs-api::JobLifecycleApiTest::test_cancel_waiting_and_delete_rules`; `e2e:jobs::test_cancel_waiting_and_delete_finished` | unit, e2e | exists |
 | BE-QUEUE-026 | MUST | `jobs-api::CleanupCommandTest::test_retention` | unit | exists |
 | BE-QUEUE-027 | MUST (planned) | `jobs-api::CleanupCommandTest::test_external_work_dir_removed` (p) | unit | planned |
+| BE-QUEUE-028 | MUST (planned) | `jobs-worker::WorkerSuccessTest::test_progress_bumps_updated_at` (p) | unit | planned |
 
 ### [job-runner.md](job-runner.md)
 
@@ -918,7 +920,7 @@ requirements, not tests.
 | File | Reqs | MUST | Existing test | Planned only | None |
 |---|---|---|---|---|---|
 | overview.md | 25 | 25 | 19 | 6 | 0 |
-| api-contract.md | 30 | 29 | 20 | 9 | 1 |
+| api-contract.md | 31 | 30 | 20 | 10 | 1 |
 | data-model.md | 18 | 18 | 17 | 1 | 0 |
 | configuration.md | 20 | 20 | 18 | 2 | 0 |
 | authentication.md | 26 | 25 | 20 | 6 | 0 |
@@ -928,7 +930,7 @@ requirements, not tests.
 | workflow-registry.md | 28 | 28 | 25 | 3 | 0 |
 | workflows-api.md | 20 | 20 | 16 | 4 | 0 |
 | job-submission.md | 31 | 30 | 27 | 3 | 1 |
-| job-queue-worker.md | 27 | 27 | 26 | 1 | 0 |
+| job-queue-worker.md | 28 | 28 | 26 | 2 | 0 |
 | job-runner.md | 25 | 25 | 23 | 2 | 0 |
 | job-progress-outputs.md | 27 | 26 | 25 | 2 | 0 |
 | jobs-api.md | 25 | 24 | 22 | 2 | 1 |
@@ -937,9 +939,9 @@ requirements, not tests.
 | logging.md | 19 | 19 | 13 | 6 | 0 |
 | management-commands.md | 28 | 28 | 20 | 8 | 0 |
 | tests.md | 21 | 20 | 11 | 9 | 1 |
-| **Total** | **511** | **501** | **431** | **73** | **7** |
+| **Total** | **513** | **503** | **431** | **75** | **7** |
 
-MUST requirements: 501, of which 429 have an existing test, 71 have only planned
+MUST requirements: 503, of which 429 have an existing test, 73 have only planned
 tests and 1 has none (BE-API-060, a process rule).
 
 ## Known gaps
@@ -949,7 +951,7 @@ tests and 1 has none (BE-API-060, a process rule).
 | BE-TEST-003, BE-TEST-004 | No test validates a response against `schema.yaml`. `*/test_contracts.py` assert status codes and hand-picked fields; nothing loads `schema.yaml` except the staleness test and an exploratory script. No OpenAPI/JSON Schema validator is a dependency. Article 5.1d is unmet. | `accounts/test_contracts.py:28-50`, `workflows/test_contracts.py`, `requirements.txt` | major |
 | BE-TEST-019 | No hosted CI: the repository has no CI configuration (no `.github/`, no other CI file). The staleness gate (Article 5.1c "CI fails"), the migrations check, Postgres runs and e2e only run when a developer runs them. | repository root | major |
 | BE-TEST-009, BE-TEST-010 | The default run uses SQLite, so `ClaimConcurrencyTest` always skips unless someone runs `--postgres` by hand; BE-QUEUE-006 is unproven in routine runs. | `jobs/tests/test_claim_concurrency.py:26`, `scripts/test.sh:50-57` | major |
-| BE-TEST-017 | 71 MUST requirements have only planned tests (see rows with status `planned`); 80 distinct planned test names do not exist yet, including whole planned files `jobs/tests/test_outputs.py`, `jobs/tests/test_contract.py`, `workflows/test_template_utils.py`. Largest clusters: api-contract (9), management-commands (8), overview (6), authentication (6), logging (6). | traceability table | major |
+| BE-TEST-017 | 73 MUST requirements have only planned tests (see rows with status `planned`); 82 distinct planned test names do not exist yet, including whole planned files `jobs/tests/test_outputs.py`, `jobs/tests/test_contract.py`, `workflows/test_template_utils.py`. Largest clusters: api-contract (10), management-commands (8), overview (6), authentication (6), logging (6). | traceability table | major |
 | BE-TEST-020 | Traceability is checked by hand. Nothing fails when a spec cites a test that is renamed or deleted. (Today all 959 citations of existing tests resolve.) | — | minor |
 | BE-TEST-006, BE-TEST-007, BE-TEST-008 | Schema lint, error-code registry check and full authorisation matrix do not exist; `e2e/exploratory/matrix.py` enumerates `schema.yaml` but only prints. | `e2e/exploratory/matrix.py:1-10` | minor |
 | BE-TEST-011 | The runner's isolation (temp home, hasher) has no test of its own. | `core/test_runner.py:18-38` | minor |

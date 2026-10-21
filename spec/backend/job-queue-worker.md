@@ -110,6 +110,11 @@ Out of scope:
   (or the queue is paused), or `--timeout` seconds (default 3600) pass; jobs still running then
   are stopped as in BE-QUEUE-014. Options: `--interval` (tick seconds, default 1.0), `--grace`
   (SIGTERM→SIGKILL seconds, default 10).
+- **BE-QUEUE-028** Whenever the worker changes anything that `jobs_status_retrieve` returns
+  (job state, `current_step`, a step's state or `processes`, or a new job message), it MUST also
+  set `Job.updated_at` to the current time, so that `updated_at` changes whenever the status
+  payload changes. (planned) The job page's poller uses `updated_at` for change detection
+  ([../frontend/job-detail.md](../frontend/job-detail.md) FE-JDET-010).
 
 ### Recovery (K2)
 
@@ -238,12 +243,14 @@ age rule.
 | 024 | `jobs/tests/test_api.py::AdminJobsApiTest::test_restart`, `::test_restart_needs_enabled_workflow` | unit |
 | 026 | `jobs/tests/test_api.py::CleanupCommandTest::test_retention` | unit |
 | 027 | `jobs/tests/test_api.py::CleanupCommandTest::test_external_work_dir_removed` (planned) | unit |
+| 028 | `jobs/tests/test_worker.py::WorkerSuccessTest::test_progress_bumps_updated_at` (planned): `updated_at` advances after a step start, a `processes` change and a new message | unit |
 
 ## Known gaps
 
 | Req | What the code does | Where | Severity |
 |-----|--------------------|-------|----------|
 | BE-QUEUE-027 | With `nextflow.work_dir` or a per-app `work_dir` set, Nextflow work goes to `<work_dir>/<job uuid>`; delete, restart, retention and vanish only remove `CLOUDGENE_HOME/jobs/<uuid>`, so work directories (often the largest data) are never removed. | `jobs/runner.py:146-152`; `jobs/services.py:251`, `:267-268`; `jobs/management/commands/cleanup_jobs.py:341-348`; `jobs/worker.py:406` | major |
+| BE-QUEUE-028 | During a run the worker updates `current_step` with `QuerySet.update()` (bypasses `auto_now`), saves step `processes` with `update_fields=['processes']` on the `JobStep` row, and adds messages with `bulk_create`; none of these touches `Job.updated_at`, which changes only on claim and finish. A poller comparing `updated_at` sees no change for the whole run. | `jobs/worker.py:219-220`, `jobs/worker.py:449-453`, `jobs/worker.py:191-199` | major |
 | BE-QUEUE-011, 016 | The single-worker lock is a host-local `flock`. Two workers on different hosts sharing one database would each treat the other's running jobs as orphans and fail them every tick. | `jobs/worker.py:617-624`, `:807-823` | minor |
 | BE-QUEUE-019 | When a running job finishes between the web process reading it and the cancel update, the update matches no row but `Cancellation requested.` is still added to a finished job. | `jobs/services.py:236-239` | minor |
 | BE-QUEUE-014 | Shutdown stops running jobs one after another, each up to ~10 s (5 s grace + 5 s wait); with more than ~12 running jobs this exceeds `TimeoutStopSec=120` in `deploy/systemd/cloudgene-worker.service`, and systemd kills the worker mid-shutdown (jobs then recovered as orphans). | `jobs/worker.py:372-386`, `:798-801` | minor |

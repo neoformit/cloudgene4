@@ -194,3 +194,10 @@ there and indexed in [api-contract.md](api-contract.md). Note the route order: `
   directories under `$CLOUDGENE_HOME` (or an allow-list)?
 - `status` is always `enabled` in public responses; keep the field or drop it from the public
   serializer?
+- `admin_workflows_update` and `admin_workflows_install` accept any group name of at most 150
+  characters and create missing groups with `Group.objects.get_or_create`, bypassing the shared
+  group-name rule (`^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$`) and the case-insensitive duplicate check
+  that `admin_groups_create` applies (BE-ADM-031). Should BE-WAPI-013 require the same rule (400
+  `invalid`, `fields.groups`), or should these operations only accept existing groups?
+  (`workflows/admin_views.py:59`, `:68`; `workflows/registry.py:395-398`;
+  [../frontend/admin-workflows.md](../frontend/admin-workflows.md) FE-AWF-032.)

@@ -65,6 +65,10 @@ Out of scope (owned elsewhere):
   against the `schema.yaml` component documented for that operation and status. (planned)
 - **BE-API-007** `schema.yaml` SHOULD list, per operation, each non-2xx status the view can
   return (not only `default`), so that status codes can be quoted from it (Article 5.3). (planned)
+- **BE-API-008** A response field that the view can return as `null` MUST be declared
+  `nullable: true` in `schema.yaml`, and a field declared non-nullable MUST never be `null` in a
+  real response. (planned) The SPA's contract fixtures rely on this
+  ([../frontend/job-detail.md](../frontend/job-detail.md) FE-JDET-023).
 
 ### Routing
 
@@ -476,6 +480,7 @@ Article 5.1b, as a checklist. All steps land in one change set.
 | BE-API-005 | `SchemaStalenessTest::test_committed_schema_is_up_to_date` (detects drift); backend/frontend operationId lists match (planned) | unit |
 | BE-API-006 | Response validation against `schema.yaml` for every operation, success and error (planned) | contract |
 | BE-API-007 | Every operation documents its non-2xx statuses (planned) | unit |
+| BE-API-008 | Schema lint: every serializer field that can yield `None` (`SerializerMethodField` returning `None`, `default=None`, `allow_null`) is `nullable: true` in `schema.yaml` (planned); covered at runtime by response validation (BE-API-006) | contract |
 | BE-API-010, BE-API-011 | `core/tests/test_api.py::AuthSessionTest::test_login_me_logout_flow_without_trailing_slash`; `core/tests/test_api.py::HealthTest::test_health_without_worker` (`/api/health`) | unit |
 | BE-API-012 | `core/tests/test_api.py::MiscRoutingTest::test_unknown_api_path_is_json_404` | unit |
 | BE-API-013 | 405 envelope on an unsupported method (planned) | unit |
@@ -517,6 +522,8 @@ Article 5.1b, as a checklist. All steps land in one change set.
 | BE-API-005 | 34 of 65 `operationId`s are auto-derived from path and action (e.g. `auth_login_create`, `jobs_cancel_create`, `me_destroy`); a URL or action rename silently renames them. The staleness test catches the change but not its impact on the frontend. | `accounts/views.py`, `jobs/views.py`, `workflows/views.py`, `admin_panel/views.py:LogListView` | minor |
 | BE-API-033 | `schema.yaml` security cannot express the admin requirement; admin-only operations look the same as user operations there. | `schema.yaml` | minor |
 | BE-API-024 | `admin_workflows_install` returns code `not_found` with status `400` when the path has no `cloudgene.yaml` (`RegistryError` default status), while every other `not_found` is `404`. | `workflows/registry.py:156` | minor |
+| BE-API-008 | `Workflow.category_name` is declared `type: string`, `readOnly`, not nullable, but the serializer field is `CharField(source='category.name', default=None)` and `Workflow.category` is a nullable FK, so a workflow without a category returns `"category_name": null`. | `workflows/serializers.py:50`, `workflows/models.py:42`, `schema.yaml` `Workflow.category_name` | minor |
+| BE-API-004 | `NextflowSettings.variables` is an array of free-form objects (`items: {type: object, additionalProperties: {}}`) from `ListField(child=DictField())`, and is not an accepted exception; the view returns `{name, scope, description}` and the SPA reads `name` and `description` ([../frontend/admin-settings.md](../frontend/admin-settings.md)). The per-app `AppNextflow.variables` already uses the typed `TemplateVariable` component. | `admin_panel/serializers.py:72`, `admin_panel/views.py:147-149`, `schema.yaml` `NextflowSettings` | minor |
 | BE-API-002 | Article 5.1c says "CI fails"; the repository has no hosted CI configuration. The staleness test runs only through `manage.py test` / `scripts/test.sh unit`. | `scripts/test.sh` | minor |
 
 ## Open questions
