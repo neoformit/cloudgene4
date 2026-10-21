@@ -68,7 +68,11 @@ the OpenAPI document `schema.yaml`, generated from the backend's DRF serializers
 and committed to the repository. Neither side may define an API shape anywhere else.** Concretely:
 
   a. Every `/api/` operation has an explicit serializer (request and response) and a stable
-     `operationId`. `backend/api-contract.md` lists every operation by `operationId`;
+     `operationId`. The OpenAPI document routes themselves (`/api/schema/`,
+     `/api/schema/swagger-ui/`) are exempt. Fields that cannot be typed statically (for example
+     a default value whose type depends on the input type) are allowed only if listed as
+     accepted untyped fields in `backend/api-contract.md`; any other untyped or free-form field is
+     a defect. `backend/api-contract.md` lists every operation by `operationId`;
      `frontend/api-contract.md` lists, by the same `operationId`, the frontend API-module function
      that calls it, or states why the SPA does not call it. The two operation lists MUST match.
   b. An interface change happens in one change set, in this order: backend serializer/view →
@@ -87,13 +91,16 @@ and committed to the repository. Neither side may define an API shape anywhere e
 errors only through the helpers defined in `frontend/api-client.md`.
 
 5.3 Paths, methods, field names, types, nullability, enums, pagination and status codes in either
-`api-contract.md` MUST be quoted from `schema.yaml`, not paraphrased.
+`api-contract.md` MUST be quoted from `schema.yaml`, not paraphrased. Interim rule: until `schema.yaml` enumerates error
+statuses per operation, `backend/api-contract.md` lists them from the code and marks them as
+taken from code.
 
 ## Article 6 — Recording the current state
 
 6.1 Specs are written from the code as it is, then corrected to what it should be. Where the code
 fails a requirement, the file's **Known gaps** lists it: requirement ID, what the code does,
-file/line reference, severity (`blocker`, `major`, `minor`).
+file/line reference, severity (`blocker`, `major`, `minor`). A gap that maps to no single
+requirement uses `—` in the requirement column.
 
 6.2 Do not invent features. A requirement that has no code yet is allowed only if it is marked
 `(planned)` and a Known gap points at it.
@@ -102,7 +109,9 @@ file/line reference, severity (`blocker`, `major`, `minor`).
 
 7.1 Every MUST requirement is covered by at least one named test (existing or planned) listed under
 the file's **Acceptance tests**, with its layer: `unit` (Django/vitest), `contract`, or `e2e`
-(Playwright full stack). Planned tests are marked `(planned)`.
+(Playwright full stack). Planned tests are marked `(planned)` and MAY be named by their intended
+`path::Class::method`; the name is a placeholder until the test exists, and `tests.md` lists it as
+a gap.
 
 7.2 Each section's `tests.md` defines that section's test strategy, the commands that run it, and a
 traceability table mapping every requirement ID to its tests. A requirement with no test is listed
@@ -137,7 +146,21 @@ Amendments it is unsure of go under **Pending amendments** for later human revie
 ## Changelog
 
 - 2026-10-21 — v1 adopted.
+- 2026-10-21 — v1.1: 5.1a exempts the OpenAPI routes and allows a listed set of untyped fields;
+  5.3 interim rule for error statuses taken from code; 6.1 `—` for gaps with no requirement;
+  7.1 naming of planned tests. (Proposed by backend sub-agents.)
 
 ## Pending amendments
 
-None.
+For later human review. Not in force.
+
+- **P1 — Per-operation error responses in `schema.yaml` (Article 5.3).** Require every operation
+  to declare its error statuses (via `extend_schema(responses=...)`) and retire the 5.3 interim
+  rule. Raised because `schema.yaml` today documents only `default: Error`, so status codes
+  cannot be quoted from it. Unsure: it is a sizeable backend change and may belong in a task
+  list rather than the constitution.
+- **P2 — Shared non-HTTP contracts (Article 5).** Field validation rules are shared between
+  backend and frontend through `accounts/validation_cases.json`, outside `schema.yaml`. Decide
+  whether the constitution should name this as a second sanctioned contract mechanism (shared
+  case files tested on both sides), or require those rules to move into `schema.yaml`
+  (patterns, min/max lengths). Raised from the accounts spec.
