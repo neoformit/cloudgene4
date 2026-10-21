@@ -82,7 +82,7 @@ Out of scope:
 - **FE-ARCH-021** — Views, components and stores MAY import the error helpers `apiErrorMessage`,
   `apiFieldErrors` and `apiErrorCode` from `@/api/client`. They MUST NOT read the error response
   body directly (see [api-client.md](api-client.md) FE-CLIENT-034).
-- **FE-ARCH-022** — No module MAY use `fetch`, `XMLHttpRequest` or a second axios instance for
+- **FE-ARCH-022** — Modules MUST NOT use `fetch`, `XMLHttpRequest` or a second axios instance for
   `/api/` calls. Plain links to same-origin API URLs (`<a href="/api/jobs/…/log/">`) are allowed for
   downloads; they are built by API-module helpers (`jobLogUrl`, `jobOutputUrl`).
 - **FE-ARCH-023** — Views MAY call stores and API modules. Stores MAY call API modules. API modules
@@ -196,7 +196,7 @@ In development the browser talks to Vite on `:5173`; `/api` is proxied to Django
 | FE-ARCH-030, FE-ARCH-031 | (planned) e2e `e2e/tests/test_jobs.py::test_state_badge_classes`; visual only otherwise |
 | FE-ARCH-032 | (planned) e2e `e2e/tests/test_smoke.py::test_no_third_party_requests` |
 | FE-ARCH-040, FE-ARCH-041 | `scripts/test.sh` (`npm ci` fails on a lockfile mismatch); (planned) unit `frontend/src/test/layering.test.js` › "runtime dependencies match the spec list" |
-| FE-ARCH-042 | `scripts/test.sh` (runs `npm run test:run`) |
+| FE-ARCH-042 | `scripts/test.sh` (runs `npx vitest run`, equivalent to `npm run test:run`) |
 
 ## Known gaps
 
@@ -208,7 +208,7 @@ In development the browser talks to Vite on `:5173`; `/api` is proxied to Django
 | FE-ARCH-044 | `src/assets/hero.png`, `src/assets/vite.svg` and `public/icons.svg` are not referenced anywhere (Vite template leftovers). | `frontend/src/assets/`, `frontend/public/icons.svg` | minor |
 | — | `test:coverage` needs `@vitest/coverage-v8` (or istanbul), which is not a dev dependency; the script fails. | `frontend/package.json` | minor |
 | — | `frontend/README.md` is the stock Vite template and says nothing about this project. | `frontend/README.md` | minor |
-| — | `src/test/setup.js` registers custom matchers (`toMatchApiSchema` using a `global.ajv` that is never set) that no test uses. | `frontend/src/test/setup.js` | minor |
+| — | `src/test/setup.js` registers custom matchers (`toMatchApiSchema`, which relies on the `global.ajv` each contract test file sets) that no test uses. | `frontend/src/test/setup.js` | minor |
 | — | There is no CI workflow in the repository; `scripts/test.sh` is the only runner. | repository root | minor |
 
 ## Open questions

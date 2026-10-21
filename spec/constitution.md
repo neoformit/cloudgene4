@@ -111,7 +111,9 @@ requirement uses `—` in the requirement column.
 the file's **Acceptance tests**, with its layer: `unit` (Django/vitest), `contract`, or `e2e`
 (Playwright full stack). Planned tests are marked `(planned)` and MAY be named by their intended
 `path::Class::method`; the name is a placeholder until the test exists, and `tests.md` lists it as
-a gap.
+a gap. Acceptance tests tables have a Layer column and list one requirement ID per row (or an
+explicit comma-separated ID list, never a range). Tests are cited by exact name:
+`path::Class::method` for Python, `path › describe › it` with exact titles for vitest.
 
 7.2 Each section's `tests.md` defines that section's test strategy, the commands that run it, and a
 traceability table mapping every requirement ID to its tests. A requirement with no test is listed
@@ -150,6 +152,8 @@ Amendments it is unsure of go under **Pending amendments** for later human revie
   5.3 interim rule for error statuses taken from code; 6.1 `—` for gaps with no requirement;
   7.1 naming of planned tests. (Proposed by backend sub-agents.)
 - 2026-10-21 — v1.2: 4.1 makes keyword-less requirements invalid.
+- 2026-10-21 — v1.3: 7.1 fixes the Acceptance tests citation format. Files written before v1.3
+  may use older formats until they are next edited.
 
 ## Pending amendments
 
@@ -169,3 +173,8 @@ For later human review. Not in force.
   checked by a script in the unit suite (every requirement has a row; every test cited as
   existing exists). Unsure: it means adding tooling code to the repo, and the tables
   are currently built by a one-off parse.
+- **P4 — Component tests for view states (new Article 7.4).** Frontend views have component tests
+  for loading, empty and error states; e2e alone does not satisfy requirements on states the full
+  stack cannot produce deterministically. Raised because 0 of 21 views have component tests and
+  about 60 MUST requirements depend on them. Unsure: it sets a testing investment level
+  that the team should choose.
