@@ -46,17 +46,18 @@ Out of scope:
 - **DEP-PROC-002** Every service unit MUST set `WorkingDirectory=/opt/cloudgene` and load its environment from `EnvironmentFile=/etc/cloudgene/cloudgene.env`, so web, worker and cleanup see the same `DATABASE_URL`, `CLOUDGENE_HOME` and secret key.
 - **DEP-PROC-003** Every service unit MUST run Python and gunicorn from the virtualenv at `/opt/cloudgene/venv/bin/`, not a system interpreter.
 - **DEP-PROC-004** Every service unit MUST set `NoNewPrivileges=true`, `PrivateTmp=true`, `ProtectSystem=strict` and `ProtectHome=true`.
-- **DEP-PROC-005** Every service unit MUST list in `ReadWritePaths=` each directory it writes to: at least `CLOUDGENE_HOME` (`/var/lib/cloudgene`). Today all three units list `/opt/cloudgene /var/lib/cloudgene`.
+- **DEP-PROC-005** Every service unit MUST list in `ReadWritePaths=` each directory it writes to: at least `CLOUDGENE_HOME` (`/var/lib/cloudgene`).
 - **DEP-PROC-006** The worker unit's `ReadWritePaths=` MUST also cover every Nextflow work directory configured outside `CLOUDGENE_HOME` (`nextflow.work_dir` or `apps[].work_dir` in `settings.yaml`, see `jobs/runner.py:work_dir_for`) and the service user's Nextflow home (`$HOME/.nextflow`, or `NXF_HOME` if set in `nextflow.env`). The operator MUST add such paths when configuring them; otherwise jobs fail with a permission error.
 - **DEP-PROC-007** Workflow app directories registered without `--copy` SHOULD lie on a path the sandbox lets the web and worker read. Under `ProtectHome=true`, paths under `/home`, `/root` and `/run/user` are not readable.
 - **DEP-PROC-008** Units that need the database MUST be ordered `After=postgresql.service`. Long-running units (web, worker) MUST also declare `Wants=postgresql.service` so a local PostgreSQL is started with them.
+- **DEP-PROC-009** No service unit MAY list the code checkout (`/opt/cloudgene`), its virtualenv or its static build directories (`static/`, `staticfiles/`) in `ReadWritePaths=`, so that neither the web process nor a workflow step can modify application code. The checkout SHOULD be owned by root and be read-only for `cloudgene`. Anything a unit must write (a SQLite database, `NXF_HOME`) MUST live outside the checkout. This is the single home of the "code not writable by the services" rule; [DEP-SEC-023](security-hardening.md#requirements) and [DEP-RT-015](workflow-runtime.md#environment-and-secrets) link here.
 
 ### Web (`cloudgene-web.service`)
 
 - **DEP-PROC-010** The web unit MUST start gunicorn as `ExecStart=/opt/cloudgene/venv/bin/gunicorn -c /opt/cloudgene/deploy/gunicorn.conf.py cloudgene_django.wsgi:application` with `Type=simple`. It calls no management command.
 - **DEP-PROC-011** The web unit MUST restart on any exit (`Restart=always`, `RestartSec=5`).
-- **DEP-PROC-012** `systemctl reload cloudgene-web` MUST send SIGHUP to the gunicorn master (`ExecReload=/bin/kill -s HUP $MAINPID`). Because `preload_app` is on by default, a reload re-forks workers from the already-loaded application and does NOT load new code; picking up new code MUST use `systemctl restart`.
-- **DEP-PROC-013** The web unit's `TimeoutStopSec` MUST be longer than gunicorn's graceful shutdown period, so gunicorn, not systemd, ends in-flight requests. Today `TimeoutStopSec=310` versus `graceful_timeout=30`.
+- **DEP-PROC-012** `systemctl reload cloudgene-web` MUST send SIGHUP to the gunicorn master (`ExecReload=/bin/kill -s HUP $MAINPID`). What gunicorn does on SIGHUP with `preload_app` on (no new code; restart required) is [DEP-WEB-016](web-server.md#timeouts-and-lifecycle).
+- **DEP-PROC-013** The web unit's `TimeoutStopSec` MUST be longer than gunicorn's graceful shutdown period (`GUNICORN_GRACEFUL_TIMEOUT`, [DEP-WEB-012](web-server.md#timeouts-and-lifecycle)), so gunicorn, not systemd, ends in-flight requests. Today `TimeoutStopSec=310` versus `graceful_timeout=30`.
 - **DEP-PROC-014** The web unit MUST be enabled under `multi-user.target`.
 
 ### Worker (`cloudgene-worker.service`)
@@ -146,9 +147,9 @@ are killed by systemd before the restart; the new worker fails their jobs as orp
 CLOUDGENE_HOME.` and systemd retries every 5 s. At this rate (2 starts per 10 s) the default
 start-rate limit (5 per 10 s) is not reached.
 
-**Web stop.** SIGTERM to gunicorn starts a graceful shutdown: workers finish current requests
-for up to `graceful_timeout` (30 s), then are killed. A slow upload still in progress after 30 s
-is cut off; `TimeoutStopSec=310` is not the effective limit.
+**Web stop.** systemd sends SIGTERM; gunicorn's graceful shutdown (DEP-WEB-012, 30 s by
+default) bounds in-flight requests, so `TimeoutStopSec=310` is only systemd's backstop
+(DEP-PROC-013). Details: [web-server.md](web-server.md#behaviour) "Stop and restart".
 
 **Cleanup run.** The timer fires daily at 00:00 plus 0–30 min. `cleanup_jobs` runs first; if it
 exits non-zero, systemd does not run `cleanup_logs` and marks the service failed.
@@ -164,6 +165,7 @@ exits non-zero, systemd does not run `cleanup_logs` and marks the service failed
 | DEP-PROC-005 | `core/tests/test_deploy_units.py::SystemdUnitsTest::test_read_write_paths_cover_cloudgene_home` (planned) | config |
 | DEP-PROC-006 | `core/tests/test_deploy_units.py::SystemdUnitsTest::test_worker_read_write_paths_cover_nextflow_home` (planned) | config |
 | DEP-PROC-008 | `core/tests/test_deploy_units.py::SystemdUnitsTest::test_units_ordered_after_postgresql` (planned) | config |
+| DEP-PROC-009 | `core/tests/test_deploy_units.py::SystemdUnitsTest::test_read_write_paths_exclude_code_checkout` (planned) | config |
 | DEP-PROC-010 | `core/tests/test_deploy_units.py::SystemdUnitsTest::test_web_execstart` (planned); gunicorn command line also exercised by `scripts/smoke_gunicorn.sh` | config, smoke |
 | DEP-PROC-011 | `core/tests/test_deploy_units.py::SystemdUnitsTest::test_web_and_worker_restart_always` (planned) | config |
 | DEP-PROC-012 | `core/tests/test_deploy_units.py::SystemdUnitsTest::test_web_reload_sends_hup` (planned) | config |
@@ -187,10 +189,10 @@ exits non-zero, systemd does not run `cleanup_logs` and marks the service failed
 | Requirement | What the code does | Where | Severity |
 |-------------|--------------------|-------|----------|
 | DEP-PROC-024 | `TimeoutStopSec=120` is fixed. Shutdown stops jobs one after another, up to ~10 s each, so more than ~12 running jobs exceed it; systemd then SIGKILLs the worker mid-shutdown (jobs are failed later as orphans). Also noted as BE-QUEUE-014 gap. | `deploy/systemd/cloudgene-worker.service:20`, `jobs/worker.py:798-801` | minor |
-| DEP-PROC-013 | The unit comment says gunicorn may take up to `GUNICORN_TIMEOUT` (300 s) to finish an upload on stop, but gunicorn's SIGTERM path uses `graceful_timeout` (30 s). Uploads longer than 30 s are cut off on stop/restart; the 310 s value is not used. | `deploy/systemd/cloudgene-web.service:16-18`, `deploy/gunicorn.conf.py:38` | minor |
+| DEP-PROC-013 | Requirement holds (310 > 30), but the unit comment says gunicorn may take up to `GUNICORN_TIMEOUT` (300 s) to finish an upload on stop; gunicorn's SIGTERM path uses `graceful_timeout` (30 s). Uploads longer than 30 s are cut off on every stop/restart and the 310 s value is never used. This is the single home of this gap; api-contract.md and web-server.md link here. | `deploy/systemd/cloudgene-web.service:16-18`, `deploy/gunicorn.conf.py:38` | minor |
 | DEP-PROC-006 | `ReadWritePaths` does not include admin-configured Nextflow work dirs outside `CLOUDGENE_HOME`; nothing checks this at config time, so a job fails at run time. | `deploy/systemd/cloudgene-worker.service:26`, `jobs/runner.py:work_dir_for` | minor |
 | DEP-PROC-006 | Nextflow's home (`$HOME/.nextflow`) is only writable if the `cloudgene` user's home is under `/opt/cloudgene`; a home under `/home` is hidden by `ProtectHome=true`. The units do not set `NXF_HOME` or `HOME`. | `deploy/systemd/cloudgene-worker.service:23-27` | minor |
-| DEP-PROC-005 | All three units get write access to `/opt/cloudgene` (code and venv). The service user owns the checkout, so a compromised web process can rewrite application code. Only the SQLite default database file needs it. | `deploy/systemd/*.service` `ReadWritePaths` | minor |
+| DEP-PROC-009 | All three units list `/opt/cloudgene` (code checkout and venv) in `ReadWritePaths=`, and the install clones the checkout as `cloudgene`. A compromised web process or any workflow step can rewrite the application code that the web unit loads on its next start. Only the SQLite default database file and the documented `NXF_HOME` (`/opt/cloudgene/.nextflow`) rely on it. | `deploy/systemd/cloudgene-web.service:25`, `cloudgene-worker.service:26`, `cloudgene-cleanup.service:21` | major |
 | DEP-PROC-034 | Two `ExecStart=` lines in a oneshot unit run sequentially and stop at the first failure; a failing `cleanup_jobs` skips `cleanup_logs`. | `deploy/systemd/cloudgene-cleanup.service:15-16` | minor |
 | DEP-PROC-023 | The worker comment relies on its own SIGTERM forwarding, but `KillMode` is the default `control-group`, so systemd signals Nextflow directly at the same time. Harmless today, but the ordered per-job stop is not what actually happens. | `deploy/systemd/cloudgene-worker.service:18-21` | minor |
 | DEP-PROC-021 | The single-worker guarantee is a host-local `flock`. Nothing stops a second host with its own `CLOUDGENE_HOME` from running a worker against the same database (BE-QUEUE-011 gap). | `jobs/worker.py:acquire_lock` | minor |
@@ -201,8 +203,10 @@ exits non-zero, systemd does not run `cleanup_logs` and marks the service failed
 
 1. Should the worker unit use `KillMode=mixed` so only `run_worker` receives SIGTERM and it alone stops the jobs, with systemd's SIGKILL to the rest as the backstop?
 2. Should `TimeoutStopSec` for the worker be derived from `server.max_running_jobs` (documented formula), or should the worker stop jobs in parallel so the bound is constant?
-3. Should the web unit drop `/opt/cloudgene` from `ReadWritePaths` (it needs only `CLOUDGENE_HOME` with PostgreSQL), and should the code checkout be owned by root rather than `cloudgene`?
+3. DEP-PROC-009 removes `/opt/cloudgene` from `ReadWritePaths=`. That also removes the SQLite default (`<repo>/db.sqlite3`) and the documented Nextflow home (`/opt/cloudgene/.nextflow`, DEP-RT-006). Confirm that both must move (SQLite under `CLOUDGENE_HOME`; `NXF_HOME` per [workflow-runtime.md](workflow-runtime.md#open-questions) question 5), and whether install should clone the checkout as root.
 4. Should the web and worker units run `manage.py migrate --check` as `ExecStartPre` so a forgotten migration fails the start instead of serving errors?
-5. `docs/DEPLOYMENT.md` §4 says the worker "takes an exclusive DB lock"; the code uses an `flock` on `CLOUDGENE_HOME/config/worker.lock`. Docs or code: which is intended?
-6. `docs/DEPLOYMENT.md` §5 says the worker "waits for [Nextflow] to exit before stopping" and implies running jobs survive an upgrade; in the code they are stopped and marked `failed`. The docs should say so.
-7. Django saves large uploads to `/tmp`, which `PrivateTmp=true` makes a per-unit directory on the host's `/tmp` filesystem. Where `/tmp` is a size-limited tmpfs, uploads near `server.max_upload_mb` fail. Should the web unit set `FILE_UPLOAD_TEMP_DIR` (via an env var) to a path under `CLOUDGENE_HOME`?
+5. Worker "exclusive DB lock" (docs) versus `flock` (code): see [overview.md](overview.md#open-questions) question 1.
+6. Running jobs surviving a worker restart (docs) versus being failed (code): see [install-upgrade.md](install-upgrade.md#open-questions) question 5.
+7. Upload temp files in the per-unit private `/tmp`: see [web-server.md](web-server.md#open-questions) question 3.
+8. Should `ExecReload` be removed from `cloudgene-web.service` (or `preload_app` defaulted off, [DEP-WEB-016](web-server.md#timeouts-and-lifecycle)), so `systemctl reload` cannot be mistaken for a code reload?
+9. Whether the cleanup unit should also prune old static assets (DEP-STATIC-032) is open in [static-assets.md](static-assets.md#open-questions) question 2. If it should, DEP-PROC-030 and DEP-PROC-040 change with it.

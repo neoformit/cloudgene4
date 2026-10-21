@@ -85,9 +85,9 @@ deployment requirements is in [tests.md](tests.md). The Django test runner
   directory holding `CLOUDGENE_HOME` and a SQLite `DATABASE_URL`, `DEBUG=False`, a fixed
   non-secret `DJANGO_SECRET_KEY`, `ALLOWED_HOSTS=127.0.0.1,localhost`. On any exit it MUST kill
   gunicorn and delete that directory.
-- **DEP-HARN-012** — It MUST run `migrate --noinput` and `collectstatic --noinput --clear`, print
-  the log and exit 1 if either fails, and exit 1 if `staticfiles/frontend/index.html` does not exist
-  afterwards.
+- **DEP-HARN-012** — It MUST run `migrate --noinput` and `collectstatic --noinput --clear` (into the
+  `STATIC_ROOT` of DEP-HARN-017), print the log and exit 1 if either fails, and exit 1 if
+  `<STATIC_ROOT>/frontend/index.html` does not exist afterwards.
 - **DEP-HARN-013** — It MUST boot the production server exactly as deployed:
   `gunicorn -c deploy/gunicorn.conf.py cloudgene_django.wsgi:application` (the venv's `gunicorn`
   if present), with `GUNICORN_BIND=127.0.0.1:<free port>` and `GUNICORN_WORKERS=1`.
@@ -99,8 +99,13 @@ deployment requirements is in [tests.md](tests.md). The Django test runner
 - **DEP-HARN-016** (planned) — The smoke test MUST assert that the hashed asset response carries a
   long-lived `Cache-Control` as required by [static-assets.md](static-assets.md), and that the
   health body has `db.ok: true`. Today both are only printed.
-- **DEP-HARN-017** (planned) — The smoke test SHOULD collect static files into a temporary
-  `STATIC_ROOT` so it does not wipe the developer's `staticfiles/`.
+- **DEP-HARN-017** (planned) — The smoke test MUST collect static files into a `STATIC_ROOT`
+  inside its throw-away directory (DEP-HARN-011) and MUST NOT clear or rewrite the checkout's
+  `staticfiles/`. Reason: the upgrade procedure runs it on the production checkout
+  ([DEP-INST-020](install-upgrade.md#upgrade)), where clearing `staticfiles/` deletes the previous
+  release's assets ([DEP-STATIC-030](static-assets.md#releases-and-open-tabs)). Run without
+  `--skip-build`, its build step (DEP-HARN-010) rewrites the checkout's `static/frontend/`; on a
+  live install it SHOULD be run with `--skip-build` after the procedure's own build.
 
 **e2e stack (`e2e/stack.py`)** (isolation policy: BE-TEST-013)
 
@@ -350,6 +355,7 @@ invocation.
 | DEP-HARN-014 | `scripts/smoke_gunicorn.sh` steps "GET / (SPA shell)", "GET a hashed static asset", "GET /api/health" | smoke |
 | DEP-HARN-015 | `core/tests/test_harness_scripts.py::SmokeScriptTest::test_readiness_timeout_fails` (planned) | config |
 | DEP-HARN-016 | `scripts/smoke_gunicorn.sh` Cache-Control and `db.ok` assertions (planned) | smoke |
+| DEP-HARN-017 | `core/tests/test_deploy.py::StaticConfigTest::test_smoke_script_uses_throwaway_static_root` (planned) | config |
 | DEP-HARN-020 | `e2e/tests/test_harness_selftest.py::test_stack_root_and_stack_json` (planned) | e2e |
 | DEP-HARN-021 | `e2e/tests/test_harness_selftest.py::test_bundle_rebuilt_only_when_sources_newer` (planned) | e2e |
 | DEP-HARN-022 | `e2e/tests/test_smoke.py::test_home_renders_home_template` | e2e |
@@ -389,8 +395,8 @@ invocation.
 | DEP-HARN-074 | `core/tests/test_harness_scripts.py::CiConfigTest::test_toolchain_pinned_and_artifacts_uploaded` (planned) | config |
 | DEP-HARN-075 | `core/tests/test_harness_scripts.py::CiConfigTest::test_no_secrets_referenced` (planned) | config |
 
-Smoke-layer rows cite a script step; the step passing is the test. DEP-HARN-017 and
-DEP-HARN-035 are SHOULD and have no test.
+Smoke-layer rows cite a script step; the step passing is the test. DEP-HARN-035 is SHOULD and
+has no test.
 
 ## Known gaps
 
@@ -401,7 +407,7 @@ DEP-HARN-035 are SHOULD and have no test.
 | DEP-HARN-004 | `--postgres` in `e2e` mode is stripped and ignored; the e2e run uses SQLite with no warning. | `scripts/test.sh:24-33`, `:65-72` | minor |
 | DEP-HARN-015 | The readiness loop never fails; after 10 s it falls through and the next `curl` fails with a less useful message (gunicorn log printed only for `GET /`). | `scripts/smoke_gunicorn.sh:154-160` | minor |
 | DEP-HARN-016 | `Cache-Control` of the asset is printed, not asserted; `health` only checked for the substring `"status"`. `check --deploy` result ignored (`|| true`). | `scripts/smoke_gunicorn.sh:131-133`, `:171-177` | minor |
-| DEP-HARN-017 | `collectstatic --clear` writes into the repo's `staticfiles/`, wiping a developer's collected files; `STATIC_ROOT_OVERRIDE` is exported but nothing reads it. | `scripts/smoke_gunicorn.sh:120`, `:127`; `cloudgene_django/settings.py:210` | minor |
+| DEP-HARN-017 | `collectstatic --clear` writes into the checkout's own `staticfiles/` (`STATIC_ROOT_OVERRIDE` is exported but nothing reads it). On a developer machine it wipes collected files; run on a production host as `docs/DEPLOYMENT.md` §5 suggests, it deletes the previous release's chunks (breaking DEP-STATIC-030) and, without `--skip-build`, rewrites the served tree under the running process. This is the single home of this gap; static-assets.md links here. | `scripts/smoke_gunicorn.sh:120`, `:127`; `cloudgene_django/settings.py:210` | major |
 | DEP-HARN-041 | Helpers and stack carry pre-T01 fallbacks (path retries, token login, `/status` → detail, SPA-root readiness, legacy worker/state shapes) that can hide a removed or renamed endpoint. | `e2e/helpers.py:46-60`, `:89-113`; `e2e/stack.py:295-299`, `:346-362`; `e2e/admin_helpers.py:4-5`, `:20-31` | minor |
 | DEP-HARN-027 | No check that the Nextflow path exists; a missing binary surfaces as failed jobs in worker tests. | `e2e/stack.py:41` | minor |
 | DEP-HARN-034 | No `--strict-markers`; `serial` is not enforced under `-n` (BE-TEST-015); the `worker` marker is described as skipping but nothing reads it. | `e2e/pytest.ini:4-7` | minor |

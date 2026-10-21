@@ -96,8 +96,11 @@ Health monitoring
 - **DEP-OBS-013** The monitor MUST raise a "configuration invalid" alert when `config.ok` is
   false, reporting `config.errors`.
 - **DEP-OBS-014** The operator MUST monitor free space on the filesystems holding
-  `$CLOUDGENE_HOME` (job workspaces, uploads), the database data directory and the journal, and
-  alert before they are full. The application exposes no disk signal.
+  `$CLOUDGENE_HOME` (job workspaces, uploads), every external Nextflow `work_dir` and `NXF_HOME`
+  ([cloudgene-home.md](cloudgene-home.md) DEP-HOME-015, DEP-HOME-016), the host `/tmp` behind the
+  units' private `/tmp` (upload spooling, DEP-HOME-012), the database data directory and the
+  journal, and alert before they are full. The application exposes no disk signal. This is the
+  single home of the disk-space alert; DEP-HOME-014 links here.
 - **DEP-OBS-015** The operator SHOULD alert on failed systemd units (`systemctl is-failed
   cloudgene-web cloudgene-worker cloudgene-cleanup`), so a failed nightly cleanup is noticed
   before disk fills.
@@ -106,6 +109,14 @@ Health monitoring
   deployment MUST document using `admin_dashboard` with an admin API token for that check.
 - **DEP-OBS-017** The gunicorn smoke test MUST fetch `/api/health` from a live gunicorn and fail
   if the body has no `status` field.
+- **DEP-OBS-018** Because neither `check --deploy` nor `/api/health/` checks the workflow runtime,
+  the operator MUST run a runtime preflight after install, after every upgrade and after any
+  change to Java, Nextflow or the global `nextflow.env`, before users submit jobs: `nextflow
+  -version` run as `cloudgene` with the worker unit's environment file and sandbox (for example
+  `systemd-run --uid=cloudgene -p EnvironmentFile=/etc/cloudgene/cloudgene.env
+  -p ProtectSystem=strict -p ProtectHome=true -p ReadWritePaths=… --pipe --wait`). It MUST exit 0
+  and print the pinned release; otherwise the launcher, Java or a writable `NXF_HOME`
+  ([workflow-runtime.md](workflow-runtime.md) DEP-RT-001, DEP-RT-003, DEP-RT-006) is missing.
 
 ## Interfaces
 
@@ -152,7 +163,7 @@ the console, never what reaches `SystemLog`.
 | Database down | `GET /api/health/` | 503 or `status: "error"` | page |
 | Worker down | `GET /api/health/` | `worker.ok: false` on 2 consecutive polls | page |
 | Config invalid | `GET /api/health/` | `config.ok: false` | warn |
-| Disk filling | host metrics | `$CLOUDGENE_HOME`, DB, journal filesystems > 85 % used | warn; page at 95 % |
+| Disk filling | host metrics | `$CLOUDGENE_HOME`, external `work_dir`, `NXF_HOME`, host `/tmp`, DB, journal filesystems > 85 % used | warn; page at 95 % |
 | Cleanup failed | systemd | `cloudgene-cleanup.service` in failed state | warn |
 | Queue stuck | `admin_dashboard` (admin token) or DB | waiting > 0, running = 0, worker ok, not paused, for > 15 min | warn |
 | TLS certificate | external probe | expires in < 14 days | warn |
@@ -212,8 +223,9 @@ unit is marked failed (DEP-OBS-015).
 | DEP-OBS-015 | none (host monitoring) | — |
 | DEP-OBS-016 | (planned) `core/tests/test_api.py::HealthTest::test_health_reports_queue_state` | unit |
 | DEP-OBS-017 | `scripts/smoke_gunicorn.sh` step "GET /api/health" | smoke |
+| DEP-OBS-018 | — host obligation. Manual: run the preflight command of DEP-OBS-018 with the worker unit's `ReadWritePaths=`; it MUST exit 0 and print the expected Nextflow version. | — |
 
-DEP-OBS-007, -008, -014 and -015 are operator obligations on the host; no repository test can
+DEP-OBS-007, -008, -014, -015 and -018 are operator obligations on the host; no repository test can
 prove them. [tests.md](tests.md) lists them as untestable-in-repo.
 
 ## Known gaps

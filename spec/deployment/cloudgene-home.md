@@ -118,7 +118,8 @@ Out of scope:
   `cleanup_jobs` and then `cleanup_logs` daily, as `cloudgene`, with the same environment file as
   web and worker, so retention (BE-CMD-050..055, BE-CMD-060) actually happens.
 - **DEP-HOME-014** With `server.job_retention_days: 0` finished workspaces are kept forever; the
-  operator MUST then monitor free space on `jobs/` ([observability.md](observability.md)).
+  operator MUST then monitor free space on `jobs/` as in
+  [DEP-OBS-014](observability.md#requirements).
 - **DEP-HOME-015** When an external Nextflow `work_dir` (global or per app) is configured, the
   `<work_dir>/<job uuid>` directory of a job MUST be removed no later than the job's workspace
   (BE-QUEUE-027, planned). Until then the deployment MUST remove these directories itself
@@ -271,10 +272,10 @@ sudo -u cloudgene cp -n /opt/cloudgene/home/config/nextflow.config $H/config/
    (`core.config.ensure_home()`, called by `migrate`/`run_worker`/the web process)". The code never
    calls `ensure_home()` and never creates `settings.yaml` until an admin write. Should the app seed
    `CLOUDGENE_HOME` from `home/` at start-up (and with mode `0600`), or should the docs describe the
-   manual seeding of DEP-HOME-007?
-2. `docs/DEPLOYMENT.md` says the worker "takes an exclusive DB lock"; the code uses an `fcntl` lock
-   on `config/worker.lock`. Which is intended? It matters for DEP-HOME-005 (filesystem choice) and
-   for multi-host setups.
+   manual seeding of DEP-HOME-007? This is the single home of this question; install-upgrade.md
+   links here.
+2. Worker "exclusive DB lock" (docs) versus `flock` (code): see
+   [overview.md](overview.md#open-questions) question 1.
 3. `docs/DEPLOYMENT.md` names the per-job Nextflow log `.nextflow.log`; the runner writes
    `logs/nextflow.log` (and `logs/step<N>-nextflow.log`). Docs or code?
 4. Should `cleanup_jobs` also prune `mail/` (file backend outbox), or should production simply

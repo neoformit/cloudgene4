@@ -32,9 +32,12 @@ Out of scope:
 
 ## Dependencies
 
-- [process-management.md](process-management.md): unit names, DEP-PROC-012 (reload does not load code), DEP-PROC-023 (worker stop fails running jobs), DEP-PROC-040 (operator-run commands).
+- [process-management.md](process-management.md): unit names, DEP-PROC-023 (worker stop fails running jobs), DEP-PROC-040 (operator-run commands).
+- [web-server.md](web-server.md): DEP-WEB-016 (reload does not load code).
+- [api-contract.md](api-contract.md): DEP-API-005 (one-off commands run with the unit environment).
 - [database.md](database.md): DEP-DB-020/021 (migrate with the unit environment, before restart), DEP-DB-040 (backup contents).
-- [static-assets.md](static-assets.md): SPA build to `static/frontend/`, `collectstatic` to `staticfiles/`.
+- [static-assets.md](static-assets.md): SPA build to `static/frontend/`, `collectstatic` to `staticfiles/`; DEP-STATIC-030, DEP-STATIC-031, DEP-STATIC-033 (assets during and after an upgrade).
+- [cloudgene-home.md](cloudgene-home.md): DEP-HOME-007 (seeding `CLOUDGENE_HOME` at first install).
 - [../backend/management-commands.md](../backend/management-commands.md): BE-CMD-010..013 (`create_admin`), BE-CMD-020..025 (`install_workflow`), BE-CMD-030..032 (`sync_workflows`).
 - [../backend/job-queue-worker.md](../backend/job-queue-worker.md): BE-QUEUE-014 (shutdown), orphan recovery.
 - [test-harness.md](test-harness.md): `scripts/smoke_gunicorn.sh`.
@@ -60,13 +63,13 @@ Out of scope:
 
 ### Upgrade
 
-- **DEP-INST-020** Before an upgrade, the operator SHOULD take a backup as in DEP-DB-040 and SHOULD run `scripts/smoke_gunicorn.sh` on the new revision.
-- **DEP-INST-021** An upgrade MUST run, in order: update the code (`git pull` or checkout of a tag); `venv/bin/pip install -r requirements.txt`; `npm ci && npm run build` in `frontend/`; `manage.py migrate --noinput`; `manage.py collectstatic --noinput`; then `systemctl restart cloudgene-worker cloudgene-web`. All `manage.py` steps MUST use the unit environment (DEP-DB-020).
+- **DEP-INST-020** Before an upgrade, the operator SHOULD take a backup as in DEP-DB-040 and SHOULD run `scripts/smoke_gunicorn.sh` on the new revision. What the script does and must not touch: [test-harness.md](test-harness.md#requirements) DEP-HARN-010..017.
+- **DEP-INST-021** An upgrade MUST run, in order: update the code (`git pull` or checkout of a tag); `venv/bin/pip install -r requirements.txt`; `npm ci && npm run build` in `frontend/`; `manage.py migrate --noinput`; `manage.py collectstatic --noinput` (without `--clear`, [DEP-STATIC-033](static-assets.md#releases-and-open-tabs)); then `systemctl restart cloudgene-worker cloudgene-web`. All `manage.py` steps MUST use the unit environment ([DEP-API-005](api-contract.md#environment)).
 - **DEP-INST-022** `migrate` MUST complete before either service is restarted on the new code (DEP-DB-021). If `migrate` fails, the services MUST NOT be restarted.
-- **DEP-INST-023** The web MUST be restarted, not reloaded, to pick up new code (DEP-PROC-012). The worker MUST be restarted on every upgrade that changes Python code.
+- **DEP-INST-023** The web MUST be restarted, not reloaded, to pick up new code ([DEP-WEB-016](web-server.md#timeouts-and-lifecycle)). The worker MUST be restarted on every upgrade that changes Python code.
 - **DEP-INST-024** Restarting the worker MUST be treated as stopping every running job: each running job ends `failed` with `The worker was shut down while this job was running; the job was stopped.` Waiting jobs MUST stay `waiting` and run on the new worker. An operator who must not lose running jobs SHOULD pause the queue (`queue.paused` in Admin → Settings), wait until no job is running, then upgrade and unpause.
-- **DEP-INST-025** From the moment the SPA is rebuilt until the web process is restarted, the site MUST keep serving a working SPA (an `index.html` whose assets resolve). (planned)
-- **DEP-INST-026** After an upgrade, browser tabs opened before it SHOULD keep working until reloaded: hashed assets of the previous build SHOULD remain servable. `collectstatic` MUST NOT be run with `--clear` in the upgrade, so earlier assets stay in `staticfiles/`.
+- **DEP-INST-025** (withdrawn — see [DEP-STATIC-031](static-assets.md#releases-and-open-tabs))
+- **DEP-INST-026** (withdrawn — see [DEP-STATIC-030](static-assets.md#releases-and-open-tabs) and [DEP-STATIC-033](static-assets.md#releases-and-open-tabs))
 - **DEP-INST-027** If the new revision adds or changes workflow apps under `settings.yaml` control, the operator MAY run `manage.py sync_workflows`; it exits 0 even when apps are invalid, so its output MUST be read.
 
 ### Rollback
@@ -79,7 +82,7 @@ Out of scope:
 - **DEP-INST-040** After install or upgrade, `manage.py check --deploy` run with the production environment MUST report no issues (exit 0, "System check identified no issues").
 - **DEP-INST-041** After install or upgrade, `GET /api/health` through nginx MUST return 200 with `status` `"ok"` once the worker's first heartbeat is written (within about 30 s); `"degraded"` means the worker is down or `settings.yaml` is invalid.
 - **DEP-INST-042** After install or upgrade, `systemctl is-active cloudgene-web cloudgene-worker` MUST report `active` for both, and `systemctl list-timers cloudgene-cleanup.timer` MUST show a next run.
-- **DEP-INST-043** `scripts/smoke_gunicorn.sh` MUST build the SPA (unless `--skip-build`), run `migrate` and `collectstatic --clear` against a throw-away `CLOUDGENE_HOME` and SQLite database, start gunicorn with `deploy/gunicorn.conf.py` and `DEBUG=False`, and exit non-zero unless `/` returns the SPA shell (`<div id="app">`), a hashed `/static/frontend/assets/index-*.js` returns 200, and `/api/health` returns a body with a `status` field. It MUST NOT touch the production database or `CLOUDGENE_HOME`.
+- **DEP-INST-043** (withdrawn — see [DEP-HARN-010, DEP-HARN-011, DEP-HARN-012, DEP-HARN-013, DEP-HARN-014, DEP-HARN-017](test-harness.md#requirements))
 
 ## Interfaces
 
@@ -152,22 +155,16 @@ settings read `DATABASE_URL`, `CLOUDGENE_HOME` and the secret key at import. If
 `DJANGO_SECRET_KEY` is unset, the first command creates `CLOUDGENE_HOME/config/secret_key`; it
 must be created as `cloudgene` so the services can read it. `CLOUDGENE_HOME` subdirectories are
 created lazily by the code that writes them; `settings.yaml` is created on first write (a missing
-file loads as defaults, BE-CONF-002). The seed files in the repository's `home/` (default pages,
-`nextflow.config`, `nextflow.env`) are not copied to `/var/lib/cloudgene` by any step.
+file loads as defaults, BE-CONF-002). Seeding from the repository's `home/` is
+[DEP-HOME-007](cloudgene-home.md#layout-defaults-and-first-install); no step above does it yet.
 
 **Upgrade window.** While `pip install`, `npm run build`, `migrate` and `collectstatic` run, the
 old web and worker keep serving and running jobs on the old code. Two hazards follow:
 
-1. `npm run build` empties and rewrites `static/frontend/` (`emptyOutDir: true`). The running web
-   reads `static/frontend/index.html` on every request (`core/views.py:94`), but whitenoise only
-   knows the asset files it scanned at start-up (`WHITENOISE_AUTOREFRESH` is off when `DEBUG` is
-   off). Until the web restarts, new page loads get the new `index.html` (or a 503 while the file
-   is missing) whose assets are not served, and previously loaded tabs request old chunks that
-   whitenoise still lists but that are gone from `static/frontend/`.
+1. `npm run build` rewrites the served SPA tree under the running web: see
+   [static-assets.md](static-assets.md#behaviour) "Deploy window today" (DEP-STATIC-031) and
+   "Redeploy with tabs open" (DEP-STATIC-030).
 2. `migrate` changes the schema under the running old code.
-
-After the restart, old hashed assets are still in `staticfiles/` (no `--clear`), so tabs opened
-before the upgrade can keep lazy-loading their chunks.
 
 **Running jobs.** `systemctl restart cloudgene-worker` stops the worker (SIGTERM). Every running
 job is stopped and marked `failed`; waiting jobs stay queued. A queue pause before the upgrade
@@ -200,34 +197,29 @@ small job from the installed workflow is the end-to-end check.
 | DEP-INST-022 | `scripts/upgrade_smoke.sh` (planned) | smoke |
 | DEP-INST-023 | `core/tests/test_deploy_units.py::SystemdUnitsTest::test_web_reload_sends_hup` (planned) | config |
 | DEP-INST-024 | `jobs/tests/test_worker.py::ShutdownTest::test_shutdown_stops_running_jobs` | unit |
-| DEP-INST-025 | `scripts/upgrade_smoke.sh` (planned: fetch `/` and its assets between build and restart) | smoke |
-| DEP-INST-026 | `scripts/upgrade_smoke.sh` (planned: an old hashed asset still returns 200 after restart) | smoke |
 | DEP-INST-027 | `workflows/test_registry.py::CommandsTest::test_sync_workflows_command` | unit |
 | DEP-INST-030 | `scripts/upgrade_smoke.sh` (planned, rollback leg) | smoke |
 | DEP-INST-031 | `scripts/upgrade_smoke.sh` (planned, rollback leg) | smoke |
 | DEP-INST-040 | `core/tests/test_deploy.py::DeployEnvExampleTest::test_check_deploy_is_clean_with_the_example_env` | config |
 | DEP-INST-041 | `core/tests/test_api.py::HealthTest::test_health_with_fresh_and_stale_heartbeat`; `scripts/smoke_gunicorn.sh` (step "GET /api/health") | unit, smoke |
 | DEP-INST-042 | `scripts/install_smoke.sh` (planned) | smoke |
-| DEP-INST-043 | `scripts/smoke_gunicorn.sh` | smoke |
 
 ## Known gaps
 
 | Requirement | What the code does | Where | Severity |
 |-------------|--------------------|-------|----------|
-| DEP-INST-008, DEP-INST-021 | No mechanism runs `manage.py` with the unit environment. Settings load only `<repo>/.env`; the env file is root-owned `600`. A plain `sudo -u cloudgene venv/bin/python manage.py migrate` (as in `docs/DEPLOYMENT.md`) uses SQLite at `/opt/cloudgene/db.sqlite3` and `CLOUDGENE_HOME=/opt/cloudgene/home`, so PostgreSQL stays unmigrated and the admin user lands in the wrong database. Also DEP-DB-020. | `cloudgene_django/settings.py:41,64,155-160`; `deploy/cloudgene.env.example:1-3` | major |
-| DEP-INST-025 | `npm run build` with `emptyOutDir: true` rewrites `static/frontend/` under the running web, which serves `index.html` live from there but only the asset files whitenoise scanned at start-up. Between build and restart, new page loads 404 on the new chunks (or get 503 while `index.html` is missing); open tabs 404 on old chunks. | `frontend/vite.config.js:21-22`; `cloudgene_django/settings.py:211-214`; `core/views.py:94-96` | major |
+| DEP-INST-008, DEP-INST-021 | No mechanism runs `manage.py` with the unit environment, so the documented commands migrate SQLite and create the admin in the wrong database. Details: [DEP-API-005 gap](api-contract.md#known-gaps). | `cloudgene_django/settings.py:41,64,155-160` | major |
 | DEP-INST-024 | Every upgrade fails all running jobs; there is no drain or "restart when idle" mode. Pausing the queue first is possible but not part of any procedure. | `jobs/worker.py:798-801`, `:372-386` | minor |
 | DEP-INST-031 | Nothing stops older code starting against a newer schema; there is no `migrate --check` at start and no rollback procedure or tooling. | `deploy/systemd/*.service` | minor |
 | DEP-INST-002, DEP-INST-003, DEP-INST-004, DEP-INST-007, DEP-INST-042 | No automated install test; only `scripts/smoke_gunicorn.sh` (no systemd, no PostgreSQL, no nginx, no worker). | `scripts/` | minor |
-| — | The seed content of the repository's `home/` (`pages/*.html`, `config/nextflow.config`, `config/nextflow.env`) is never copied to `CLOUDGENE_HOME` on install; a new production home starts empty. | `home/`, `core/config.py:345` (`ensure_home()` is never called) | minor |
 | DEP-INST-011 | `create_admin` prints a generated password on stdout (BE-CMD-012). | `core/management/commands/create_admin.py:54-55` | minor |
 
 ## Open questions
 
 1. `docs/DEPLOYMENT.md` §1 runs `useradd --system --home /opt/cloudgene --create-home cloudgene` and then `git clone … /opt/cloudgene`. `--create-home` creates the directory (with skeleton files on most distros), so the clone fails on a non-empty target. It also runs `python3.12 -m venv venv` and `npm ci` as the invoking user, not `cloudgene`. Which sequence is intended? This file uses `--no-create-home` and runs every build step as `cloudgene`.
-2. `docs/DEPLOYMENT.md` §2/§5 runs `manage.py migrate` etc. without the env file (Known gap above). Should the docs use a wrapper, `systemd-run -p EnvironmentFile=…`, or should settings learn to read the env file?
-3. `docs/DEPLOYMENT.md` §2 says `collectstatic` is required because "the `STATICFILES_DIRS` finders … are not consulted" with `DEBUG=False`, but settings set `WHITENOISE_USE_FINDERS = True` with the comment "`npm run build` is enough (no collectstatic)", and the SPA shell is read from `static/frontend/`, not `staticfiles/`. Which is the intended production static path? (Owned by [static-assets.md](static-assets.md).)
-4. `docs/DEPLOYMENT.md` §1 states `core.config.ensure_home()` is "called by `migrate`/`run_worker`/the web process" and that `settings.yaml` "is created with defaults on first run"; neither is true in code (BE-CONF gap). Should install seed `CLOUDGENE_HOME` from the repository's `home/`?
-5. `docs/DEPLOYMENT.md` §5 says there is "no special job-draining step" and the worker "waits for [Nextflow] to exit"; running jobs are in fact failed. Should the upgrade procedure require pausing the queue, or should the worker gain a drain mode?
-6. Should the upgrade build the SPA into a fresh directory (or a new release directory with a symlink switch) so the running site is never served a half-updated `static/frontend/`? This also answers the frontend handoff about `emptyOutDir` deleting old chunks (FE-ROUTE-052).
+2. How `manage.py` gets the unit environment: see [api-contract.md](api-contract.md#open-questions) question 1.
+3. Production static path (`collectstatic` versus whitenoise finders): see [static-assets.md](static-assets.md#open-questions) question 1.
+4. `ensure_home()` and seeding `CLOUDGENE_HOME`: see [cloudgene-home.md](cloudgene-home.md#open-questions) question 1.
+5. `docs/DEPLOYMENT.md` §5 says there is "no special job-draining step" and the worker "waits for [Nextflow] to exit" (implying running jobs survive a restart); running jobs are in fact stopped and marked `failed` (DEP-INST-024, BE-QUEUE-014). The docs should say so. Should the upgrade procedure require pausing the queue, or should the worker gain a drain mode? This is the single home of this question; overview.md and process-management.md link here.
+6. (Answered elsewhere) The build strategy that keeps the running site consistent is the release switch of [DEP-STATIC-031](static-assets.md#releases-and-open-tabs).
 7. `docs/DEPLOYMENT.md` §5 restarts `cloudgene-web cloudgene-worker` together; this file names the worker first only for readability. Is any order required?

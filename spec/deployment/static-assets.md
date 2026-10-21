@@ -104,10 +104,8 @@ Out of scope:
   build strategy that meets this is [Release switch](#release-switch): build into `static/`
   (never served in production, DEP-STATIC-011), add the new release to `staticfiles/` with
   `collectstatic` (old files kept, DEP-STATIC-033), and switch with the web restart (DEP-STATIC-012).
-- **DEP-STATIC-034** (planned) `scripts/smoke_gunicorn.sh` MUST NOT clear or rewrite the
-  repository's `STATIC_ROOT` (`staticfiles/`) or `static/frontend/` of a live install; it MUST
-  collect into a throw-away directory, since the documented procedure runs it on the production
-  checkout before deploying.
+- **DEP-STATIC-034** (withdrawn — see [DEP-HARN-017](test-harness.md#requirements), which owns
+  what `scripts/smoke_gunicorn.sh` may touch)
 - **DEP-STATIC-032** (planned) Old hashed assets kept for DEP-STATIC-030 MUST be pruned after the
   retention window, so `STATIC_ROOT` does not grow without bound.
 - **DEP-STATIC-033** `collectstatic` in the upgrade procedure MUST NOT use `--clear`, since that
@@ -187,7 +185,7 @@ prints the asset's `Cache-Control` but does not assert it.
 deleting the previous release's chunks. Whether an old tab can still load them depends on
 `STATIC_ROOT`: `collectstatic` without `--clear` leaves the old files there, and after the restart
 whitenoise serves them from `STATIC_ROOT`. So the current documented procedure keeps old chunks
-by accident; `scripts/smoke_gunicorn.sh` uses `--clear`, an operator copying it would lose them,
+by accident; `scripts/smoke_gunicorn.sh` clears the checkout's `staticfiles/` (DEP-HARN-017 gap),
 and nothing prunes `STATIC_ROOT`. When an old chunk is gone, the SPA has no fallback today
 (FE-ROUTE-052 gap): the click does nothing.
 
@@ -225,7 +223,6 @@ and pinning the shell per process.
 | DEP-STATIC-030 | (planned) `scripts/smoke_gunicorn.sh` step "previous release chunk still served after rebuild + restart" | smoke |
 | DEP-STATIC-031 | (planned) `scripts/smoke_gunicorn.sh` step "shell and assets consistent after rebuild" | smoke |
 | DEP-STATIC-032 | (planned) `core/tests/test_deploy.py::StaticPruneTest::test_prunes_assets_older_than_retention` | unit |
-| DEP-STATIC-034 | (planned) `core/tests/test_deploy.py::StaticConfigTest::test_smoke_script_uses_throwaway_static_root` | config |
 | DEP-STATIC-033 | (planned) `core/tests/test_deploy.py::StaticConfigTest::test_upgrade_procedure_has_no_collectstatic_clear` | config |
 
 DEP-STATIC-005 and DEP-STATIC-024 are SHOULD and have no test.
@@ -234,7 +231,7 @@ DEP-STATIC-005 and DEP-STATIC-024 are SHOULD and have no test.
 
 | Requirement | Current behaviour | Reference | Severity |
 |-------------|-------------------|-----------|----------|
-| DEP-STATIC-030 | Old chunks survive a redeploy only because `collectstatic` is run without `--clear`; this is not stated as a requirement anywhere in `deploy/`, not tested, and the smoke script uses `--clear`. Combined with FE-ROUTE-052, an open tab cannot navigate to an unvisited route after a redeploy that lost its chunks. | `frontend/vite.config.js:22`, `scripts/smoke_gunicorn.sh:46` | major |
+| DEP-STATIC-030 | Old chunks survive a redeploy only because `collectstatic` is run without `--clear`; this is not stated anywhere in `deploy/`, not tested, and the smoke script clears the checkout's `staticfiles/` ([DEP-HARN-017 gap](test-harness.md#known-gaps)). Combined with FE-ROUTE-052, an open tab cannot navigate to an unvisited route after a redeploy that lost its chunks. | `frontend/vite.config.js:22`, `scripts/smoke_gunicorn.sh:46` | major |
 | DEP-STATIC-031 | Build happens in place in the served tree while the old process runs; `spa_index` serves the new shell immediately, but whitenoise does not know the new files until restart, so new page loads are blank (or 503) for the whole build → migrate → collectstatic → restart window. | `frontend/vite.config.js:21-22`, `cloudgene_django/settings.py:211-214`, `core/views.py:94-96` | major |
 | DEP-STATIC-011 | `WHITENOISE_USE_FINDERS=True` in every environment, so production serves the build directory directly and `collectstatic` is not actually required for the SPA. | `cloudgene_django/settings.py:212-213` | major |
 | DEP-STATIC-012 | `SPA_INDEX_FILE` is `static/frontend/index.html` in every environment and is read on every request. | `cloudgene_django/settings.py:211`, `core/views.py:94` | major |
@@ -243,8 +240,6 @@ DEP-STATIC-005 and DEP-STATIC-024 are SHOULD and have no test.
 | DEP-STATIC-024 | No `STORAGES` setting, so no precompressed files; whitenoise serves JS/CSS uncompressed. | `cloudgene_django/settings.py:206-216` | minor |
 | DEP-STATIC-005 | No `engines` field or `.nvmrc`; the Node version for the build is unpinned. | `frontend/package.json` | minor |
 | DEP-STATIC-011 | `scripts/smoke_gunicorn.sh:2-4,45` says that with `DEBUG=False` whitenoise serves from `STATIC_ROOT`, "not the finders"; because finders are on, the smoke test cannot detect a missing `collectstatic`. | `scripts/smoke_gunicorn.sh:45`, `cloudgene_django/settings.py:213` | minor |
-| DEP-STATIC-034 | The smoke script runs `npm run build` and `collectstatic --clear` against the checkout's own `static/` and `staticfiles/` (its `STATIC_ROOT_OVERRIDE` does nothing). Run on a production host as `docs/DEPLOYMENT.md` §5 suggests, it deletes the previous release's chunks (breaking DEP-STATIC-030) and rewrites the served tree under the running process. | `scripts/smoke_gunicorn.sh:26,39,46` | major |
-| — | `scripts/smoke_gunicorn.sh:39` exports `STATIC_ROOT_OVERRIDE`, which nothing reads. | `scripts/smoke_gunicorn.sh:39` | minor |
 
 ## Open questions
 

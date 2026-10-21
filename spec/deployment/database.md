@@ -38,6 +38,8 @@ Out of scope:
 - [../backend/configuration.md](../backend/configuration.md): `settings.yaml`, `secret_key` under `CLOUDGENE_HOME/config/`.
 - [security-hardening.md](security-hardening.md): `check --deploy` as a whole.
 - [test-harness.md](test-harness.md): `scripts/test.sh`, `e2e/stack.py`.
+- [api-contract.md](api-contract.md): DEP-API-005 (one-off commands run with the unit environment).
+- [workflow-runtime.md](workflow-runtime.md): DEP-RT-014 (step processes run as the `cloudgene` OS user, the reason for DEP-DB-061).
 
 ## Requirements
 
@@ -59,7 +61,7 @@ Out of scope:
 
 ### Migrations
 
-- **DEP-DB-020** Schema changes MUST be applied with `manage.py migrate --noinput`, run as the service user with the same environment as the units (same `DATABASE_URL`, `CLOUDGENE_HOME`).
+- **DEP-DB-020** Schema changes MUST be applied with `manage.py migrate --noinput`, run as the service user with the same environment as the units (same `DATABASE_URL`, `CLOUDGENE_HOME`; [DEP-API-005](api-contract.md#environment)).
 - **DEP-DB-021** On upgrade, migrations MUST be applied after the new code is in place and before the web and worker are restarted on it.
 - **DEP-DB-022** The repository MUST contain every migration its models need: `manage.py makemigrations --check --dry-run` MUST exit 0 (run by `scripts/test.sh unit`).
 - **DEP-DB-023** No unit MAY run `migrate` automatically (see DEP-PROC-040).
@@ -76,6 +78,11 @@ Out of scope:
 - **DEP-DB-042** A SQLite backup MUST be taken with SQLite's online backup (`sqlite3 db.sqlite3 ".backup …"`) or with both web and worker stopped; copying the file alone while WAL is in use MAY lose recent writes.
 - **DEP-DB-043** The worker MUST be stopped while a database or `jobs/` restore is applied, and started only after both are restored; on start it fails any job still marked `running` as an orphan.
 - **DEP-DB-044** If `DJANGO_SECRET_KEY` changes on restore (or the `secret_key` file is not restored), all sessions MUST be treated as invalid; users log in again. No other data depends on the key.
+
+### Role and access
+
+- **DEP-DB-060** The PostgreSQL role named in the production `DATABASE_URL` MUST NOT be a superuser (`rolsuper` false). It SHOULD NOT have `CREATEROLE` or `CREATEDB`; it needs only ownership of the Cloudgene database (DEP-INST-007).
+- **DEP-DB-061** `pg_hba.conf` MUST NOT let the `cloudgene` OS user connect to the Cloudgene database, or as the application's role, without a password: no `trust` rule, and no `peer` or `ident` rule that maps the `cloudgene` OS user to that role, for local sockets or `127.0.0.1`/`::1`. The application MUST authenticate with the password in `DATABASE_URL` (`scram-sha-256`). Reason: workflow step processes run as the `cloudgene` OS user ([DEP-RT-014](workflow-runtime.md#environment-and-secrets)).
 
 ### PostgreSQL-only tests
 
@@ -182,6 +189,8 @@ run again.
 | DEP-DB-050 | `jobs/tests/test_claim_concurrency.py::ClaimConcurrencyTest::test_two_concurrent_claims_never_take_the_same_job` (skips on SQLite) | unit |
 | DEP-DB-051 | `scripts/test.sh unit --postgres` | unit |
 | DEP-DB-052 | `e2e/tests/test_stack.py::test_postgres_stack_creates_and_drops_its_database` (planned; today exercised only by running the suite with `E2E_DATABASE_URL` set) | e2e |
+| DEP-DB-060 | — host obligation. Manual: `sudo -u postgres psql -tAc "select rolsuper, rolcreaterole, rolcreatedb from pg_roles where rolname = '<role from DATABASE_URL>'"` prints `f\|f\|f` (`rolsuper` MUST be `f`). | — |
+| DEP-DB-061 | — host obligation. Manual: as `cloudgene` with no password available (`sudo -u cloudgene env -u PGPASSWORD psql -w -d <db> -c 'select 1'`, then the same with `-h 127.0.0.1 -U <role>`), both connections MUST be refused. | — |
 
 Planned tests are listed in [tests.md](tests.md) as gaps.
 
@@ -189,7 +198,7 @@ Planned tests are listed in [tests.md](tests.md) as gaps.
 
 | Requirement | What the code does | Where | Severity |
 |-------------|--------------------|-------|----------|
-| DEP-DB-020 | The documented install/upgrade runs `sudo -u cloudgene venv/bin/python manage.py migrate` without loading `/etc/cloudgene/cloudgene.env` (settings only load `<repo>/.env`). `DATABASE_URL` is then unset and `migrate` silently creates and migrates `/opt/cloudgene/db.sqlite3`, leaving PostgreSQL unmigrated. Nothing in `deploy/` or `scripts/` provides a way to run commands with the unit environment. | `cloudgene_django/settings.py:41`, `:155-160`; `docs/DEPLOYMENT.md:79,145` | major |
+| DEP-DB-020 | No mechanism runs `migrate` with the unit environment; without it `migrate` silently migrates `/opt/cloudgene/db.sqlite3` and leaves PostgreSQL unmigrated. Details: [DEP-API-005 gap](api-contract.md#known-gaps). | `cloudgene_django/settings.py:41`, `:155-160` | major |
 | DEP-DB-002 | A missing `DATABASE_URL` in production falls back to SQLite silently; only `check --deploy` (run by hand) warns. | `cloudgene_django/settings.py:157`, `core/checks.py:113-125` | minor |
 | DEP-DB-005 | `CONN_HEALTH_CHECKS` is not set; with `DB_CONN_MAX_AGE=60` one request per gunicorn worker fails after a PostgreSQL restart. | `cloudgene_django/settings.py:155-160` | minor |
 | DEP-DB-030 | The single-worker lock is host-local; two hosts sharing one database each run a worker without error (BE-QUEUE-011). | `jobs/worker.py:acquire_lock` | minor |
@@ -199,7 +208,7 @@ Planned tests are listed in [tests.md](tests.md) as gaps.
 
 ## Open questions
 
-1. Should the repository ship a wrapper (for example `scripts/manage.sh`, or a documented `systemd-run --uid=cloudgene -p EnvironmentFile=/etc/cloudgene/cloudgene.env --pipe --wait …`) so operator commands always use the unit environment? Or should settings load `/etc/cloudgene/cloudgene.env` (or a path from `CLOUDGENE_ENV_FILE`) besides `<repo>/.env`? Note the env file is `chmod 600` and root-owned per the example, so the `cloudgene` user cannot read it directly.
+1. How operator commands get the unit environment (wrapper or settings loading the env file): see [api-contract.md](api-contract.md#open-questions) question 1.
 2. Should settings refuse to start (error, not warning) when `DEBUG` is off and `DATABASE_URL` is unset, instead of falling back to SQLite?
 3. Should `CONN_HEALTH_CHECKS` be enabled whenever `DB_CONN_MAX_AGE > 0`?
 4. Is SQLite with `DEBUG` off a supported configuration ("small single-user installs" per the check message), or development only? `core.W001` and `docs/DEPLOYMENT.md` say the former.

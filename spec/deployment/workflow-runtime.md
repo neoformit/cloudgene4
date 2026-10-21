@@ -47,7 +47,8 @@ Out of scope:
 - [cloudgene-home.md](cloudgene-home.md) — file modes of `nextflow.env` (DEP-HOME-009), external
   `work_dir` cleanup (DEP-HOME-015).
 - [environment-config.md](environment-config.md) — the variables in `cloudgene.env`.
-- [database.md](database.md) — DB role and authentication.
+- [database.md](database.md) — DEP-DB-060 (role not superuser), DEP-DB-061 (no password-less access).
+- [api-contract.md](api-contract.md) — DEP-API-051 (env file mode).
 - Contract operations that change the runtime configuration: `admin_settings_nextflow_update`,
   `admin_workflows_nextflow_update`, `admin_workflows_install`
   ([../backend/api-contract.md](../backend/api-contract.md)).
@@ -130,14 +131,14 @@ Out of scope:
 - **DEP-RT-014** Blanking (DEP-RT-013) is not isolation. Step processes run as the same OS user as
   the worker and web app and can read `/proc/<worker pid>/environ`, `config/settings.yaml`,
   `config/secret_key`, and every job's workspace; they also receive `CLOUDGENE_SMTP_PASSWORD` by
-  design (BE-RUN-018). The deployment MUST therefore: keep `cloudgene.env` owned by root with mode
-  `0600` ([environment-config.md](environment-config.md)); make the database refuse password-less
-  access for the `cloudgene` OS user (no `peer`/`trust` rule that maps it to the app's role,
-  [database.md](database.md)); and treat every installed workflow as trusted code (DEP-RT-008).
+  design (BE-RUN-018). The deployment MUST therefore: keep `cloudgene.env` root-only
+  ([DEP-API-051](api-contract.md#filesystem)); make the database refuse password-less access for
+  the `cloudgene` OS user ([DEP-DB-061](database.md#role-and-access)); and treat every installed
+  workflow as trusted code (DEP-RT-008).
   The SMTP account in `mail.*` SHOULD be a dedicated, send-only credential.
 - **DEP-RT-015** Step processes MUST NOT be able to modify the application code, its virtualenv or
-  the built static files. The worker unit MUST NOT list the code checkout in `ReadWritePaths=`, and
-  the checkout SHOULD be owned by root (read-only for `cloudgene`).
+  the built static files. The unit options that ensure this are
+  [DEP-PROC-009](process-management.md#common-to-all-units).
 
 ### Isolation and resources
 
@@ -265,9 +266,9 @@ executor {
 | Requirement | What the code/config does | Where | Severity |
 |-------------|---------------------------|-------|----------|
 | DEP-RT-013 | The worker passes its full environment, including `DJANGO_SECRET_KEY` and `DATABASE_URL` with the DB password, to every step process (BE-RUN-019). The shipped `nextflow.env` does not blank them, so a default install leaks both to every pipeline and command. | `jobs/runner.py:118`; `home/config/nextflow.env`; `deploy/systemd/cloudgene-worker.service:11` | major |
-| DEP-RT-015 | The worker (and web) unit lists `/opt/cloudgene` — the code checkout and venv — in `ReadWritePaths=`, and the install procedure clones it as `cloudgene`; any pipeline can rewrite the application code that the web unit loads on its next start. | `deploy/systemd/cloudgene-worker.service:26`; `deploy/systemd/cloudgene-web.service:25` | major |
+| DEP-RT-015 | Any pipeline can rewrite the application code, because the units list the checkout in `ReadWritePaths=`. Details: [DEP-PROC-009 gap](process-management.md#known-gaps). | `deploy/systemd/cloudgene-worker.service:26` | major |
 | DEP-RT-018 | All jobs run as the same OS user with no per-job sandbox, and workspaces are created `0755`; any step can read and modify other users' job data. | `jobs/worker.py:265-268`, `:308-311` | major |
-| DEP-RT-006 | With the documented `useradd --home /opt/cloudgene`, `NXF_HOME` defaults to `/opt/cloudgene/.nextflow`, inside the git checkout and not in `.gitignore`; it is writable only because the checkout is in `ReadWritePaths=` (see DEP-RT-015). | `deploy/systemd/cloudgene-worker.service`; `.gitignore` | minor |
+| DEP-RT-006 | With the documented `useradd --home /opt/cloudgene`, `NXF_HOME` defaults to `/opt/cloudgene/.nextflow`, inside the git checkout and not in `.gitignore`; it is writable only because the checkout is in `ReadWritePaths=`, which DEP-PROC-009 forbids. | `deploy/systemd/cloudgene-worker.service`; `.gitignore` | minor |
 | DEP-RT-017 | No unit sets `MemoryMax=`, `TasksMax=` or CPU limits; the shipped `nextflow.config` sets no executor limits, so each local run may assume the whole host. | `deploy/systemd/cloudgene-worker.service`; `home/config/nextflow.config` | minor |
 | DEP-RT-001, DEP-RT-003 | Nothing checks the runtime before the first job (no `check --deploy` item, no `/api/health` field); a missing Java or Nextflow is discovered by a failing user job. | `core/checks.py`; `core/server_views.py` | minor |
 | DEP-RT-020 | Steps can send requests to gunicorn on `127.0.0.1:8000` with forged `X-Forwarded-For`/`-Proto` headers, bypassing nginx, because gunicorn trusts forwarded headers from `127.0.0.1`. | `deploy/gunicorn.conf.py:43` | minor |

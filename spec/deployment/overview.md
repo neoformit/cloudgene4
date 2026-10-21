@@ -208,12 +208,11 @@ graceful timeout. Neither restart loses queued work.
 ## Open questions
 
 1. `docs/DEPLOYMENT.md` §4 says the worker "takes an exclusive DB lock"; the code takes a
-   host-local `flock` on `CLOUDGENE_HOME/config/worker.lock` (`jobs/worker.py:807`). The docs
-   should be corrected.
-2. `docs/DEPLOYMENT.md` §5 says a worker restart lets running Nextflow processes exit gracefully
-   and "a waiting job simply resumes". The code fails every running job on shutdown
-   (BE-QUEUE-014); only `waiting` jobs survive. Should upgrades drain the queue first (pause,
-   wait for running jobs), and should that be a documented procedure in
-   [install-upgrade.md](install-upgrade.md)?
+   host-local `flock` on `CLOUDGENE_HOME/config/worker.lock` (`jobs/worker.py:807`). Docs or
+   code: which is intended? This spec follows the code; the docs should be corrected. It matters
+   for DEP-ARCH-012 / DEP-HOME-005 (filesystem choice) and multi-host setups. This is the single
+   home of this question; process-management.md and cloudgene-home.md link here.
+2. Running jobs surviving a worker restart (docs) versus being failed (code): see
+   [install-upgrade.md](install-upgrade.md#open-questions) question 5.
 3. Should multi-host support (shared database, several web hosts) ever be in scope? If not, the
    worker could refuse to start when the heartbeat row names a different live host.

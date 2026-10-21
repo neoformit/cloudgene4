@@ -43,6 +43,9 @@ Out of scope:
 - [configuration.md](configuration.md) — `security.*` keys.
 - [data-model.md](data-model.md) — `User.login_attempts`, `User.locked_until`, `authtoken_token`.
 - [access-control.md](access-control.md) — what 401 vs 403 means downstream.
+- [../deployment/api-contract.md](../deployment/api-contract.md) — DEP-API-023 (forwarded headers
+  set by nginx); [../deployment/security-hardening.md](../deployment/security-hardening.md) —
+  DEP-SEC-026 (nginx rate limit until BE-AUTH-026 lands).
 - Operations: `auth_login_create`, `auth_logout_create`, `auth_me_retrieve`.
 
 ## Requirements
@@ -137,6 +140,13 @@ Out of scope:
   `auth_register_create`, `auth_password_reset_create`, `auth_activate_create`,
   `auth_password_reset_confirm`) SHOULD be rate-limited per client address, answering 429, code
   `throttled`, with `Retry-After`.
+- **BE-AUTH-027** (planned) — The client address that BE-AUTH-026 throttles on MUST be the real
+  client's address, not the reverse proxy's. Behind the reference nginx (one proxy, which appends
+  `$remote_addr` to `X-Forwarded-For`), the throttle MUST use the right-most `X-Forwarded-For`
+  entry (DRF `NUM_PROXIES = 1`), so a client-supplied `X-Forwarded-For` value cannot change its
+  key. Without a proxy (development) it MUST use `REMOTE_ADDR`. This is the only permitted use of
+  `X-Forwarded-For` ([../deployment/api-contract.md](../deployment/api-contract.md#proxy-headers)
+  DEP-API-023).
 
 ## Interfaces
 
@@ -209,40 +219,42 @@ invalidates other sessions of that user through Django's session auth hash
 
 ## Acceptance tests
 
-| Requirement | Tests |
-|---|---|
-| BE-AUTH-001 | unit `accounts/tests.py::LoginTest::test_success_updates_last_login_and_session`; unit `core/tests/test_api.py::AuthSessionTest::test_login_me_logout_flow_without_trailing_slash` (CSRF rotation); contract `accounts/test_contracts.py::AuthContractTest::test_valid_login_returns_user_and_session`; e2e `e2e/tests/test_auth.py::test_login_and_logout_via_ui` |
-| BE-AUTH-002 | unit `accounts/tests.py::LoginTest::test_username_case_insensitive`; e-mail as username (planned) `accounts/tests.py::LoginTest::test_email_is_not_a_login_name` |
-| BE-AUTH-003 | unit `accounts/tests.py::LoginTest::test_unknown_user_and_wrong_password_same_answer`; unit `core/tests/test_api.py::AuthSessionTest::test_login_errors_use_envelope`; contract `accounts/test_contracts.py::AuthContractTest::test_wrong_credentials_returns_400`; e2e `e2e/tests/test_auth.py::test_login_wrong_password_shows_error` |
-| BE-AUTH-004 | contract `accounts/test_contracts.py::AuthContractTest::test_missing_username_returns_400_with_username_error`, `::test_missing_password_returns_400_with_password_error` |
-| BE-AUTH-005 | unit `core/tests/test_api.py::AuthSessionTest::test_inactive_user_cannot_login`; unit `accounts/tests.py::ActivationTest::test_login_blocked_before_activation`, `::test_inactive_with_wrong_password_gets_generic_message` |
-| BE-AUTH-006 | unit `accounts/tests.py::LoginTest::test_lockout_after_max_attempts`; e2e `e2e/tests/test_accounts.py::test_a3_lockout` |
-| BE-AUTH-007 | unit `accounts/tests.py::DjangoAdminLockoutTest::test_locked_account_rejected_with_correct_password`, `::test_wrong_passwords_count_towards_lockout_case_insensitive`; e2e `e2e/tests/test_findings_security.py::test_b01_django_admin_login_bypasses_lockout`; no-extension during lock (planned) `accounts/tests.py::LoginTest::test_attempts_during_lock_do_not_extend_it` |
-| BE-AUTH-008 | unit `accounts/tests.py::LoginTest::test_success_resets_counter`, `::test_lockout_after_max_attempts` (expiry); unit `accounts/tests.py::DjangoAdminLockoutTest::test_successful_login_resets_counter` |
-| BE-AUTH-009 | unit `accounts/tests.py::LoginTest::test_lockout_disabled_with_zero` |
-| BE-AUTH-010 | unit `core/tests/test_api.py::AuthSessionTest::test_login_requires_csrf` |
-| BE-AUTH-011 | (planned) unit `accounts/tests.py::LoginTest::test_login_allowed_in_maintenance_mode` |
-| BE-AUTH-012 | unit `accounts/tests.py::LoginTest::test_obtain_token_endpoint_removed` |
-| BE-AUTH-013 | unit `accounts/tests.py::PermissionMatrixTest::test_matrix`; contract `accounts/test_contracts.py::AuthContractTest::test_logout_returns_200`; unit `core/tests/test_api.py::AuthSessionTest::test_session_write_without_csrf_rejected` |
-| BE-AUTH-014 | unit `core/tests/test_api.py::AuthSessionTest::test_me_anonymous`; e2e `e2e/tests/test_findings_security.py::test_permission_matrix_public` |
-| BE-AUTH-015 | unit `core/tests/test_api.py::AuthSessionTest::test_session_write_without_csrf_rejected`; unit `core/tests/test_api.py::ErrorEnvelopeHandlerTest::test_other_api_exceptions`; non-DRF path (planned) `core/tests/test_api.py::MiscRoutingTest::test_csrf_failure_view_api_and_non_api` |
-| BE-AUTH-016 | unit `core/tests/test_api.py::MiscRoutingTest::test_spa_catch_all_sets_csrf_cookie`; unit `core/tests/test_api.py::AuthSessionTest::test_login_requires_csrf` (cookie from `/api/auth/me/`) |
-| BE-AUTH-017 | (planned) unit `core/tests/test_deploy.py::CookieFlagsTest::test_session_and_csrf_cookie_flags` |
-| BE-AUTH-018 | (planned) unit `core/tests/test_deploy.py::CookieFlagsTest::test_csrf_trusted_origins_default` |
-| BE-AUTH-019 | unit `core/tests/test_api.py::TokenAuthTest::test_token_auth_without_csrf`; unit `accounts/tests.py::ApiTokenTest::test_token_client_needs_no_csrf` |
-| BE-AUTH-020 | unit `core/tests/test_api.py::TokenAuthTest::test_bad_token_is_401_envelope` |
-| BE-AUTH-021 | unit `core/tests/test_api.py::TokenAuthTest::test_unauthenticated_protected_endpoint_is_401_envelope`; e2e `e2e/tests/test_findings_security.py::test_permission_matrix_requires_authentication` |
-| BE-AUTH-022 | (planned) unit `core/tests/test_api.py::TokenAuthTest::test_deactivated_user_token_and_session_rejected` |
-| BE-AUTH-023 | unit `core/tests/test_deploy.py::PasswordHasherTest::test_argon2_is_the_default_hasher`, `::test_pbkdf2_hash_is_upgraded_to_argon2_on_login` |
-| BE-AUTH-024 | unit `core/tests/test_deploy.py::InsecureHashingCheckTest` (all four tests) |
-| BE-AUTH-025 | (planned) unit `accounts/tests.py::LoginTest::test_password_not_logged` |
-| BE-AUTH-026 | (planned) unit `accounts/tests.py::ThrottleTest::test_login_throttled_per_address` |
+| Requirement | Test | Layer |
+|---|---|---|
+| BE-AUTH-001 | `accounts/tests.py::LoginTest::test_success_updates_last_login_and_session`; `core/tests/test_api.py::AuthSessionTest::test_login_me_logout_flow_without_trailing_slash` (CSRF rotation); `accounts/test_contracts.py::AuthContractTest::test_valid_login_returns_user_and_session`; `e2e/tests/test_auth.py::test_login_and_logout_via_ui` | unit, contract, e2e |
+| BE-AUTH-002 | `accounts/tests.py::LoginTest::test_username_case_insensitive`; `accounts/tests.py::LoginTest::test_email_is_not_a_login_name` (planned; e-mail as username) | unit |
+| BE-AUTH-003 | `accounts/tests.py::LoginTest::test_unknown_user_and_wrong_password_same_answer`; `core/tests/test_api.py::AuthSessionTest::test_login_errors_use_envelope`; `accounts/test_contracts.py::AuthContractTest::test_wrong_credentials_returns_400`; `e2e/tests/test_auth.py::test_login_wrong_password_shows_error` | unit, contract, e2e |
+| BE-AUTH-004 | `accounts/test_contracts.py::AuthContractTest::test_missing_username_returns_400_with_username_error`, `::test_missing_password_returns_400_with_password_error` | contract |
+| BE-AUTH-005 | `core/tests/test_api.py::AuthSessionTest::test_inactive_user_cannot_login`; `accounts/tests.py::ActivationTest::test_login_blocked_before_activation`, `::test_inactive_with_wrong_password_gets_generic_message` | unit |
+| BE-AUTH-006 | `accounts/tests.py::LoginTest::test_lockout_after_max_attempts`; `e2e/tests/test_accounts.py::test_a3_lockout` | unit, e2e |
+| BE-AUTH-007 | `accounts/tests.py::DjangoAdminLockoutTest::test_locked_account_rejected_with_correct_password`, `::test_wrong_passwords_count_towards_lockout_case_insensitive`; `e2e/tests/test_findings_security.py::test_b01_django_admin_login_bypasses_lockout`; `accounts/tests.py::LoginTest::test_attempts_during_lock_do_not_extend_it` (planned; no extension during lock) | unit, e2e |
+| BE-AUTH-008 | `accounts/tests.py::LoginTest::test_success_resets_counter`, `::test_lockout_after_max_attempts` (expiry); `accounts/tests.py::DjangoAdminLockoutTest::test_successful_login_resets_counter` | unit |
+| BE-AUTH-009 | `accounts/tests.py::LoginTest::test_lockout_disabled_with_zero` | unit |
+| BE-AUTH-010 | `core/tests/test_api.py::AuthSessionTest::test_login_requires_csrf` | unit |
+| BE-AUTH-011 | `accounts/tests.py::LoginTest::test_login_allowed_in_maintenance_mode` (planned) | unit |
+| BE-AUTH-012 | `accounts/tests.py::LoginTest::test_obtain_token_endpoint_removed` | unit |
+| BE-AUTH-013 | `accounts/tests.py::PermissionMatrixTest::test_matrix`; `accounts/test_contracts.py::AuthContractTest::test_logout_returns_200`; `core/tests/test_api.py::AuthSessionTest::test_session_write_without_csrf_rejected` | unit, contract |
+| BE-AUTH-014 | `core/tests/test_api.py::AuthSessionTest::test_me_anonymous`; `e2e/tests/test_findings_security.py::test_permission_matrix_public` | unit, e2e |
+| BE-AUTH-015 | `core/tests/test_api.py::AuthSessionTest::test_session_write_without_csrf_rejected`; `core/tests/test_api.py::ErrorEnvelopeHandlerTest::test_other_api_exceptions`; `core/tests/test_api.py::MiscRoutingTest::test_csrf_failure_view_api_and_non_api` (planned; non-DRF path) | unit |
+| BE-AUTH-016 | `core/tests/test_api.py::MiscRoutingTest::test_spa_catch_all_sets_csrf_cookie`; `core/tests/test_api.py::AuthSessionTest::test_login_requires_csrf` (cookie from `/api/auth/me/`) | unit |
+| BE-AUTH-017 | `core/tests/test_deploy.py::CookieFlagsTest::test_session_and_csrf_cookie_flags` (planned) | unit |
+| BE-AUTH-018 | `core/tests/test_deploy.py::CookieFlagsTest::test_csrf_trusted_origins_default` (planned) | unit |
+| BE-AUTH-019 | `core/tests/test_api.py::TokenAuthTest::test_token_auth_without_csrf`; `accounts/tests.py::ApiTokenTest::test_token_client_needs_no_csrf` | unit |
+| BE-AUTH-020 | `core/tests/test_api.py::TokenAuthTest::test_bad_token_is_401_envelope` | unit |
+| BE-AUTH-021 | `core/tests/test_api.py::TokenAuthTest::test_unauthenticated_protected_endpoint_is_401_envelope`; `e2e/tests/test_findings_security.py::test_permission_matrix_requires_authentication` | unit, e2e |
+| BE-AUTH-022 | `core/tests/test_api.py::TokenAuthTest::test_deactivated_user_token_and_session_rejected` (planned) | unit |
+| BE-AUTH-023 | `core/tests/test_deploy.py::PasswordHasherTest::test_argon2_is_the_default_hasher`, `::test_pbkdf2_hash_is_upgraded_to_argon2_on_login` | unit |
+| BE-AUTH-024 | `core/tests/test_deploy.py::InsecureHashingCheckTest::test_error_when_set_outside_debug_and_e2e`, `::test_clean_when_e2e_flag_set`, `::test_clean_when_debug`, `::test_clean_when_flag_unset` | unit |
+| BE-AUTH-025 | `accounts/tests.py::LoginTest::test_password_not_logged` (planned) | unit |
+| BE-AUTH-026 | `accounts/tests.py::ThrottleTest::test_login_throttled_per_address` (planned) | unit |
+| BE-AUTH-027 | `accounts/tests.py::ThrottleTest::test_throttle_keys_on_rightmost_forwarded_address` (planned) | unit |
 
 ## Known gaps
 
 | Req | What the code does | Where | Severity |
 |---|---|---|---|
 | BE-AUTH-026 | No throttling is configured: `REST_FRAMEWORK` has no `DEFAULT_THROTTLE_CLASSES` and no view sets `throttle_classes`. The lockout is per account only, so password spraying across many usernames, and repeated register / password-reset requests (mail flooding), are unlimited. | `cloudgene_django/settings.py:260-273`; `accounts/views.py:61-320` | major |
+| BE-AUTH-027 | `NUM_PROXIES` is not set and nothing reads `X-Forwarded-For`; behind nginx every request comes from `127.0.0.1`, so a per-address throttle added without this would throttle all clients together. | `cloudgene_django/settings.py:260-273` | major |
 | BE-AUTH-003 | A locked account returns before `check_password`, so a refused attempt on a locked account is measurably faster than one on an unlocked account; the 429 response also confirms the username exists. This is the intended `account_locked` contract, but it lets a caller enumerate usernames by locking them. | `accounts/backends.py:55-57`; `accounts/views.py:92-97` | minor |
 | BE-AUTH-022 | Behaviour is correct (DRF `TokenAuthentication` rejects inactive users; `ModelBackend.get_user` drops inactive sessions) but nothing tests it, and deactivation does not delete the user's token. | `accounts/serializers.py:261-265` | minor |
 

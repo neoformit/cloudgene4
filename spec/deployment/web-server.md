@@ -53,8 +53,8 @@ Out of scope:
   changes `GUNICORN_BIND` to a non-loopback address MUST also restrict that port to the proxy
   (firewall or private network), because `DJANGO_BEHIND_TLS_PROXY=1` makes Django trust
   `X-Forwarded-Proto` from any client that can reach the port.
-- **DEP-WEB-003** A non-integer value in any integer `GUNICORN_*` variable MUST fall back to the
-  documented default instead of preventing startup.
+- **DEP-WEB-003** (withdrawn — see [DEP-ENV-013](environment-config.md#parsing), which owns
+  `GUNICORN_*` parsing and requires a bad integer to stop start-up)
 - **DEP-WEB-004** The default worker count MUST be `min(2 × CPU + 1, 8)` sync workers with 1 thread
   each.
 - **DEP-WEB-005** gunicorn MUST trust forwarded scheme headers only from
@@ -70,9 +70,7 @@ Out of scope:
   that a request gunicorn is still allowed to finish is not cut off by nginx first (504).
 - **DEP-WEB-012** On stop (SIGTERM), gunicorn MUST stop accepting new requests and give in-flight
   requests `GUNICORN_GRACEFUL_TIMEOUT` (default 30 s) to finish before killing workers.
-- **DEP-WEB-013** `TimeoutStopSec` in `cloudgene-web.service` MUST be greater than
-  `GUNICORN_GRACEFUL_TIMEOUT`, so that systemd never SIGKILLs gunicorn during its own graceful
-  shutdown.
+- **DEP-WEB-013** (withdrawn — see [DEP-PROC-013](process-management.md#web-cloudgene-webservice))
 - **DEP-WEB-014** Each worker MUST be recycled after `GUNICORN_MAX_REQUESTS` (default 10000) requests
   plus up to `GUNICORN_MAX_REQUESTS_JITTER` (default 500), to bound memory growth.
 - **DEP-WEB-015** (planned) A job output download (`jobs_outputs_retrieve`) MUST NOT be terminated by
@@ -141,7 +139,8 @@ Out of scope:
 | `max_requests_jitter` | `GUNICORN_MAX_REQUESTS_JITTER` | `500` | 52 |
 | `preload_app` | `GUNICORN_PRELOAD_APP` (`1` = on) | on | 54 |
 
-Integer values are parsed by `_int_env` (lines 15-19), which returns the default on a parse error.
+Integer values are parsed by `_int_env` (lines 15-19), which returns the default on a parse error
+([DEP-ENV-013 gap](environment-config.md#known-gaps)).
 
 ### Upload size chain (request order)
 
@@ -179,10 +178,9 @@ nginx. Lowering it is safe. Raising it above nginx's limit produces the mismatch
 upload between the two values.
 
 **Stop and restart.** systemd sends SIGTERM to the service's cgroup. The gunicorn master waits
-`graceful_timeout` (30 s), then kills remaining workers. `TimeoutStopSec=310` is far above that, so
-the 310 s never comes into play; an in-flight request running longer than 30 s is cut. The unit
-comment (`cloudgene-web.service:48-49`) says the 310 s lets uploads finish, which is not what
-happens.
+`graceful_timeout` (30 s), then kills remaining workers; an in-flight request running longer than
+30 s is cut. The unit's `TimeoutStopSec=310` never comes into play (DEP-PROC-013 and its gap in
+[process-management.md](process-management.md#known-gaps)).
 
 **Reload.** `ExecReload` sends SIGHUP. With `preload_app` on, gunicorn re-forks workers from the
 already-loaded master, so new Python code is **not** picked up; only a restart does that.
@@ -198,13 +196,11 @@ reads from gunicorn only as fast as the client drains. A sync worker that spends
 |-------------|------|-------|
 | DEP-WEB-001 | `scripts/smoke_gunicorn.sh` step "Starting gunicorn" (starts with `-c deploy/gunicorn.conf.py`, `GUNICORN_BIND`/`GUNICORN_WORKERS` overrides) | smoke |
 | DEP-WEB-002 | (planned) `core/tests/test_deploy.py::GunicornConfigTest::test_default_bind_is_loopback` | config |
-| DEP-WEB-003 | (planned) `core/tests/test_deploy.py::GunicornConfigTest::test_bad_int_env_falls_back_to_default` | config |
 | DEP-WEB-004 | (planned) `core/tests/test_deploy.py::GunicornConfigTest::test_default_workers_formula` | config |
 | DEP-WEB-005 | (planned) `core/tests/test_deploy.py::GunicornConfigTest::test_forwarded_allow_ips_default` | config |
 | DEP-WEB-010 | (planned) `core/tests/test_deploy.py::GunicornConfigTest::test_timeout_default_300` | config |
 | DEP-WEB-011 | (planned) `core/tests/test_deploy.py::DeployFilesConsistencyTest::test_proxy_read_timeout_covers_gunicorn_timeout` | config |
 | DEP-WEB-012 | (planned) `core/tests/test_deploy.py::GunicornConfigTest::test_graceful_timeout_default` | config |
-| DEP-WEB-013 | (planned) `core/tests/test_deploy.py::DeployFilesConsistencyTest::test_web_timeout_stop_sec_exceeds_graceful_timeout` | config |
 | DEP-WEB-014 | (planned) `core/tests/test_deploy.py::GunicornConfigTest::test_max_requests_defaults` | config |
 | DEP-WEB-015 | (planned) `scripts/smoke_gunicorn.sh` step "slow download of a large output survives GUNICORN_TIMEOUT" | smoke |
 | DEP-WEB-016 | (planned) `core/tests/test_deploy.py::DeployFilesConsistencyTest::test_web_unit_has_no_misleading_reload` | config |
@@ -229,11 +225,9 @@ DEP-WEB-021 and DEP-WEB-038 are SHOULD and have no test.
 | DEP-WEB-015 | Sync workers are killed after `timeout` (300 s) on a single request; a large output download to a slow client (beyond nginx's 1 GiB temp-file buffer) is truncated. No `X-Accel-Redirect`, no larger `proxy_max_temp_file_size`, no async/threaded worker. | `deploy/gunicorn.conf.py:31,37`, `jobs/views.py:62` | major |
 | DEP-WEB-031 | `client_max_body_size 1024m` equals default `max_upload_mb` with no headroom for multipart overhead; uploads just under the limit get nginx's HTML 413. | `deploy/nginx.conf.example:26`, `home/config/settings.yaml:14` | minor |
 | DEP-WEB-038 | `max_upload_mb` can be raised at runtime (min 1, no max) with no check against nginx. | `admin_panel/serializers.py:17` | minor |
-| DEP-WEB-013 | Requirement holds (310 > 30), but the unit comment claims `TimeoutStopSec=310` lets uploads run up to `GUNICORN_TIMEOUT`; gunicorn kills in-flight requests after `graceful_timeout` (30 s). | `deploy/systemd/cloudgene-web.service:48-50`, `deploy/gunicorn.conf.py:38` | minor |
-| DEP-WEB-016 | `ExecReload=/bin/kill -s HUP` with `preload_app` on does not load new code; nothing warns an operator who uses `systemctl reload`. | `deploy/systemd/cloudgene-web.service:45`, `deploy/gunicorn.conf.py:54` | minor |
+| DEP-WEB-016 | `ExecReload=/bin/kill -s HUP` with `preload_app` on does not load new code, so a reload after an upgrade keeps running the old code; nothing warns an operator who uses `systemctl reload`. This is the single home of this gap. | `deploy/systemd/cloudgene-web.service:13`, `deploy/gunicorn.conf.py:54` | minor |
 | DEP-WEB-021 | Default access log format logs `%(h)s` = `127.0.0.1` for every request behind nginx. | `deploy/gunicorn.conf.py:45` | minor |
 | DEP-WEB-010 | The comment at `deploy/gunicorn.conf.py:33-36` justifies the 300 s timeout by slow clients; behind nginx (request buffering on) slow clients never reach gunicorn. The value is still reasonable for workspace copy time. | `deploy/gunicorn.conf.py:33-37` | minor |
-| — | `GUNICORN_GRACEFUL_TIMEOUT`, `GUNICORN_KEEPALIVE`, `GUNICORN_WORKER_CLASS`, `GUNICORN_MAX_REQUESTS*`, `GUNICORN_LOG_*`, `GUNICORN_PRELOAD_APP`, `GUNICORN_*_LOG` are read but not listed in the example env file. | `deploy/cloudgene.env.example:58-63` | minor |
 | — | No config test reads `deploy/gunicorn.conf.py`; the smoke script is the only check. | `core/tests/test_deploy.py` | minor |
 
 ## Open questions

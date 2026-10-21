@@ -48,7 +48,9 @@ Out of scope (linked, not restated):
 - [reverse-proxy.md](reverse-proxy.md) — TLS termination, `X-Forwarded-Proto`, CSP.
 - [process-management.md](process-management.md) — service user and sandboxing.
 - [database.md](database.md) — why SQLite is warned about in production.
-- [../backend/authentication.md](../backend/authentication.md) — BE-AUTH-026 (throttling, planned).
+- [../backend/authentication.md](../backend/authentication.md) — BE-AUTH-026 (throttling, planned),
+  BE-AUTH-027 (client address behind the proxy, planned).
+- [api-contract.md](api-contract.md) — DEP-API-023 (forwarded headers), DEP-API-051 (env file mode).
 - [../backend/overview.md](../backend/overview.md) — BE-ARCH-008/009 (schema and admin routes).
 - Contract operations: none directly. Rate limiting (DEP-SEC-026) applies to `auth_login_create`,
   `auth_register_create`, `auth_password_reset_create`, `auth_password_reset_confirm`, `auth_activate_create`
@@ -124,9 +126,10 @@ Passwords and secrets
   mode `0600` (exclusive create, so web and worker cannot write different keys) and MUST be
   excluded from version control (`.gitignore`).
 - **DEP-SEC-021** The production environment file (`/etc/cloudgene/cloudgene.env`) holds the
-  secret key and database password and MUST NOT be readable by users other than root and the
-  service group (mode `0600` or `0640`). A deployment that runs more than one web host MUST set
-  `DJANGO_SECRET_KEY` explicitly so all hosts share one key.
+  secret key and database password; its owner and mode are
+  [DEP-API-051](api-contract.md#filesystem) (root, `0600`, not readable by `cloudgene`). A
+  deployment that runs more than one web host MUST set `DJANGO_SECRET_KEY` explicitly so all
+  hosts share one key.
 - **DEP-SEC-022** (planned) A deploy check MUST warn when `$CLOUDGENE_HOME/config/secret_key` or
   `$CLOUDGENE_HOME/config/settings.yaml` (which holds `mail.password` in plain text) is readable
   by group or others.
@@ -134,9 +137,9 @@ Passwords and secrets
 Defence in depth
 
 - **DEP-SEC-023** The web, worker and cleanup processes MUST run as the unprivileged `cloudgene`
-  user under the systemd sandbox defined in [process-management.md](process-management.md)
-  (no new privileges, private `/tmp`, read-only system, no home directories, explicit writable
-  paths). The application code directory SHOULD NOT be writable by the service user.
+  user under the systemd sandbox of [DEP-PROC-001](process-management.md#common-to-all-units),
+  DEP-PROC-004 and DEP-PROC-005. The application code MUST NOT be writable by them
+  ([DEP-PROC-009](process-management.md#common-to-all-units)).
 - **DEP-SEC-024** The Django admin at `/django-admin/` MUST accept only active staff users and
   MUST apply the same login lockout as the API
   ([../backend/authentication.md](../backend/authentication.md), BE-AUTH-007). Deployments SHOULD
@@ -144,9 +147,8 @@ Defence in depth
   area covers normal administration.
 - **DEP-SEC-025** `/api/schema/` and `/api/schema/swagger-ui/` are public (BE-ARCH-008). They
   MUST NOT disclose data beyond the API description. Swagger UI loads its JavaScript from a
-  third-party CDN by default (drf-spectacular `SWAGGER_UI_DIST`); a deployment that enforces a
-  CSP (see [reverse-proxy.md](reverse-proxy.md)) MAY block or restrict this route instead of
-  widening the CSP.
+  third-party CDN by default (drf-spectacular `SWAGGER_UI_DIST`); how the CSP treats this route is
+  [DEP-PROXY-024](reverse-proxy.md#requirements).
 - **DEP-SEC-026** (planned) Until BE-AUTH-026 is implemented, the reference nginx configuration
   MUST rate-limit the anonymous auth endpoints (`/api/auth/login/`, `/api/auth/register/`,
   `/api/auth/password-reset/`, `/api/auth/password-reset/<token>/`, `/api/auth/activate/<key>/`, and
@@ -219,7 +221,7 @@ DJANGO_HSTS_PRELOAD=0
 
 | File | Holds | Required mode | Enforced by |
 |------|-------|---------------|-------------|
-| `/etc/cloudgene/cloudgene.env` | secret key, DB password | `0600`/`0640`, root or `cloudgene` | operator only |
+| `/etc/cloudgene/cloudgene.env` | secret key, DB password | root, `0600` (DEP-API-051) | operator only |
 | `$CLOUDGENE_HOME/config/secret_key` | generated secret key | `0600` | `settings.py:81` on create |
 | `$CLOUDGENE_HOME/config/settings.yaml` | `mail.password` | `0600` | not enforced (BE-CONF-015) |
 | `/etc/letsencrypt/live/<host>/privkey.pem` | TLS key | certbot default | certbot |
@@ -241,15 +243,14 @@ Secret key. Resolution order is in [environment-config.md](environment-config.md
 `DJANGO_SECRET_KEY` logs out every session and invalidates outstanding password-reset links;
 there is no `SECRET_KEY_FALLBACKS` support.
 
-Rate limiting. The application has per-account lockout only. It sees every client as
-`127.0.0.1` (the proxy): nothing reads `X-Forwarded-For`/`X-Real-IP`. A per-IP limit can
-therefore only be applied at nginx today, and BE-AUTH-026 will need DRF's `NUM_PROXIES` (or
-equivalent) set to the proxy count to throttle per client. nginx's 429 body is not the API error
+Rate limiting. The application has per-account lockout only and sees every client as the
+proxy's address, so a per-IP limit can only be applied at nginx today (DEP-SEC-026). How the
+planned DRF throttle must find the real client address is
+[BE-AUTH-027](../backend/authentication.md#requirements). nginx's 429 body is not the API error
 envelope; the SPA shows its generic error for it.
 
-CSP. No `Content-Security-Policy` header is set by Django or by the example nginx config. Its
-requirements live in [reverse-proxy.md](reverse-proxy.md). It matters here because admin- and
-workflow-supplied HTML is rendered with `v-html` in the SPA.
+CSP. Requirements and the current gap: [DEP-PROXY-021, DEP-PROXY-022, DEP-PROXY-023,
+DEP-PROXY-024](reverse-proxy.md#requirements).
 
 ## Acceptance tests
 
@@ -296,12 +297,11 @@ workflow-supplied HTML is rendered with `v-html` in the SPA.
 |-------------|--------------------|-------|----------|
 | DEP-SEC-026 | No rate limiting anywhere: not in DRF (BE-AUTH-026) and not in the example nginx config. Password spraying across accounts and mail flooding via register/reset are unlimited. | `deploy/nginx.conf.example:43-54`; `cloudgene_django/settings.py:260-274` | major |
 | DEP-SEC-022 | `settings.yaml` is created `0644` (holds `mail.password`); no check warns about secret file modes. | `core/config.py:377`; `core/checks.py` | major |
-| DEP-SEC-023 | Units grant `ReadWritePaths=/opt/cloudgene` (the code checkout), and the checkout is owned by the service user, so a compromised web or worker process can rewrite application code. | `deploy/systemd/cloudgene-web.service:25`, `cloudgene-worker.service:26`, `cloudgene-cleanup.service:21` | major |
+| DEP-SEC-023 | The code checkout is writable by the services. Details: [DEP-PROC-009 gap](process-management.md#known-gaps). | `deploy/systemd/cloudgene-web.service:25`, `cloudgene-worker.service:26`, `cloudgene-cleanup.service:21` | major |
 | DEP-SEC-009 | The smoke test runs `check --deploy` with `|| true` and only prints the output; errors never fail it. | `scripts/smoke_gunicorn.sh:51` | minor |
 | DEP-SEC-020 | If a second process loses the exclusive-create race and reads the file before the winner has written it, it gets an empty key (`settings.py:83` returns `read_text().strip()` unchecked) and fails to start. | `cloudgene_django/settings.py:80-86` | minor |
 | DEP-SEC-025 | Swagger UI pulls JS/CSS from a public CDN at view time; this is a third-party script dependency and blocks a strict CSP. | `cloudgene_django/urls.py:10`; `cloudgene_django/settings.py:276-290` (no `SWAGGER_UI_DIST`) | minor |
 | DEP-SEC-029 | No dependency audit, Dependabot or CI job exists; updates are manual. Transitive Python dependencies are not pinned (no lock file or hashes). | `requirements.txt`; `scripts/test.sh` | minor |
-| — | No `Content-Security-Policy` header at any layer (Django 6 ships `SECURE_CSP`, unused). Tracked in [reverse-proxy.md](reverse-proxy.md). | `cloudgene_django/settings.py:119-131`; `deploy/nginx.conf.example` | major |
 
 ## Open questions
 
@@ -309,8 +309,7 @@ workflow-supplied HTML is rendered with `v-html` in the SPA.
    should the reference nginx config restrict it by IP (DEP-SEC-024)?
 2. Should `/api/schema/swagger-ui/` be admin-only or disabled when DEBUG is off, or should
    Swagger UI assets be self-hosted (drf-spectacular-sidecar) so a strict CSP is possible?
-3. Should CSP be emitted by Django (`SECURE_CSP`, Django 6) or by nginx? One layer must own it;
-   [reverse-proxy.md](reverse-proxy.md) decides.
+3. (Settled) CSP is emitted by Django: [DEP-PROXY-022](reverse-proxy.md#requirements).
 4. Should the app support `SECRET_KEY_FALLBACKS` (e.g. `DJANGO_SECRET_KEY_FALLBACKS`) for
    key rotation without logging everyone out?
 5. `docs/DEPLOYMENT.md` says `check --deploy` "must report no issues", but the smoke test

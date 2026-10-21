@@ -99,7 +99,10 @@ variables (`E2E_*`, `BASE`, `SLOW_SECONDS`, `PYTHON`, `TEST_DATABASE_URL`, …) 
 - **DEP-API-022** gunicorn MUST trust forwarded headers only from `GUNICORN_FORWARDED_ALLOW_IPS`
   (default `127.0.0.1`).
 - **DEP-API-023** The application MUST NOT use `X-Forwarded-For` or `X-Real-IP` for any
-  decision. Client IP addresses are available only in nginx's access log.
+  decision, with one exception: the client address used to throttle the anonymous auth endpoints
+  MUST be taken from `X-Forwarded-For` as specified in
+  [BE-AUTH-027](../backend/authentication.md#requirements) (planned). Today client IP addresses
+  are available only in nginx's access log.
 
 ### Health
 
@@ -244,7 +247,7 @@ under `ProtectSystem=strict` (for example `RuntimeDirectory=`) and a matching ng
 |--------|--------------|------------|--------|
 | `Host` | `$host` | Django (`ALLOWED_HOSTS`) | host validation; host part of `build_absolute_uri` (e-mail links when `server.url` is empty) |
 | `X-Forwarded-Proto` | `$scheme` | Django when `DJANGO_BEHIND_TLS_PROXY=1` (any peer); gunicorn from `GUNICORN_FORWARDED_ALLOW_IPS` | `request.is_secure()`: SSL redirect decision, `https` in absolute URLs |
-| `X-Forwarded-For` | `$proxy_add_x_forwarded_for` | nobody | none |
+| `X-Forwarded-For` | `$proxy_add_x_forwarded_for` | nobody today; DRF throttling (planned, BE-AUTH-027) | client address for auth throttling (planned) |
 | `X-Real-IP` | `$remote_addr` | nobody | none |
 | `X-Forwarded-Host` | not set | nobody (`USE_X_FORWARDED_HOST` off) | none |
 
@@ -289,7 +292,7 @@ All three units run with `ProtectSystem=strict`, `ProtectHome=true`,
 
 | Process | Signal | Behaviour | Sent by |
 |---------|--------|-----------|---------|
-| gunicorn master | `HUP` | re-read `gunicorn.conf.py`, start new workers, stop old ones gracefully. With `GUNICORN_PRELOAD_APP=1` (default) application code is **not** reloaded, and the environment file is not re-read | `systemctl reload cloudgene-web` (`ExecReload`) |
+| gunicorn master | `HUP` | re-read `gunicorn.conf.py`, start new workers, stop old ones gracefully. With `GUNICORN_PRELOAD_APP=1` (default) application code is **not** reloaded ([DEP-WEB-016](web-server.md#requirements)), and the environment file is not re-read | `systemctl reload cloudgene-web` (`ExecReload`) |
 | gunicorn master | `TERM` | graceful stop: stop accepting, wait up to `GUNICORN_GRACEFUL_TIMEOUT` (30 s) for workers, then kill them | `systemctl stop/restart` |
 | gunicorn master | `INT`, `QUIT` | immediate stop | manual |
 | gunicorn master | `USR1` | reopen log files | manual / logrotate (only if logging to files) |
@@ -331,7 +334,8 @@ setting `X-Forwarded-Proto`, or both mechanisms off) makes every request redirec
 over HTTPS: a redirect loop for browsers and a 301 for probes.
 
 **Restart vs reload.** An upgrade (new code or new env values) needs `systemctl restart`, not
-`reload`, for both services: `HUP` reloads only `gunicorn.conf.py`, and the worker has no reload.
+`reload`, for both services: see [DEP-WEB-016](web-server.md#requirements) for the web and
+DEP-API-061 for the worker.
 
 ## Acceptance tests
 
@@ -384,23 +388,23 @@ over HTTPS: a redirect loop for browsers and a 301 for probes.
 
 | Requirement | What the code does | Where | Severity |
 |-------------|--------------------|-------|----------|
-| DEP-API-005 | Nothing loads `/etc/cloudgene/cloudgene.env` for one-off commands. The user docs run `sudo -u cloudgene venv/bin/python manage.py migrate` (and `collectstatic`, `create_admin`, `check --deploy`) without it; such a command silently uses the default SQLite file and `<repo>/home`, so production Postgres is never migrated and the admin is created in the wrong database. The env file is root-only (DEP-API-051), so the `cloudgene` user cannot source it either. | `deploy/systemd/*.service:EnvironmentFile`, `docs/DEPLOYMENT.md` §2–§3, §5 | major |
+| DEP-API-005 | Nothing loads `/etc/cloudgene/cloudgene.env` for one-off commands, and nothing in `deploy/` or `scripts/` runs a command with the unit environment. Settings load only `<repo>/.env`. The user docs run `sudo -u cloudgene venv/bin/python manage.py migrate` (and `collectstatic`, `create_admin`, `check --deploy`) without it; such a command silently uses SQLite at `/opt/cloudgene/db.sqlite3` and `CLOUDGENE_HOME=/opt/cloudgene/home`, so production PostgreSQL is never migrated and the admin is created in the wrong database. The env file is root-only (DEP-API-051), so the `cloudgene` user cannot source it either. This is the single home of this gap; DEP-DB-020, DEP-INST-008 and DEP-INST-021 link here. | `deploy/systemd/*.service:EnvironmentFile`; `cloudgene_django/settings.py:41,64,155-160`; `docs/DEPLOYMENT.md:79,145` (§2–§3, §5) | major |
 | DEP-API-003 | `deploy/cloudgene.env.example` claims to list every variable the app reads, but omits `CLOUDGENE_ADMIN_PASSWORD`, `GUNICORN_WORKER_CLASS`, `GUNICORN_GRACEFUL_TIMEOUT`, `GUNICORN_KEEPALIVE`, `GUNICORN_ACCESS_LOG`, `GUNICORN_ERROR_LOG`, `GUNICORN_LOG_LEVEL`, `GUNICORN_MAX_REQUESTS`, `GUNICORN_MAX_REQUESTS_JITTER`, `GUNICORN_PRELOAD_APP`. No test compares the example with the code. | `deploy/cloudgene.env.example:3-5`, `deploy/gunicorn.conf.py:31-54` | minor |
 | DEP-API-033 | With `DJANGO_SECURE_SSL_REDIRECT=1` and `ALLOWED_HOSTS` set to the public name, a local probe of `http://127.0.0.1:8000/api/health/` gets 400 (host) or 301 (redirect); health is not in `SECURE_REDIRECT_EXEMPT` and `127.0.0.1` is not allowed. `scripts/smoke_gunicorn.sh` does not set the TLS variables, so it does not exercise this. | `cloudgene_django/settings.py:91`, `:236`; `scripts/smoke_gunicorn.sh:33-38` | minor |
 | DEP-API-020, DEP-API-021 | No test sends proxied requests (Host, `X-Forwarded-Proto`) through gunicorn or nginx; the e2e stack uses `runserver` without a proxy. | `e2e/stack.py:419` | minor |
-| DEP-API-060 | `systemctl reload cloudgene-web` sends `HUP`, but with `preload_app` on (default) gunicorn does not reload application code, so a reload after an upgrade keeps running the old code with no warning. | `deploy/systemd/cloudgene-web.service:13`, `deploy/gunicorn.conf.py:54` | minor |
-| DEP-API-060 | `TimeoutStopSec=310` is justified in the unit by `GUNICORN_TIMEOUT` (300 s), but a graceful stop is bounded by `GUNICORN_GRACEFUL_TIMEOUT` (30 s): uploads longer than 30 s are cut on every restart regardless. | `deploy/systemd/cloudgene-web.service:16-18`, `deploy/gunicorn.conf.py:38` | minor |
 | DEP-API-062 | In `cloudgene-cleanup.service` a failing `cleanup_jobs` prevents `cleanup_logs` from running that day. | `deploy/systemd/cloudgene-cleanup.service:15-16` | minor |
 | DEP-API-061 | `run_worker` does not handle `HUP`; an accidental `kill -HUP` kills it without graceful shutdown. | `jobs/management/commands/run_worker.py:38-39` | minor |
-| — | `scripts/smoke_gunicorn.sh` exports `STATIC_ROOT_OVERRIDE`, which nothing reads. | `scripts/smoke_gunicorn.sh:39` | minor |
 
 ## Open questions
 
-1. Should the repository ship a wrapper (for example `scripts/manage-prod`) that runs
-   `manage.py` as `cloudgene` with `/etc/cloudgene/cloudgene.env` loaded (e.g. via
-   `systemd-run --uid=cloudgene --property=EnvironmentFile=…`), so that DEP-API-005 is met and the
-   docs can use it?
+1. How should DEP-API-005 be met? Options: ship a wrapper (for example `scripts/manage-prod`)
+   that runs `manage.py` as `cloudgene` with `/etc/cloudgene/cloudgene.env` loaded (e.g. via
+   `systemd-run --uid=cloudgene --property=EnvironmentFile=… --pipe --wait`), which the docs then
+   use; or make settings also load `/etc/cloudgene/cloudgene.env` (or a path from
+   `CLOUDGENE_ENV_FILE`). The env file is root-owned `0600` (DEP-API-051), so the `cloudgene`
+   user cannot read it directly. This is the single home of this question; database.md and
+   install-upgrade.md link here.
 2. Should `/api/health/` be added to `SECURE_REDIRECT_EXEMPT` (and `127.0.0.1` accepted for it),
    so a local probe works without crafted headers?
-3. Should `ExecReload` be removed from `cloudgene-web.service` (or `preload_app` defaulted off),
-   so `reload` cannot be mistaken for a code reload?
+3. (Moved) Removing `ExecReload` from `cloudgene-web.service`: see
+   [process-management.md](process-management.md#open-questions).

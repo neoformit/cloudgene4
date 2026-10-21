@@ -49,7 +49,8 @@ Out of scope: `settings.yaml` ([../backend/configuration.md](../backend/configur
   `.env`.
 - **DEP-ENV-002** In production all values MUST come from `/etc/cloudgene/cloudgene.env` via
   `EnvironmentFile=`. A `.env` file in `/opt/cloudgene` SHOULD NOT exist in production; if it
-  does, it can add variables that are absent from the env file.
+  does, it can add variables that are absent from the env file. One-off `manage.py` commands
+  need the same values ([DEP-API-005](api-contract.md#environment) and its gap).
 - **DEP-ENV-003** `GUNICORN_*` variables MUST be set in the process environment. They MUST NOT
   be expected to work from `.env`, because `deploy/gunicorn.conf.py` is evaluated before Django
   settings load `.env`.
