@@ -117,7 +117,10 @@ verification step; `tests.md` counts these separately. Planned tests are marked 
 `path::Class::method`; the name is a placeholder until the test exists, and `tests.md` lists it as
 a gap. Acceptance tests tables have a Layer column and list one requirement ID per row (or an
 explicit comma-separated ID list, never a range). Tests are cited by exact name:
-`path::Class::method` for Python, `path › describe › it` with exact titles for vitest.
+`path::Class::method` for Python, `path › describe › it` with exact titles for vitest. `smoke` and `config` tests may be cited as a
+script path plus step name (for example `scripts/smoke_gunicorn.sh` › "health"); a requirement on
+an operator procedure (install or upgrade order) may be covered by a planned procedure-level smoke
+script.
 
 7.2 Each section's `tests.md` defines that section's test strategy, the commands that run it, and a
 traceability table mapping every requirement ID to its tests. A requirement with no test is listed
@@ -158,7 +161,8 @@ Amendments it is unsure of go under **Pending amendments** for later human revie
 - 2026-10-21 — v1.2: 4.1 makes keyword-less requirements invalid.
 - 2026-10-21 — v1.3: 7.1 fixes the Acceptance tests citation format. Files written before v1.3
   may use older formats until they are next edited.
-- 2026-10-21 — v1.4: 7.1 adds the `smoke` and `config` test layers and host obligations.
+- 2026-10-21 — v1.4: 7.1 adds the `smoke` and `config` test layers, host obligations, and script
+  citations for smoke/config tests.
 
 ## Pending amendments
 
