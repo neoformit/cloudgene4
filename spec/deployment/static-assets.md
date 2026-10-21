@@ -61,12 +61,17 @@ Out of scope:
 
 - **DEP-STATIC-010** In production (`DEBUG=False`) the gunicorn process MUST serve every file under
   `/static/` through whitenoise without nginx configuration; nginx serving `/static/` is optional.
-- **DEP-STATIC-011** whitenoise MUST serve files from `STATIC_ROOT` (populated by
-  `manage.py collectstatic --noinput`) and, because `WHITENOISE_USE_FINDERS=True`, also directly
-  from `STATICFILES_DIRS` (`static/`), so `npm run build` alone is enough in development.
-- **DEP-STATIC-012** The SPA shell for client-side routes MUST be read from `SPA_INDEX_FILE`
-  (`static/frontend/index.html`) on each request, not from `STATIC_ROOT`; a rebuilt shell is
-  therefore live immediately, without a restart (see DEP-STATIC-031).
+- **DEP-STATIC-011** (planned) **Production static path.** With `DEBUG=False`, whitenoise MUST serve
+  `/static/` from `STATIC_ROOT` (`staticfiles/`, populated by `manage.py collectstatic --noinput`)
+  only; the finders (`static/`, the build output directory) MUST NOT be used
+  (`WHITENOISE_USE_FINDERS = DEBUG`). With `DEBUG=True`, the finders MUST be used so
+  `npm run build` alone is enough. `collectstatic` is therefore a required deploy step.
+- **DEP-STATIC-012** (planned) With `DEBUG=False`, the SPA shell MUST come from
+  `STATIC_ROOT/frontend/index.html` (the same tree as the assets) and MUST be read once per web
+  process (at start-up or first request) and served from memory afterwards; the shell a process
+  serves and the asset list whitenoise indexed at its start MUST belong to the same release. With
+  `DEBUG=True` the shell MAY be read from `static/frontend/index.html` on every request. A missing
+  shell MUST still give the 503 page (BE-SRV-041).
 - **DEP-STATIC-013** A request for a path under `/static/` that matches no file MUST return 404 and
   MUST NOT return the SPA shell, so a missing chunk fails as a load error (which FE-ROUTE-052
   detects) rather than as HTML parsed as JavaScript.
@@ -94,10 +99,15 @@ Out of scope:
   until the next-but-one release, whichever is later), so a browser tab opened before the deploy
   can still lazy-load routes it has not visited.
 - **DEP-STATIC-031** (planned) While a deploy is in progress, the shell served to a new page load and
-  the assets the running web process can serve MUST belong to the same release: a page load MUST
-  NOT reference an asset that returns 404. A deploy procedure that builds in place MUST restart the
-  web process immediately after the build (before migrations), or build into a fresh directory and
-  switch atomically.
+  the assets the running web process can serve MUST belong to the same release: no page load may
+  reference an asset that returns 404, and no request may get the 503 missing-build page. The
+  build strategy that meets this is [Release switch](#release-switch): build into `static/`
+  (never served in production, DEP-STATIC-011), add the new release to `staticfiles/` with
+  `collectstatic` (old files kept, DEP-STATIC-033), and switch with the web restart (DEP-STATIC-012).
+- **DEP-STATIC-034** (planned) `scripts/smoke_gunicorn.sh` MUST NOT clear or rewrite the
+  repository's `STATIC_ROOT` (`staticfiles/`) or `static/frontend/` of a live install; it MUST
+  collect into a throw-away directory, since the documented procedure runs it on the production
+  checkout before deploying.
 - **DEP-STATIC-032** (planned) Old hashed assets kept for DEP-STATIC-030 MUST be pruned after the
   retention window, so `STATIC_ROOT` does not grow without bound.
 - **DEP-STATIC-033** `collectstatic` in the upgrade procedure MUST NOT use `--clear`, since that
@@ -132,13 +142,27 @@ static/frontend/
   assets/*-<hash>.css, fonts # hashed
 ```
 
-### Deploy commands (static part)
+### Release switch
+
+The required production order (static part; the full procedure is
+[install-upgrade.md](install-upgrade.md) DEP-INST-021):
 
 ```bash
-(cd frontend && npm ci && npm run build)      # replaces static/frontend/ (emptyOutDir)
-python manage.py collectstatic --noinput      # copies into staticfiles/, keeps old files
-systemctl restart cloudgene-web               # whitenoise re-indexes files at start
+(cd frontend && npm ci && npm run build)   # rewrites static/frontend/ — not served in prod
+python manage.py migrate --noinput         # (not static; shown for ordering)
+python manage.py collectstatic --noinput   # adds new hashed files to staticfiles/, keeps old ones,
+                                           # overwrites staticfiles/frontend/index.html
+systemctl restart cloudgene-web            # new process: re-reads shell + re-indexes staticfiles/
 ```
+
+| Phase | Old web process serves | New page load gets | Old tab lazy-loads |
+|-------|------------------------|--------------------|--------------------|
+| build, migrate | old shell (memory) + old assets (`staticfiles/`) | old release, consistent | old chunks, 200 |
+| after `collectstatic`, before restart | unchanged (shell in memory, index from start-up) | old release, consistent | 200 |
+| after restart | new shell + old and new assets | new release | old chunks still 200 (DEP-STATIC-030) |
+
+Only unhashed files overwritten in place by `collectstatic` (admin CSS, `favicon.svg`) can be served
+inconsistently in the short gap before restart; the restart MUST follow `collectstatic` directly.
 
 ## Behaviour
 
@@ -148,8 +172,10 @@ index; otherwise the request reaches Django's URL resolver, where the SPA catch-
 `spa_index`.
 
 **File index.** With `WHITENOISE_AUTOREFRESH=False` (production), whitenoise builds its file list
-once, at process start, from `STATIC_ROOT` and then from the finders (`static/`). Files added later
-are not served until restart; files deleted later stay in the index but can no longer be opened.
+once, at process start, from `STATIC_ROOT` and then (today, `WHITENOISE_USE_FINDERS=True`) from the
+finders (`static/`), the finder entry winning for a name present in both. Files added later are not
+served until restart; files deleted later stay in the index but can no longer be opened. Required
+state (DEP-STATIC-011): `STATIC_ROOT` only, so nothing the build touches is in the served set.
 
 **Cache headers today.** whitenoise marks a file immutable only when its name is a hash produced
 by Django's manifest storage. Vite's `-<hash>` names are not recognised and no
@@ -165,11 +191,14 @@ by accident; `scripts/smoke_gunicorn.sh` uses `--clear`, an operator copying it 
 and nothing prunes `STATIC_ROOT`. When an old chunk is gone, the SPA has no fallback today
 (FE-ROUTE-052 gap): the click does nothing.
 
-**Deploy window.** Between `npm run build` and `systemctl restart cloudgene-web`, the running
-process still has the old index: `spa_index` already serves the new shell (read from disk), but the
-new hashed files are not in whitenoise's list, so new page loads get 404 for the entry chunk and
-show a blank page. Old tabs fail for chunks that were removed from `static/` and that whitenoise
-had indexed there. The documented upgrade runs `migrate` inside this window.
+**Deploy window today.** Between `npm run build` and `systemctl restart cloudgene-web`, the
+running process still has the old index: `spa_index` already serves the new shell (read from
+`static/frontend/index.html` on each request), but the new hashed files are not in whitenoise's
+list, so new page loads get 404 for the entry chunk and show a blank page (or the 503 page while
+`emptyOutDir` has removed `index.html`). Old tabs fail for chunks removed from `static/` that
+whitenoise had indexed there. The documented upgrade runs `migrate` inside this window. The
+[Release switch](#release-switch) removes the window by taking `static/` out of the served set
+and pinning the shell per process.
 
 **Missing build.** With no `static/frontend/index.html`, every SPA route returns the 503 page
 (BE-SRV-041); `/api/` keeps working.
@@ -183,9 +212,10 @@ had indexed there. The documented upgrade runs `migrate` inside this window.
 | DEP-STATIC-003 | `scripts/smoke_gunicorn.sh` step "GET a hashed static asset" (`index-<hash>.js` pattern) | smoke |
 | DEP-STATIC-004 | (planned) `core/tests/test_deploy.py::StaticConfigTest::test_build_output_is_gitignored` | config |
 | DEP-STATIC-010 | `scripts/smoke_gunicorn.sh` step "GET a hashed static asset" (200 from gunicorn, `DEBUG=False`) | smoke |
-| DEP-STATIC-011 | `scripts/smoke_gunicorn.sh` step "collectstatic (DEBUG=False → gunicorn serves from STATIC_ROOT, not the finders)" | smoke |
-| DEP-STATIC-012 | `core/tests/test_api.py::MiscRoutingTest::test_spa_catch_all_sets_csrf_cookie` | unit |
-| DEP-STATIC-012 | `core/tests/test_api.py::MiscRoutingTest::test_spa_missing_build_message` | unit |
+| DEP-STATIC-011 | (planned) `core/tests/test_deploy.py::StaticConfigTest::test_finders_off_when_debug_off` | config |
+| DEP-STATIC-011 | (planned) `scripts/smoke_gunicorn.sh` step "asset missing from staticfiles/ is 404 even if present in static/" | smoke |
+| DEP-STATIC-012 | `core/tests/test_api.py::MiscRoutingTest::test_spa_missing_build_message` (missing shell → 503) | unit |
+| DEP-STATIC-012 | (planned) `core/tests/test_api.py::MiscRoutingTest::test_spa_shell_read_once_per_process` | unit |
 | DEP-STATIC-013 | (planned) `core/tests/test_api.py::MiscRoutingTest::test_missing_static_file_is_404_not_spa` | unit |
 | DEP-STATIC-014 | (planned) `core/tests/test_deploy.py::StaticConfigTest::test_whitenoise_follows_security_middleware` | config |
 | DEP-STATIC-020 | (planned) `scripts/smoke_gunicorn.sh` step "hashed asset is immutable" (assert `Cache-Control`) | smoke |
@@ -195,6 +225,7 @@ had indexed there. The documented upgrade runs `migrate` inside this window.
 | DEP-STATIC-030 | (planned) `scripts/smoke_gunicorn.sh` step "previous release chunk still served after rebuild + restart" | smoke |
 | DEP-STATIC-031 | (planned) `scripts/smoke_gunicorn.sh` step "shell and assets consistent after rebuild" | smoke |
 | DEP-STATIC-032 | (planned) `core/tests/test_deploy.py::StaticPruneTest::test_prunes_assets_older_than_retention` | unit |
+| DEP-STATIC-034 | (planned) `core/tests/test_deploy.py::StaticConfigTest::test_smoke_script_uses_throwaway_static_root` | config |
 | DEP-STATIC-033 | (planned) `core/tests/test_deploy.py::StaticConfigTest::test_upgrade_procedure_has_no_collectstatic_clear` | config |
 
 DEP-STATIC-005 and DEP-STATIC-024 are SHOULD and have no test.
@@ -204,24 +235,25 @@ DEP-STATIC-005 and DEP-STATIC-024 are SHOULD and have no test.
 | Requirement | Current behaviour | Reference | Severity |
 |-------------|-------------------|-----------|----------|
 | DEP-STATIC-030 | Old chunks survive a redeploy only because `collectstatic` is run without `--clear`; this is not stated as a requirement anywhere in `deploy/`, not tested, and the smoke script uses `--clear`. Combined with FE-ROUTE-052, an open tab cannot navigate to an unvisited route after a redeploy that lost its chunks. | `frontend/vite.config.js:22`, `scripts/smoke_gunicorn.sh:46` | major |
-| DEP-STATIC-031 | Build happens in place while the old process runs; `spa_index` serves the new shell immediately, but whitenoise does not know the new files until restart, so new page loads are blank for the whole build → migrate → collectstatic → restart window. | `cloudgene_django/settings.py:211-214`, `core/views.py:94` | major |
+| DEP-STATIC-031 | Build happens in place in the served tree while the old process runs; `spa_index` serves the new shell immediately, but whitenoise does not know the new files until restart, so new page loads are blank (or 503) for the whole build → migrate → collectstatic → restart window. | `frontend/vite.config.js:21-22`, `cloudgene_django/settings.py:211-214`, `core/views.py:94-96` | major |
+| DEP-STATIC-011 | `WHITENOISE_USE_FINDERS=True` in every environment, so production serves the build directory directly and `collectstatic` is not actually required for the SPA. | `cloudgene_django/settings.py:212-213` | major |
+| DEP-STATIC-012 | `SPA_INDEX_FILE` is `static/frontend/index.html` in every environment and is read on every request. | `cloudgene_django/settings.py:211`, `core/views.py:94` | major |
 | DEP-STATIC-020 | Hashed Vite assets get `max-age=60` (whitenoise default) instead of a far-future immutable header; browsers revalidate every minute. | `cloudgene_django/settings.py:213-214` | minor |
 | DEP-STATIC-032 | Nothing prunes `staticfiles/`; every release's chunks accumulate. | `cloudgene_django/settings.py:210` | minor |
 | DEP-STATIC-024 | No `STORAGES` setting, so no precompressed files; whitenoise serves JS/CSS uncompressed. | `cloudgene_django/settings.py:206-216` | minor |
 | DEP-STATIC-005 | No `engines` field or `.nvmrc`; the Node version for the build is unpinned. | `frontend/package.json` | minor |
-| DEP-STATIC-011 | `scripts/smoke_gunicorn.sh:2-4,45` says that with `DEBUG=False` whitenoise serves from `STATIC_ROOT`, "not the finders"; `WHITENOISE_USE_FINDERS=True` is unconditional, so the finders are used too and the smoke test cannot detect a missing `collectstatic`. | `scripts/smoke_gunicorn.sh:45`, `cloudgene_django/settings.py:213` | minor |
+| DEP-STATIC-011 | `scripts/smoke_gunicorn.sh:2-4,45` says that with `DEBUG=False` whitenoise serves from `STATIC_ROOT`, "not the finders"; because finders are on, the smoke test cannot detect a missing `collectstatic`. | `scripts/smoke_gunicorn.sh:45`, `cloudgene_django/settings.py:213` | minor |
+| DEP-STATIC-034 | The smoke script runs `npm run build` and `collectstatic --clear` against the checkout's own `static/` and `staticfiles/` (its `STATIC_ROOT_OVERRIDE` does nothing). Run on a production host as `docs/DEPLOYMENT.md` §5 suggests, it deletes the previous release's chunks (breaking DEP-STATIC-030) and rewrites the served tree under the running process. | `scripts/smoke_gunicorn.sh:26,39,46` | major |
 | — | `scripts/smoke_gunicorn.sh:39` exports `STATIC_ROOT_OVERRIDE`, which nothing reads. | `scripts/smoke_gunicorn.sh:39` | minor |
 
 ## Open questions
 
-1. `docs/DEPLOYMENT.md` §2 says "with `DEBUG=False`, whitenoise serves from `STATIC_ROOT` … the
-   `STATICFILES_DIRS` finders it uses in dev are not consulted"; `settings.py:213` sets
-   `WHITENOISE_USE_FINDERS=True` for every environment. Which is intended? If finders should be off
-   in production, `SPA_INDEX_FILE` should also move to `STATIC_ROOT` so the shell and assets come
-   from the same place (which would also solve DEP-STATIC-031 when combined with a restart).
-2. Mechanism for DEP-STATIC-030: rely on `collectstatic` without `--clear` plus a prune command
-   (DEP-STATIC-032), or set Vite `emptyOutDir: false` and prune `static/frontend/assets/` instead?
-   The second keeps old chunks even when `collectstatic` is skipped.
+1. Settled here: production serves from `STATIC_ROOT` only (DEP-STATIC-011), matching
+   `docs/DEPLOYMENT.md` §2; the code (`settings.py:213`) diverges and is recorded as a gap. Confirm
+   the maintainer accepts that `collectstatic` becomes mandatory for the SPA in production.
+2. DEP-STATIC-030 relies on `collectstatic` without `--clear` plus a prune step (DEP-STATIC-032).
+   Should the prune be a management command run by the daily cleanup timer
+   ([process-management.md](process-management.md)), or a step in the upgrade procedure?
 3. Mechanism for DEP-STATIC-020: `WHITENOISE_IMMUTABLE_FILE_TEST` matching
    `^frontend/assets/.+-[A-Za-z0-9_-]{8,}\.\w+$`, or `CompressedManifestStaticFilesStorage` (adds
    Django-style hashes and covers admin assets, but post-processes Vite CSS and fails on missing

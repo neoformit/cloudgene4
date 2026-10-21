@@ -99,8 +99,9 @@ Out of scope:
   headroom for multipart framing and non-file fields. The headroom MUST be at least
   `DATA_UPLOAD_MAX_MEMORY_SIZE` (10 MiB); `deploy/nginx.conf.example` MUST ship a value that
   satisfies this for the default `max_upload_mb` (1024).
-- **DEP-WEB-032** gunicorn MUST NOT impose a body-size limit (it has none by default; no
-  `limit_request_*` setting may be lowered below gunicorn defaults for headers).
+- **DEP-WEB-032** gunicorn MUST NOT impose a request-body size limit (it has none by default), and
+  `deploy/gunicorn.conf.py` MUST NOT lower the `limit_request_*` header limits below gunicorn's
+  defaults.
 - **DEP-WEB-033** `DATA_UPLOAD_MAX_MEMORY_SIZE` (10 MiB) MUST bound only non-file form data; a
   multipart request whose non-file fields exceed it MUST receive 413 `upload_too_large` with the
   JSON envelope (BE-API-023), not 400 or 500.
