@@ -111,9 +111,10 @@ requirement uses `—` in the requirement column.
 the file's **Acceptance tests**, with its layer: `unit` (Django/vitest), `contract`, `e2e`
 (Playwright full stack), `smoke` (a script in `scripts/` that exits non-zero on failure) or
 `config` (static checks of deploy and CI files).
-A deployment requirement that binds the operator's host rather than the repository (for example
-monitoring or host file modes) may instead cite `—` with the note "host obligation" and a manual
-verification step; `tests.md` counts these separately. Planned tests are marked `(planned)` and MAY be named by their intended
+A deployment requirement that binds the operator's host or procedure rather than the repository
+(for example monitoring, host file modes, backup/restore order, cluster filesystem setup) may
+instead cite `—` with the note "host obligation" and a manual verification step; `tests.md`
+counts these separately as accepted untested items, not as gaps. Planned tests are marked `(planned)` and MAY be named by their intended
 `path::Class::method`; the name is a placeholder until the test exists, and `tests.md` lists it as
 a gap. Acceptance tests tables have a Layer column and list one requirement ID per row (or an
 explicit comma-separated ID list, never a range). Tests are cited by exact name:

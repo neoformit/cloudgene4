@@ -108,7 +108,12 @@ Out of scope:
   finished workspaces kept for `server.job_retention_days`. Uploads larger than 10 MB pass through
   the web unit's private `/tmp` before being copied into the workspace
   (`FILE_UPLOAD_MAX_MEMORY_SIZE`, `jobs/submission.py:374-385`), so the filesystem behind `/tmp`
-  SHOULD have room for concurrent submissions of up to `server.max_upload_mb` each.
+  SHOULD have room for concurrent submissions of up to `server.max_upload_mb` each. Because
+  `PrivateTmp=true` places that directory on the host's `/tmp`, a host whose `/tmp` is a
+  size-limited `tmpfs` MUST either size it for this peak or give the web unit a disk-backed
+  `/tmp` (for example a `BindPaths=` of a disk directory
+  onto `/tmp`); otherwise large submissions fail once `/tmp` is full. The app has no setting to move
+  the upload temp directory (`FILE_UPLOAD_TEMP_DIR` is not read from the environment).
 - **DEP-HOME-013** `cloudgene-cleanup.timer` MUST be enabled in production. It MUST run
   `cleanup_jobs` and then `cleanup_logs` daily, as `cloudgene`, with the same environment file as
   web and worker, so retention (BE-CMD-050..055, BE-CMD-060) actually happens.
@@ -257,6 +262,7 @@ sudo -u cloudgene cp -n /opt/cloudgene/home/config/nextflow.config $H/config/
 | DEP-HOME-004 | `ReadWritePaths=/opt/cloudgene /var/lib/cloudgene` is hard-coded in each unit; a different `CLOUDGENE_HOME` in the env file silently makes the home read-only (writes fail with `EROFS`). | `deploy/systemd/*.service` | minor |
 | DEP-HOME-022 | `config/worker.lock` is not in `.gitignore`; running the worker on the default home leaves an untracked file in the repo. | `.gitignore:128-135` | minor |
 | DEP-HOME-016 | The default `mail.backend` is `file`; in production an unchanged install accumulates activation and reset tokens in `mail/` forever. | `home/config/settings.yaml` (`mail.backend: file`); `core/mail.py:34-38` | minor |
+| DEP-HOME-012 | Upload temp files go to the web unit's private `/tmp`; there is no env-configurable `FILE_UPLOAD_TEMP_DIR`, so on a `tmpfs` `/tmp` concurrent large uploads can exhaust it (and RAM). | `cloudgene_django/settings.py:295`; `deploy/systemd/cloudgene-web.service` | minor |
 | DEP-HOME-001 | No deploy check warns when `CLOUDGENE_HOME` is unset with `DEBUG=False` (runtime data then lands in the checkout). | `core/checks.py` | minor |
 
 ## Open questions
