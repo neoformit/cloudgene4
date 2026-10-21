@@ -51,7 +51,7 @@ with nothing to say states "None."
 ## Article 4 — Requirements
 
 4.1 Requirements use RFC 2119 keywords (MUST, MUST NOT, SHOULD, MAY) and are individually
-testable. "Works correctly", "is fast" and similar are not requirements.
+testable. A requirement without one of these keywords is invalid and MUST be rewritten. "Works correctly", "is fast" and similar are not requirements.
 
 4.2 Every requirement has a stable ID: `<SECTION>-<AREA>-<NNN>`, e.g. `BE-JOB-004`, `FE-FORM-012`,
 `DEP-NGINX-002`. SECTION is `BE`, `FE` or `DEP`; AREA is the code assigned to the file in its
@@ -149,6 +149,7 @@ Amendments it is unsure of go under **Pending amendments** for later human revie
 - 2026-10-21 — v1.1: 5.1a exempts the OpenAPI routes and allows a listed set of untyped fields;
   5.3 interim rule for error statuses taken from code; 6.1 `—` for gaps with no requirement;
   7.1 naming of planned tests. (Proposed by backend sub-agents.)
+- 2026-10-21 — v1.2: 4.1 makes keyword-less requirements invalid.
 
 ## Pending amendments
 
@@ -164,3 +165,7 @@ For later human review. Not in force.
   whether the constitution should name this as a second sanctioned contract mechanism (shared
   case files tested on both sides), or require those rules to move into `schema.yaml`
   (patterns, min/max lengths). Raised from the accounts spec.
+- **P3 — Automated traceability check (Article 7.2).** Each `tests.md` traceability table is
+  checked by a script in the unit suite (every requirement has a row; every test cited as
+  existing exists). Unsure: it means adding tooling code to the repo, and the tables
+  are currently built by a one-off parse.
