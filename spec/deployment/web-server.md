@@ -194,17 +194,17 @@ reads from gunicorn only as fast as the client drains. A sync worker that spends
 | Requirement | Test | Layer |
 |-------------|------|-------|
 | DEP-WEB-001 | `scripts/smoke_gunicorn.sh` step "Starting gunicorn" (starts with `-c deploy/gunicorn.conf.py`, `GUNICORN_BIND`/`GUNICORN_WORKERS` overrides) | smoke |
-| DEP-WEB-002 | (planned) `core/tests/test_deploy.py::GunicornConfigTest::test_default_bind_is_loopback` | config |
-| DEP-WEB-004 | (planned) `core/tests/test_deploy.py::GunicornConfigTest::test_default_workers_formula` | config |
-| DEP-WEB-010 | (planned) `core/tests/test_deploy.py::GunicornConfigTest::test_timeout_default_300` | config |
-| DEP-WEB-011 | (planned) `core/tests/test_deploy.py::DeployFilesConsistencyTest::test_proxy_read_timeout_covers_gunicorn_timeout` | config |
-| DEP-WEB-012 | (planned) `core/tests/test_deploy.py::GunicornConfigTest::test_graceful_timeout_default` | config |
-| DEP-WEB-014 | (planned) `core/tests/test_deploy.py::GunicornConfigTest::test_max_requests_defaults` | config |
+| DEP-WEB-002 | (planned) `core/tests/test_deploy_files.py::GunicornConfigTest::test_default_bind_is_loopback` | config |
+| DEP-WEB-004 | (planned) `core/tests/test_deploy_files.py::GunicornConfigTest::test_default_workers_formula` | config |
+| DEP-WEB-010 | (planned) `core/tests/test_deploy_files.py::GunicornConfigTest::test_timeout_default_300` | config |
+| DEP-WEB-011 | (planned) `core/tests/test_deploy_files.py::DeployFilesConsistencyTest::test_proxy_read_timeout_covers_gunicorn_timeout` | config |
+| DEP-WEB-012 | (planned) `core/tests/test_deploy_files.py::GunicornConfigTest::test_graceful_timeout_default` | config |
+| DEP-WEB-014 | (planned) `core/tests/test_deploy_files.py::GunicornConfigTest::test_max_requests_defaults` | config |
 | DEP-WEB-015 | (planned) `scripts/smoke_gunicorn.sh` step "slow download of a large output survives GUNICORN_TIMEOUT" | smoke |
-| DEP-WEB-016 | (planned) `core/tests/test_deploy.py::DeployFilesConsistencyTest::test_web_unit_has_no_misleading_reload` | config |
+| DEP-WEB-016 | (planned) `core/tests/test_deploy_files.py::DeployFilesConsistencyTest::test_web_unit_has_no_misleading_reload` | config |
 | DEP-WEB-030 | `jobs/tests/test_api.py::SubmissionTest::test_upload_size_limit` | unit |
-| DEP-WEB-031 | (planned) `core/tests/test_deploy.py::DeployFilesConsistencyTest::test_client_max_body_size_covers_default_max_upload_mb` | config |
-| DEP-WEB-032 | (planned) `core/tests/test_deploy.py::GunicornConfigTest::test_no_request_limits_lowered` | config |
+| DEP-WEB-031 | (planned) `core/tests/test_deploy_files.py::DeployFilesConsistencyTest::test_client_max_body_size_covers_default_max_upload_mb` | config |
+| DEP-WEB-032 | (planned) `core/tests/test_deploy_files.py::GunicornConfigTest::test_no_request_limits_lowered` | config |
 | DEP-WEB-033 | `core/tests/test_api.py::ErrorEnvelopeHandlerTest::test_upload_suspicious_operations_are_4xx_not_500` | unit |
 | DEP-WEB-034 | (planned) `core/tests/test_deploy.py::UploadSettingsTest::test_file_upload_spool_threshold` | config |
 | DEP-WEB-035 | `jobs/tests/test_api.py::SubmissionTest::test_many_files_in_folder_input_is_a_client_error_not_500` | unit |

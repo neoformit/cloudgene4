@@ -64,7 +64,7 @@ Out of scope:
 - **DEP-DB-020** Schema changes MUST be applied with `manage.py migrate --noinput`, run as the service user with the same environment as the units (same `DATABASE_URL`, `CLOUDGENE_HOME`; [DEP-API-005](api-contract.md#environment)).
 - **DEP-DB-021** On upgrade, migrations MUST be applied after the new code is in place and before the web and worker are restarted on it.
 - **DEP-DB-022** The repository MUST contain every migration its models need: `manage.py makemigrations --check --dry-run` MUST exit 0 (run by `scripts/test.sh unit`).
-- **DEP-DB-023** No unit MAY run `migrate` automatically (see DEP-PROC-040).
+- **DEP-DB-023** A systemd unit MUST NOT run `migrate` automatically (see [DEP-PROC-040](process-management.md#requirements)); migrations are an operator step.
 
 ### One worker per database
 
@@ -166,26 +166,26 @@ run again.
 
 | Requirement | Test | Layer |
 |-------------|------|-------|
-| DEP-DB-001 | `core/tests/test_settings_db.py::DatabaseSettingsTest::test_database_url_selects_engine_and_defaults_to_sqlite` (planned) | unit |
+| DEP-DB-001 | `core/tests/test_settings_env.py::DatabaseSettingsTest::test_database_url_selects_engine_and_defaults_to_sqlite` (planned) | unit |
 | DEP-DB-002 | `core/tests/test_deploy.py::DeployEnvExampleTest::test_check_deploy_is_clean_with_the_example_env` | config |
 | DEP-DB-003 | `core/tests/test_deploy.py::DeployChecksTest::test_sqlite_warning_only_when_debug_off` | unit |
-| DEP-DB-004 | `core/tests/test_settings_db.py::DatabaseSettingsTest::test_conn_max_age_from_env` (planned) | unit |
-| DEP-DB-005 | `core/tests/test_settings_db.py::DatabaseSettingsTest::test_conn_health_checks_enabled` (planned) | unit |
+| DEP-DB-004 | `core/tests/test_settings_env.py::DatabaseSettingsTest::test_conn_max_age_from_env` (planned) | unit |
+| DEP-DB-005 | `core/tests/test_settings_env.py::DatabaseSettingsTest::test_conn_health_checks_enabled` (planned) | unit |
 | DEP-DB-006 | `jobs/tests/test_worker.py::WorkerTickConnectionTest::test_tick_closes_old_connections` (planned) | unit |
 | DEP-DB-007 | `scripts/test.sh unit --postgres` (installs nothing extra; fails at import if the driver is missing) | unit |
-| DEP-DB-010 | `core/tests/test_settings_db.py::DatabaseSettingsTest::test_sqlite_options_defaults` (planned) | unit |
-| DEP-DB-011 | `core/tests/test_settings_db.py::DatabaseSettingsTest::test_postgres_has_no_sqlite_options` (planned) | unit |
+| DEP-DB-010 | `core/tests/test_settings_env.py::DatabaseSettingsTest::test_sqlite_options_defaults` (planned) | unit |
+| DEP-DB-011 | `core/tests/test_settings_env.py::DatabaseSettingsTest::test_postgres_has_no_sqlite_options` (planned) | unit |
 | DEP-DB-012 | `e2e/tests/test_findings_jobs.py::test_a03_admin_workflow_list_does_not_write_on_every_read` (web + worker on one SQLite file) | e2e |
 | DEP-DB-020 | `scripts/smoke_gunicorn.sh` (step "Migrating a throw-away DB") | smoke |
-| DEP-DB-021 | `scripts/upgrade_smoke.sh` (planned; see DEP-INST-022) | smoke |
+| DEP-DB-021 | `scripts/smoke_upgrade.sh` (planned; see DEP-INST-022) | smoke |
 | DEP-DB-022 | `scripts/test.sh unit` (step "Migrations up to date") | unit |
-| DEP-DB-023 | `core/tests/test_deploy_units.py::SystemdUnitsTest::test_unit_command_map` (planned) | config |
+| DEP-DB-023 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_unit_command_map` (planned) | config |
 | DEP-DB-030 | `jobs/tests/test_worker.py::RunWorkerCommandTest::test_once_and_single_instance_lock` | unit |
 | DEP-DB-031 | `jobs/tests/test_claim_concurrency.py::ClaimConcurrencyTest::test_two_concurrent_claims_never_take_the_same_job`, `jobs/tests/test_claim_concurrency.py::ClaimConcurrencyTest::test_many_jobs_claimed_by_racing_workers_are_each_claimed_exactly_once` (PostgreSQL only) | unit |
-| DEP-DB-040 | `scripts/backup_restore_smoke.sh` (planned) | smoke |
-| DEP-DB-042 | `scripts/backup_restore_smoke.sh` (planned, SQLite mode) | smoke |
+| DEP-DB-040 | `scripts/smoke_backup_restore.sh` (planned) | smoke |
+| DEP-DB-042 | `scripts/smoke_backup_restore.sh` (planned, SQLite mode) | smoke |
 | DEP-DB-043 | `jobs/tests/test_worker.py::OrphanTest::test_orphan_running_job_is_failed_and_its_group_killed` | unit |
-| DEP-DB-044 | `core/tests/test_settings_db.py::SecretKeyRotationTest::test_sessions_invalid_after_key_change` (planned) | unit |
+| DEP-DB-044 | `core/tests/test_settings_env.py::SecretKeyRotationTest::test_sessions_invalid_after_key_change` (planned) | unit |
 | DEP-DB-050 | `jobs/tests/test_claim_concurrency.py::ClaimConcurrencyTest::test_two_concurrent_claims_never_take_the_same_job` (skips on SQLite) | unit |
 | DEP-DB-051 | `scripts/test.sh unit --postgres` | unit |
 | DEP-DB-052 | `e2e/tests/test_stack.py::test_postgres_stack_creates_and_drops_its_database` (planned; today exercised only by running the suite with `E2E_DATABASE_URL` set) | e2e |

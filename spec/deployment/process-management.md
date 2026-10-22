@@ -158,31 +158,31 @@ exits non-zero, systemd does not run `cleanup_logs` and marks the service failed
 
 | Requirement | Test | Layer |
 |-------------|------|-------|
-| DEP-PROC-001 | `core/tests/test_deploy_units.py::SystemdUnitsTest::test_units_run_as_cloudgene_user` (planned) | config |
-| DEP-PROC-002 | `core/tests/test_deploy_units.py::SystemdUnitsTest::test_units_share_environment_file_and_workdir` (planned) | config |
-| DEP-PROC-003 | `core/tests/test_deploy_units.py::SystemdUnitsTest::test_units_use_venv_binaries` (planned) | config |
-| DEP-PROC-004 | `core/tests/test_deploy_units.py::SystemdUnitsTest::test_units_sandboxed` (planned) | config |
-| DEP-PROC-005 | `core/tests/test_deploy_units.py::SystemdUnitsTest::test_read_write_paths_cover_cloudgene_home` (planned) | config |
-| DEP-PROC-006 | `core/tests/test_deploy_units.py::SystemdUnitsTest::test_worker_read_write_paths_cover_nextflow_home` (planned) | config |
-| DEP-PROC-008 | `core/tests/test_deploy_units.py::SystemdUnitsTest::test_units_ordered_after_postgresql` (planned) | config |
-| DEP-PROC-009 | `core/tests/test_deploy_units.py::SystemdUnitsTest::test_read_write_paths_exclude_code_checkout` (planned) | config |
-| DEP-PROC-010 | `core/tests/test_deploy_units.py::SystemdUnitsTest::test_web_execstart` (planned); gunicorn command line also exercised by `scripts/smoke_gunicorn.sh` | config, smoke |
-| DEP-PROC-011 | `core/tests/test_deploy_units.py::SystemdUnitsTest::test_web_and_worker_restart_always` (planned) | config |
-| DEP-PROC-012 | `core/tests/test_deploy_units.py::SystemdUnitsTest::test_web_reload_sends_hup` (planned) | config |
-| DEP-PROC-013 | `core/tests/test_deploy_units.py::SystemdUnitsTest::test_web_stop_timeout_exceeds_graceful_timeout` (planned) | config |
-| DEP-PROC-014 | `core/tests/test_deploy_units.py::SystemdUnitsTest::test_install_targets` (planned) | config |
-| DEP-PROC-020 | `core/tests/test_deploy_units.py::SystemdUnitsTest::test_worker_execstart` (planned) | config |
+| DEP-PROC-001 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_units_run_as_cloudgene_user` (planned) | config |
+| DEP-PROC-002 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_units_share_environment_file_and_workdir` (planned) | config |
+| DEP-PROC-003 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_units_use_venv_binaries` (planned) | config |
+| DEP-PROC-004 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_units_sandboxed` (planned) | config |
+| DEP-PROC-005 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_read_write_paths_cover_cloudgene_home` (planned) | config |
+| DEP-PROC-006 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_worker_read_write_paths_cover_nextflow_home` (planned) | config |
+| DEP-PROC-008 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_units_ordered_after_postgresql` (planned) | config |
+| DEP-PROC-009 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_read_write_paths_exclude_code_checkout` (planned) | config |
+| DEP-PROC-010 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_web_execstart` (planned); gunicorn command line also exercised by `scripts/smoke_gunicorn.sh` | config, smoke |
+| DEP-PROC-011 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_web_and_worker_restart_always` (planned) | config |
+| DEP-PROC-012 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_web_reload_sends_hup` (planned) | config |
+| DEP-PROC-013 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_web_stop_timeout_exceeds_graceful_timeout` (planned) | config |
+| DEP-PROC-014 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_install_targets` (planned) | config |
+| DEP-PROC-020 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_worker_execstart` (planned) | config |
 | DEP-PROC-021 | `jobs/tests/test_worker.py::RunWorkerCommandTest::test_once_and_single_instance_lock` | unit |
-| DEP-PROC-022 | `jobs/tests/test_worker.py::RunWorkerCommandTest::test_once_and_single_instance_lock`; `core/tests/test_deploy_units.py::SystemdUnitsTest::test_web_and_worker_restart_always` (planned) | unit, config |
+| DEP-PROC-022 | `jobs/tests/test_worker.py::RunWorkerCommandTest::test_once_and_single_instance_lock`; `core/tests/test_deploy_files.py::SystemdUnitsTest::test_web_and_worker_restart_always` (planned) | unit, config |
 | DEP-PROC-023 | `jobs/tests/test_worker.py::ShutdownTest::test_shutdown_stops_running_jobs`; `jobs/tests/test_worker.py::RunWorkerCommandTest::test_sigterm_stops_gracefully` (planned) | unit |
-| DEP-PROC-024 | `core/tests/test_deploy_units.py::SystemdUnitsTest::test_worker_stop_timeout_covers_max_running_jobs` (planned) | config |
+| DEP-PROC-024 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_worker_stop_timeout_covers_max_running_jobs` (planned) | config |
 | DEP-PROC-025 | `jobs/tests/test_worker.py::OrphanTest::test_orphan_running_job_is_failed_and_its_group_killed` (recovery side only); systemd behaviour not tested | unit |
-| DEP-PROC-026 | `core/tests/test_deploy_units.py::SystemdUnitsTest::test_install_targets` (planned) | config |
-| DEP-PROC-030 | `core/tests/test_deploy_units.py::SystemdUnitsTest::test_cleanup_runs_both_commands` (planned) | config |
-| DEP-PROC-031 | `core/tests/test_deploy_units.py::SystemdUnitsTest::test_install_targets` (planned) | config |
-| DEP-PROC-032 | `core/tests/test_deploy_units.py::SystemdUnitsTest::test_cleanup_timer_schedule` (planned) | config |
+| DEP-PROC-026 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_install_targets` (planned) | config |
+| DEP-PROC-030 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_cleanup_runs_both_commands` (planned) | config |
+| DEP-PROC-031 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_install_targets` (planned) | config |
+| DEP-PROC-032 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_cleanup_timer_schedule` (planned) | config |
 | DEP-PROC-033 | `jobs/tests/test_api.py::CleanupCommandTest::test_retention` | unit |
-| DEP-PROC-040 | `core/tests/test_deploy_units.py::SystemdUnitsTest::test_unit_command_map` (planned) | config |
+| DEP-PROC-040 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_unit_command_map` (planned) | config |
 
 ## Known gaps
 

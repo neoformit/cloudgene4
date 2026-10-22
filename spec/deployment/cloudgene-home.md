@@ -226,11 +226,11 @@ sudo -u cloudgene cp -n /opt/cloudgene/home/config/nextflow.config $H/config/
 
 | Requirement | Test | Layer |
 |-------------|------|-------|
-| DEP-HOME-001 | `core/tests/test_deploy.py::SystemdUnitsTest::test_units_share_environment_file` (planned) | config |
+| DEP-HOME-001 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_units_share_environment_file` (planned) | config |
 | DEP-HOME-001 | `core/tests/test_deploy.py::DeployEnvExampleTest::test_check_deploy_is_clean_with_the_example_env` | config |
-| DEP-HOME-002 | `core/tests/test_deploy.py::SystemdUnitsTest::test_units_run_as_cloudgene` (planned) | config |
-| DEP-HOME-003 | `core/tests/test_deploy.py::SystemdUnitsTest::test_units_set_restrictive_umask` (planned) | config |
-| DEP-HOME-004 | `core/tests/test_deploy.py::SystemdUnitsTest::test_read_write_paths_include_cloudgene_home` (planned) | config |
+| DEP-HOME-002 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_units_run_as_cloudgene` (planned) | config |
+| DEP-HOME-003 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_units_set_restrictive_umask` (planned) | config |
+| DEP-HOME-004 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_read_write_paths_include_cloudgene_home` (planned) | config |
 | DEP-HOME-005 | `jobs/tests/test_worker.py::RunWorkerCommandTest::test_once_and_single_instance_lock` | unit |
 | DEP-HOME-005 | `core/tests/test_config.py::ConfigWriteTest::test_concurrent_writers_from_processes_do_not_lose_updates` | unit |
 | DEP-HOME-006 | `core/tests/test_config.py::ConfigLoadTest::test_missing_file_yields_defaults` | unit |
@@ -239,14 +239,16 @@ sudo -u cloudgene cp -n /opt/cloudgene/home/config/nextflow.config $H/config/
 | DEP-HOME-008 | `core/tests/test_config.py::ConfigWriteTest::test_existing_file_mode_is_preserved` (planned) | unit |
 | DEP-HOME-008 | `core/tests/test_config.py::ConfigWriteTest::test_new_settings_file_is_owner_only` (planned, BE-CONF-015) | unit |
 | DEP-HOME-010 | — host obligation; manual verification: `stat -c '%U %a' $CLOUDGENE_HOME/config/secret_key` prints `cloudgene 600` after a restore | — |
-| DEP-HOME-013 | `core/tests/test_deploy.py::SystemdUnitsTest::test_cleanup_timer_runs_both_commands_daily` (planned) | config |
+| DEP-HOME-011 | — host obligation; manual verification: for each app installed in place, `sudo systemd-run --pty -p ProtectHome=true -p User=cloudgene ls <app path>` succeeds | — |
+| DEP-HOME-012 | — host obligation; manual verification: `df -h $CLOUDGENE_HOME/jobs /tmp` against the sizing rule before go-live and after raising `max_running_jobs` or `job_retention_days` | — |
+| DEP-HOME-013 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_cleanup_timer_runs_both_commands_daily` (planned) | config |
 | DEP-HOME-013 | `jobs/tests/test_api.py::CleanupCommandTest::test_retention` | unit |
 | DEP-HOME-013 | `admin_panel/tests/test_api.py::LogsTest::test_cleanup_logs` | unit |
-| DEP-HOME-014 | procedural (no automated test) | — |
+| DEP-HOME-014 | — host obligation; manual verification: with `job_retention_days: 0`, confirm the disk-space alert of DEP-OBS-014 covers `jobs/` | — |
 | DEP-HOME-015 | `jobs/tests/test_api.py::CleanupCommandTest::test_external_work_dir_removed` (planned, BE-QUEUE-027) | unit |
-| DEP-HOME-017 | procedural (no automated test) | — |
-| DEP-HOME-018 | procedural (no automated test) | — |
-| DEP-HOME-019 | procedural (no automated test) | — |
+| DEP-HOME-017 | — host obligation; manual verification: list the latest backup and confirm `config/`, `pages/` and `apps/` are present | — |
+| DEP-HOME-018 | — host obligation; manual verification: backup files and their storage are readable only by root/backup operators | — |
+| DEP-HOME-019 | — host obligation; manual verification: for each app with a path outside `CLOUDGENE_HOME` in `settings.yaml`, a backup or reproducible source exists | — |
 | DEP-HOME-020 | `e2e/tests/test_queue.py::test_worker_restart_fails_orphans_and_queue_continues` (worker half only) | e2e |
 | DEP-HOME-020 | `jobs/tests/test_api.py::CleanupCommandTest::test_retention` (orphan removal rule) | unit |
 | DEP-HOME-021 | `core/tests/test_config.py::CommittedHomeTest::test_committed_layout` | unit |

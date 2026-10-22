@@ -202,25 +202,25 @@ unit is marked failed (DEP-OBS-015).
 
 | Requirement | Test | Layer |
 |-------------|------|-------|
-| DEP-OBS-001 | (planned) `core/tests/test_deploy.py::SystemdUnitsTest::test_units_log_to_journal` (no `StandardOutput=file:`; gunicorn logs `-`) | config |
-| DEP-OBS-002 | (planned) `core/tests/test_deploy.py::GunicornConfigTest::test_log_targets_default_to_stdio` | config |
+| DEP-OBS-001 | (planned) `core/tests/test_deploy_files.py::SystemdUnitsTest::test_units_log_to_journal` (no `StandardOutput=file:`; gunicorn logs `-`) | config |
+| DEP-OBS-002 | (planned) `core/tests/test_deploy_files.py::GunicornConfigTest::test_log_targets_default_to_stdio` | config |
 | DEP-OBS-003 | `core/tests/test_deploy.py::JsonFormatterTest::test_produces_valid_json_with_expected_keys` | unit |
 | DEP-OBS-003 | `core/tests/test_deploy.py::JsonFormatterTest::test_extra_data_is_included` | unit |
 | DEP-OBS-003 | (planned) `core/tests/test_deploy.py::JsonFormatterTest::test_traceback_stays_on_one_line` | unit |
 | DEP-OBS-004 | (planned) `core/tests/test_deploy.py::DeployEnvExampleTest::test_example_uses_json_logging` | config |
 | DEP-OBS-005 | (planned) `core/tests/test_deploy.py::LogLevelTest::test_unknown_log_level_fails_startup` | config |
-| DEP-OBS-006 | (planned) `core/tests/test_deploy.py::GunicornConfigTest::test_access_log_uses_forwarded_client_ip` | config |
-| DEP-OBS-007 | none (host configuration); manual check in [install-upgrade.md](install-upgrade.md) | — |
-| DEP-OBS-008 | none (host configuration) | — |
-| DEP-OBS-009 | (planned) `core/tests/test_deploy.py::SystemdUnitsTest::test_cleanup_service_runs_cleanup_logs` | config |
-| DEP-OBS-010 | (planned) `core/tests/test_deploy.py::SystemdUnitsTest::test_cleanup_service_runs_cleanup_jobs` | config |
+| DEP-OBS-006 | (planned) `core/tests/test_deploy_files.py::GunicornConfigTest::test_access_log_uses_forwarded_client_ip` | config |
+| DEP-OBS-007 | — host obligation; manual verification: `ls -l /var/log/nginx/access.log` shows group `adm` and mode without world read; `journalctl` as `cloudgene` without `systemd-journal` membership shows no other units | — |
+| DEP-OBS-008 | — host obligation; manual verification: `journalctl --disk-usage` stays under `SystemMaxUse`; if a gunicorn log file is configured, a logrotate rule with `postrotate kill -USR1` exists | — |
+| DEP-OBS-009 | (planned) `core/tests/test_deploy_files.py::SystemdUnitsTest::test_cleanup_service_runs_cleanup_logs` | config |
+| DEP-OBS-010 | (planned) `core/tests/test_deploy_files.py::SystemdUnitsTest::test_cleanup_service_runs_cleanup_jobs` | config |
 | DEP-OBS-011 | `core/tests/test_api.py::HealthTest::test_health_db_down` | unit |
 | DEP-OBS-011 | `core/tests/test_api.py::HealthTest::test_health_without_worker` | unit |
 | DEP-OBS-012 | `core/tests/test_api.py::HealthTest::test_health_with_fresh_and_stale_heartbeat` | unit |
 | DEP-OBS-013 | `core/tests/test_api.py::HealthTest::test_health_reports_a_broken_settings_file` | unit |
 | DEP-OBS-013 | `e2e/tests/test_findings_admin.py::test_c02_invalid_settings_value_does_not_take_the_site_down` | e2e |
-| DEP-OBS-014 | none (host monitoring) | — |
-| DEP-OBS-015 | none (host monitoring) | — |
+| DEP-OBS-014 | — host obligation; manual verification: the monitoring system has a free-space alert for each filesystem listed | — |
+| DEP-OBS-015 | — host obligation; manual verification: `systemctl start cloudgene-cleanup` with a broken env and confirm the failed-unit alert fires | — |
 | DEP-OBS-016 | (planned) `core/tests/test_api.py::HealthTest::test_health_reports_queue_state` | unit |
 | DEP-OBS-017 | `scripts/smoke_gunicorn.sh` step "GET /api/health" | smoke |
 | DEP-OBS-018 | — host obligation. Manual: run the preflight command of DEP-OBS-018 with the worker unit's `ReadWritePaths=`; it MUST exit 0 and print the expected Nextflow version. | — |

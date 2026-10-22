@@ -287,15 +287,15 @@ DEP-PROXY-024](reverse-proxy.md#requirements).
 | DEP-SEC-018 | `core/tests/test_deploy.py::PasswordHasherTest::test_pbkdf2_hash_is_upgraded_to_argon2_on_login` | unit |
 | DEP-SEC-019 | (planned) `core/tests/test_deploy.py::InsecureHasherSettingTest::test_md5_ignored_without_debug_or_e2e` | config |
 | DEP-SEC-020 | (planned) `core/tests/test_deploy.py::GitignoreTest::test_secret_key_ignored` | config |
-| DEP-SEC-021 | (planned) covered by DEP-SEC-022's check once it also inspects `EnvironmentFile`; none today | — |
+| DEP-SEC-021 | — host obligation (multi-host deployments only); manual verification: `DJANGO_SECRET_KEY` is set and identical in every host's env file; (planned) covered by DEP-SEC-022's check once it also inspects `EnvironmentFile` | — |
 | DEP-SEC-022 | (planned) `core/tests/test_deploy.py::DeployChecksTest::test_secret_files_permission_warning` | unit |
-| DEP-SEC-023 | (planned) `core/tests/test_deploy.py::SystemdUnitsTest::test_units_run_unprivileged_and_sandboxed` | config |
+| DEP-SEC-023 | (planned) `core/tests/test_deploy_files.py::SystemdUnitsTest::test_units_run_unprivileged_and_sandboxed` | config |
 | DEP-SEC-024 | `accounts/tests.py::DjangoAdminLockoutTest::test_locked_account_rejected_with_correct_password` | unit |
 | DEP-SEC-024 | `e2e/tests/test_findings_security.py::test_b01_django_admin_login_bypasses_lockout` | e2e |
 | DEP-SEC-025 | `e2e/tests/test_findings_security.py::test_permission_matrix_public` | e2e |
-| DEP-SEC-026 | (planned) `core/tests/test_deploy.py::NginxConfigTest::test_auth_endpoints_rate_limited` | config |
-| DEP-SEC-027 | (planned) `core/tests/test_deploy.py::RequirementsPinTest::test_all_requirements_pinned` | config |
-| DEP-SEC-028 | (planned) `core/tests/test_deploy.py::RequirementsPinTest::test_package_lock_committed` | config |
+| DEP-SEC-026 | (planned) `core/tests/test_deploy_files.py::NginxExampleTest::test_auth_endpoints_rate_limited` | config |
+| DEP-SEC-027 | (planned) `core/tests/test_harness_scripts.py::RequirementsPinTest::test_all_requirements_pinned` | config |
+| DEP-SEC-028 | (planned) `core/tests/test_harness_scripts.py::RequirementsPinTest::test_package_lock_committed` | config |
 
 ## Known gaps
 

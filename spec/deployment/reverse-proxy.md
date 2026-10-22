@@ -231,22 +231,22 @@ a `<script>` element inserted by `v-html` does not run, but event-handler attrib
 
 | Requirement | Test | Layer |
 |-------------|------|-------|
-| DEP-PROXY-001 | (planned) `core/tests/test_deploy.py::NginxExampleTest::test_port_80_redirects_except_acme` | config |
-| DEP-PROXY-002 | (planned) `core/tests/test_deploy.py::NginxExampleTest::test_tls_protocols` | config |
-| DEP-PROXY-004 | (planned) `core/tests/test_deploy.py::NginxExampleTest::test_proxy_pass_targets_loopback` | config |
-| DEP-PROXY-005 | (planned) `core/tests/test_deploy.py::NginxExampleTest::test_no_hsts_or_csp_add_header` | config |
-| DEP-PROXY-010 | (planned) `core/tests/test_deploy.py::NginxExampleTest::test_forwarding_headers_present` | config |
+| DEP-PROXY-001 | (planned) `core/tests/test_deploy_files.py::NginxExampleTest::test_port_80_redirects_except_acme` | config |
+| DEP-PROXY-002 | (planned) `core/tests/test_deploy_files.py::NginxExampleTest::test_tls_protocols` | config |
+| DEP-PROXY-004 | (planned) `core/tests/test_deploy_files.py::NginxExampleTest::test_proxy_pass_targets_loopback` | config |
+| DEP-PROXY-005 | (planned) `core/tests/test_deploy_files.py::NginxExampleTest::test_no_hsts_or_csp_add_header` | config |
+| DEP-PROXY-010 | (planned) `core/tests/test_deploy_files.py::NginxExampleTest::test_forwarding_headers_present` | config |
 | DEP-PROXY-011 | (planned) `core/tests/test_deploy.py::ProxySslHeaderTest::test_forwarded_https_is_secure_and_not_redirected` | unit |
-| DEP-PROXY-012 | (planned) `core/tests/test_deploy.py::DeployFilesConsistencyTest::test_client_max_body_size_covers_default_max_upload_mb` | config |
-| DEP-PROXY-013 | (planned) `core/tests/test_deploy.py::NginxExampleTest::test_api_413_returns_json_envelope` | config |
-| DEP-PROXY-015 | (planned) `core/tests/test_deploy.py::DeployFilesConsistencyTest::test_proxy_read_timeout_covers_gunicorn_timeout` | config |
-| DEP-PROXY-016 | (planned) `core/tests/test_deploy.py::NginxExampleTest::test_static_location_cache_policy` | config |
-| DEP-PROXY-020 | (planned) `core/tests/test_api.py::SecurityHeadersTest::test_spa_shell_security_headers` | unit |
-| DEP-PROXY-021 | (planned) `core/tests/test_api.py::SecurityHeadersTest::test_spa_shell_has_csp` | unit |
+| DEP-PROXY-012 | (planned) `core/tests/test_deploy_files.py::DeployFilesConsistencyTest::test_client_max_body_size_covers_default_max_upload_mb` | config |
+| DEP-PROXY-013 | (planned) `core/tests/test_deploy_files.py::NginxExampleTest::test_api_413_returns_json_envelope` | config |
+| DEP-PROXY-015 | (planned) `core/tests/test_deploy_files.py::DeployFilesConsistencyTest::test_proxy_read_timeout_covers_gunicorn_timeout` | config |
+| DEP-PROXY-016 | (planned) `core/tests/test_deploy_files.py::NginxExampleTest::test_static_location_cache_policy` | config |
+| DEP-PROXY-020 | (planned) `core/tests/test_deploy.py::SecurityHeadersTest::test_spa_shell_security_headers` | unit |
+| DEP-PROXY-021 | (planned) `core/tests/test_deploy.py::SecurityHeadersTest::test_spa_shell_has_csp` | unit |
 | DEP-PROXY-021 | (planned) `e2e/tests/test_csp.py::test_v_html_event_handler_does_not_execute` | e2e |
-| DEP-PROXY-022 | (planned) `core/tests/test_deploy.py::NginxExampleTest::test_no_hsts_or_csp_add_header` | config |
+| DEP-PROXY-022 | (planned) `core/tests/test_deploy_files.py::NginxExampleTest::test_no_hsts_or_csp_add_header` | config |
 | DEP-PROXY-023 | (planned) `jobs/tests/test_api.py::DownloadHeadersTest::test_sandbox_csp_survives_global_policy` | unit |
-| DEP-PROXY-024 | (planned) `core/tests/test_api.py::SecurityHeadersTest::test_swagger_ui_policy_scoped_to_its_path` | unit |
+| DEP-PROXY-024 | (planned) `core/tests/test_deploy.py::SecurityHeadersTest::test_swagger_ui_policy_scoped_to_its_path` | unit |
 
 DEP-PROXY-003, -014, -017 and -025 are SHOULD/MAY and have no test.
 

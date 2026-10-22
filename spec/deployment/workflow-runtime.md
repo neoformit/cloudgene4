@@ -247,17 +247,17 @@ executor {
 | DEP-RT-005 | `jobs/tests/test_command_steps.py::CommandStepWorkerTest::test_missing_executable` | unit |
 | DEP-RT-005 | `e2e/tests/test_command_steps.py::test_command_steps_run_and_show_output` | e2e |
 | DEP-RT-006 | `scripts/smoke_runtime.sh` (planned: launcher run writes to `NXF_HOME` inside the sandbox) | smoke |
-| DEP-RT-008 | procedural (no automated test) | — |
-| DEP-RT-009 | `core/tests/test_deploy.py::SystemdUnitsTest::test_worker_read_write_paths_exclude_code_checkout` (planned) | config |
+| DEP-RT-008 | — host obligation; manual verification: review the admin user list (`/admin/users`) against the people allowed a shell as `cloudgene` | — |
+| DEP-RT-009 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_worker_read_write_paths_exclude_code_checkout` (planned) | config |
 | DEP-RT-009 | `e2e/tests/test_findings_jobs.py::test_a04_per_app_work_dir_is_an_allowed_output_root` | e2e |
-| DEP-RT-011 | procedural (no automated test) | — |
-| DEP-RT-012 | procedural (no automated test) | — |
+| DEP-RT-011 | — host obligation; manual verification (cluster executors only): on a compute node, `ls $CLOUDGENE_HOME/jobs` and each `work_dir` show the same paths as on the worker host, and the scheduler client is on the step `PATH` | — |
+| DEP-RT-012 | — host obligation; manual verification: `id cloudgene` does not list `docker`; image cache variables point under `ReadWritePaths=` | — |
 | DEP-RT-013 | `jobs/tests/test_worker.py::WorkerSuccessTest::test_global_env_file_blanks_inherited_variables` (planned) | unit |
 | DEP-RT-013 | `core/tests/test_deploy.py::NextflowEnvTest::test_shipped_nextflow_env_blanks_server_secrets` (planned) | config |
 | DEP-RT-013 | `jobs/tests/test_worker.py::test_server_secrets_not_in_step_env` (planned, BE-RUN-019) | unit |
 | DEP-RT-014 | `scripts/smoke_runtime.sh` (planned: `psql` as `cloudgene` without a password is refused) | smoke |
-| DEP-RT-015 | `core/tests/test_deploy.py::SystemdUnitsTest::test_worker_read_write_paths_exclude_code_checkout` (planned) | config |
-| DEP-RT-016 | `core/tests/test_deploy.py::SystemdUnitsTest::test_web_and_worker_are_separate_units` (planned) | config |
+| DEP-RT-015 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_worker_read_write_paths_exclude_code_checkout` (planned) | config |
+| DEP-RT-016 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_web_and_worker_are_separate_units` (planned) | config |
 | DEP-RT-018 | `scripts/smoke_runtime.sh` (planned: a step cannot read another job's workspace) | smoke |
 | DEP-RT-019 | `scripts/smoke_runtime.sh` (planned: launcher reaches its download host, or `NXF_OFFLINE` is set) | smoke |
 

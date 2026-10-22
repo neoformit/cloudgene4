@@ -187,10 +187,10 @@ graceful timeout. Neither restart loses queued work.
 | DEP-ARCH-005 | `scripts/smoke_gunicorn.sh` step "GET a hashed static asset" | smoke |
 | DEP-ARCH-006 | `core/tests/test_platform.py::NoCeleryChannelsTest::test_django_boots_without_celery_channels_redis` | unit |
 | DEP-ARCH-010 | `jobs/tests/test_worker.py::RunWorkerCommandTest::test_once_and_single_instance_lock` | unit |
-| DEP-ARCH-011 | none (operator rule; see Known gaps) | — |
+| DEP-ARCH-011 | — host obligation; manual verification: `systemctl is-enabled cloudgene-worker` is `enabled` on exactly one host per database | — |
 | DEP-ARCH-020 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_paths_and_user` (planned) | config |
 | DEP-ARCH-021 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_paths_and_user` (planned) | config |
-| DEP-ARCH-022 | none (host provisioning; checked manually at install) | — |
+| DEP-ARCH-022 | — host obligation; manual verification at install: `python3 --version` ≥ 3.12, `nginx -V` lists `http_ssl_module` and `http_v2_module`, `sudo -u cloudgene java -version` and `nextflow -version` succeed | — |
 | DEP-ARCH-030 | `core/tests/test_deploy.py::DeployEnvExampleTest::test_check_deploy_is_clean_with_the_example_env` | config |
 | DEP-ARCH-031 | `core/tests/test_deploy.py::DeployEnvExampleTest::test_check_deploy_is_clean_with_the_example_env` | config |
 

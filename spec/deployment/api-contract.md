@@ -341,7 +341,7 @@ DEP-API-061 for the worker.
 | Requirement | Test | Layer |
 |-------------|------|-------|
 | DEP-API-001 | `core/tests/test_deploy_files.py::EnvContractTest::test_every_env_read_is_in_env_example` (planned) | config |
-| DEP-API-002 | `core/tests/test_deploy_files.py::ConsistencyTest::test_bind_paths_and_user_agree` (planned) | config |
+| DEP-API-002 | `core/tests/test_deploy_files.py::DeployFilesConsistencyTest::test_bind_paths_and_user_agree` (planned) | config |
 | DEP-API-003 | `core/tests/test_deploy_files.py::EnvContractTest::test_every_env_read_is_in_env_example` (planned) | config |
 | DEP-API-004 | `core/tests/test_deploy.py::DeployChecksTest::test_sqlite_warning_only_when_debug_off` | unit |
 | DEP-API-004 | `core/tests/test_deploy.py::DeployChecksTest::test_allowed_hosts_wildcard_warning` | unit |
@@ -353,19 +353,19 @@ DEP-API-061 for the worker.
 | DEP-API-006 | `core/tests/test_deploy.py::InsecureHashingCheckTest::test_clean_when_e2e_flag_set` | unit |
 | DEP-API-006 | `core/tests/test_deploy.py::InsecureHashingCheckTest::test_clean_when_debug` | unit |
 | DEP-API-006 | `core/tests/test_deploy.py::InsecureHashingCheckTest::test_clean_when_flag_unset` | unit |
-| DEP-API-011 | `core/tests/test_deploy_files.py::ConsistencyTest::test_bind_paths_and_user_agree` (planned) | config |
-| DEP-API-012 | none (no listening code exists in worker/cleanup; inspected) | — |
+| DEP-API-011 | `core/tests/test_deploy_files.py::DeployFilesConsistencyTest::test_bind_paths_and_user_agree` (planned) | config |
+| DEP-API-012 | `core/tests/test_deploy_files.py::ListenSocketTest::test_only_web_process_binds_a_socket` (planned; static scan of worker and cleanup command modules for `bind`/`listen`) | config |
 | DEP-API-020 | `core/tests/test_proxy.py::ProxyHeaderTest::test_unknown_host_is_400` (planned) | unit |
 | DEP-API-021 | `core/tests/test_proxy.py::ProxyHeaderTest::test_forwarded_proto_marks_request_secure` (planned) | unit |
 | DEP-API-022 | `core/tests/test_deploy_files.py::GunicornConfigTest::test_forwarded_allow_ips_default` (planned) | config |
-| DEP-API-023 | none (no code reads these headers; inspected) | — |
+| DEP-API-023 | `core/tests/test_proxy.py::ProxyHeaderTest::test_no_code_reads_forwarded_for_or_real_ip` (planned; static scan, allow-list BE-AUTH-027) | config |
 | DEP-API-030 | `core/tests/test_api.py::HealthTest::test_health_without_worker` | unit |
 | DEP-API-030 | `core/tests/test_api.py::HealthTest::test_health_with_fresh_and_stale_heartbeat` | unit |
 | DEP-API-030 | `core/tests/test_api.py::HealthTest::test_health_reports_a_broken_settings_file` | unit |
 | DEP-API-030 | `core/tests/test_api.py::HealthTest::test_health_db_down` | unit |
 | DEP-API-030 | `scripts/smoke_gunicorn.sh` step "GET /api/health" | smoke |
-| DEP-API-031 | none (operator rule) | — |
-| DEP-API-032 | none (operator rule; see [observability.md](observability.md)) | — |
+| DEP-API-031 | — host obligation; manual verification: stop `cloudgene-worker` and confirm the probe still reports the web process healthy (health answers 200 `degraded`) | — |
+| DEP-API-032 | — host obligation; manual verification: stop `cloudgene-worker` for two probe intervals and confirm an alert fires | — |
 | DEP-API-033 | `scripts/smoke_gunicorn.sh` with TLS env set (planned) | smoke |
 | DEP-API-040 | `scripts/smoke_gunicorn.sh` step "GET a hashed static asset" | smoke |
 | DEP-API-041 | `core/tests/test_api.py::MiscRoutingTest::test_spa_catch_all_sets_csrf_cookie` | unit |
@@ -373,8 +373,8 @@ DEP-API-061 for the worker.
 | DEP-API-041 | `core/tests/test_api.py::MiscRoutingTest::test_unknown_api_path_is_json_404` | unit |
 | DEP-API-041 | `scripts/smoke_gunicorn.sh` step "GET / (SPA shell)" | smoke |
 | DEP-API-050 | `core/tests/test_settings_env.py::SecretKeyTest::test_unwritable_home_fails_start` (planned) | unit |
-| DEP-API-051 | none (operator rule; checked at install) | — |
-| DEP-API-053 | none (operator rule) | — |
+| DEP-API-051 | — host obligation; manual verification: `stat -c '%U %a' /etc/cloudgene/cloudgene.env` prints `root 600` and `sudo -u cloudgene cat /etc/cloudgene/cloudgene.env` is refused | — |
+| DEP-API-053 | — host obligation; manual verification: for each `work_dir` outside `/opt/cloudgene` and `/var/lib/cloudgene`, `systemctl show -p ReadWritePaths cloudgene-worker` lists it | — |
 | DEP-API-060 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_web_reload_sends_hup` (planned) | config |
 | DEP-API-061 | `jobs/tests/test_worker.py::ShutdownTest::test_shutdown_stops_running_jobs` | unit |
 | DEP-API-061 | `jobs/tests/test_worker.py::RunWorkerCommandTest::test_sigterm_exits_zero_and_releases_lock` (planned) | unit |

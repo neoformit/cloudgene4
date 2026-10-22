@@ -184,26 +184,26 @@ small job from the installed workflow is the end-to-end check.
 
 | Requirement | Test | Layer |
 |-------------|------|-------|
-| DEP-INST-001 | `core/tests/test_deploy_units.py::SystemdUnitsTest::test_units_share_environment_file_and_workdir` (planned) | config |
-| DEP-INST-002 | `scripts/install_smoke.sh` (planned) | smoke |
-| DEP-INST-003 | `scripts/install_smoke.sh` (planned) | smoke |
-| DEP-INST-004 | `scripts/install_smoke.sh` (planned) | smoke |
+| DEP-INST-001 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_units_share_environment_file_and_workdir` (planned) | config |
+| DEP-INST-002 | `scripts/smoke_install.sh` (planned) | smoke |
+| DEP-INST-003 | `scripts/smoke_install.sh` (planned) | smoke |
+| DEP-INST-004 | `scripts/smoke_install.sh` (planned) | smoke |
 | DEP-INST-005 | `scripts/smoke_gunicorn.sh` (step "Building the SPA") | smoke |
 | DEP-INST-006 | `core/tests/test_deploy.py::DeployEnvExampleTest::test_check_deploy_is_clean_with_the_example_env` (env file content only) | config |
-| DEP-INST-007 | `scripts/install_smoke.sh` (planned) | smoke |
+| DEP-INST-007 | `scripts/smoke_install.sh` (planned) | smoke |
 | DEP-INST-008 | `scripts/smoke_gunicorn.sh` (migrate, collectstatic, check --deploy); `core/tests/test_api.py::CreateAdminCommandTest::test_create_and_update_idempotent`; `workflows/test_registry.py::CommandsTest::test_install_workflow_command` | smoke, unit |
-| DEP-INST-009 | `core/tests/test_deploy_units.py::SystemdUnitsTest::test_install_targets` (planned) | config |
-| DEP-INST-010 | `core/tests/test_deploy_nginx.py::NginxConfigTest::test_nginx_t_accepts_example` (planned) | config |
-| DEP-INST-021 | `scripts/upgrade_smoke.sh` (planned) | smoke |
-| DEP-INST-022 | `scripts/upgrade_smoke.sh` (planned) | smoke |
-| DEP-INST-023 | `core/tests/test_deploy_units.py::SystemdUnitsTest::test_web_reload_sends_hup` (planned) | config |
+| DEP-INST-009 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_install_targets` (planned) | config |
+| DEP-INST-010 | `core/tests/test_deploy_files.py::NginxExampleTest::test_nginx_t_accepts_example` (planned) | config |
+| DEP-INST-021 | `scripts/smoke_upgrade.sh` (planned) | smoke |
+| DEP-INST-022 | `scripts/smoke_upgrade.sh` (planned) | smoke |
+| DEP-INST-023 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_web_reload_sends_hup` (planned) | config |
 | DEP-INST-024 | `jobs/tests/test_worker.py::ShutdownTest::test_shutdown_stops_running_jobs` | unit |
 | DEP-INST-027 | `workflows/test_registry.py::CommandsTest::test_sync_workflows_command` | unit |
-| DEP-INST-030 | `scripts/upgrade_smoke.sh` (planned, rollback leg) | smoke |
-| DEP-INST-031 | `scripts/upgrade_smoke.sh` (planned, rollback leg) | smoke |
+| DEP-INST-030 | `scripts/smoke_upgrade.sh` (planned, rollback leg) | smoke |
+| DEP-INST-031 | `scripts/smoke_upgrade.sh` (planned, rollback leg) | smoke |
 | DEP-INST-040 | `core/tests/test_deploy.py::DeployEnvExampleTest::test_check_deploy_is_clean_with_the_example_env` | config |
 | DEP-INST-041 | `core/tests/test_api.py::HealthTest::test_health_with_fresh_and_stale_heartbeat`; `scripts/smoke_gunicorn.sh` (step "GET /api/health") | unit, smoke |
-| DEP-INST-042 | `scripts/install_smoke.sh` (planned) | smoke |
+| DEP-INST-042 | `scripts/smoke_install.sh` (planned) | smoke |
 
 ## Known gaps
 

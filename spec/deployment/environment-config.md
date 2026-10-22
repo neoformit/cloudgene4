@@ -240,7 +240,7 @@ switch and shows Django error pages; it MUST NOT be used to debug a live install
 | Requirement | Test | Layer |
 |-------------|------|-------|
 | DEP-ENV-001 | `core/tests/test_settings_env.py::DotenvTest::test_process_env_wins_over_dotenv` (planned) | unit |
-| DEP-ENV-002 | none (operator rule) | — |
+| DEP-ENV-002 | — host obligation; manual verification: `test ! -e /opt/cloudgene/.env` and `systemctl show -p EnvironmentFiles cloudgene-web cloudgene-worker` names `/etc/cloudgene/cloudgene.env` | — |
 | DEP-ENV-003 | `core/tests/test_deploy_files.py::GunicornConfigTest::test_reads_only_process_env` (planned) | config |
 | DEP-ENV-004 | `core/tests/test_deploy.py::DeployEnvExampleTest::test_check_deploy_is_clean_with_the_example_env` (parses the file with the `KEY=VALUE` pattern) | config |
 | DEP-ENV-010 | `core/tests/test_settings_env.py::ParsingTest::test_env_bool_values` (planned) | unit |
@@ -259,10 +259,11 @@ switch and shows Django error pages; it MUST NOT be used to debug a live install
 | DEP-ENV-026 | `core/tests/test_deploy.py::JsonFormatterTest::test_produces_valid_json_with_expected_keys` | unit |
 | DEP-ENV-027 | `core/tests/test_deploy.py::JsonBodySizeLimitMiddlewareTest::test_rejects_oversized_json_body_by_content_length_alone` | unit |
 | DEP-ENV-027 | `core/tests/test_deploy.py::JsonBodySizeLimitMiddlewareTest::test_exempts_multipart_regardless_of_content_length` | unit |
-| DEP-ENV-028 | none (`core/mail.py` builds its connection from `settings.yaml`; it reads `EMAIL_BACKEND` only to detect the test runner's locmem backend; inspected) | — |
+| DEP-ENV-028 | `core/tests/test_settings_env.py::MailSettingsTest::test_email_backend_env_does_not_change_app_mail` (planned; today only inspected: `core/mail.py` builds its connection from `settings.yaml`) | unit |
 | DEP-ENV-029 | `core/tests/test_commands.py::CreateAdminTest::test_password_from_env` (planned) | unit |
 | DEP-ENV-030 | `core/tests/test_settings_env.py::SecretKeyTest::test_generated_key_file_mode_0600` (planned) | unit |
 | DEP-ENV-031 | `core/tests/test_settings_env.py::SecretKeyTest::test_concurrent_start_shares_key` (planned) | unit |
+| DEP-ENV-032 | `core/tests/test_settings_env.py::SecretKeyTest::test_empty_key_file_is_replaced_or_named_in_error` (planned) | unit |
 | DEP-ENV-033 | `core/tests/test_settings_env.py::SecretKeyTest::test_unwritable_home_fails_start` (planned) | unit |
 | DEP-ENV-034 | `core/tests/test_deploy.py::DeployChecksTest::test_secret_key_weak_warning` | unit |
 | DEP-ENV-034 | `core/tests/test_deploy.py::DeployChecksTest::test_example_placeholder_key_warns` (planned) | unit |
