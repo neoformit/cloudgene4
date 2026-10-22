@@ -92,8 +92,9 @@ Out of scope:
 - **DEP-HOME-009** `config/nextflow.env` and every `apps/<id>/nextflow.env` SHOULD have mode `0600`;
   they are the only place for credentials that pipelines need (tokens, registry passwords). As with
   `settings.yaml`, the mode of an existing file is kept on rewrite; a new file gets `0644`.
-- **DEP-HOME-010** If `config/secret_key` exists, it MUST have mode `0600`. The app creates it with
-  `O_EXCL` and mode `0600` only when `DJANGO_SECRET_KEY` is unset (`cloudgene_django/settings.py:67-86`).
+- **DEP-HOME-010** A `config/secret_key` that the operator copies or restores (for example from a
+  backup, DEP-DB-040) MUST keep owner `cloudgene` and mode `0600`. Generation by the app is
+  [DEP-ENV-030](environment-config.md#secret-key).
   Production SHOULD set `DJANGO_SECRET_KEY` instead ([environment-config.md](environment-config.md));
   an existing file is then ignored but SHOULD be removed so it is not carried into backups.
 - **DEP-HOME-011** Workflow apps installed with `--copy` (or `copy: true`) live in `apps/<id>/`.
@@ -237,7 +238,7 @@ sudo -u cloudgene cp -n /opt/cloudgene/home/config/nextflow.config $H/config/
 | DEP-HOME-007 | `scripts/smoke_gunicorn.sh` seeded-home check of `pages_retrieve` for `home` (planned) | smoke |
 | DEP-HOME-008 | `core/tests/test_config.py::ConfigWriteTest::test_existing_file_mode_is_preserved` (planned) | unit |
 | DEP-HOME-008 | `core/tests/test_config.py::ConfigWriteTest::test_new_settings_file_is_owner_only` (planned, BE-CONF-015) | unit |
-| DEP-HOME-010 | `core/tests/test_settings.py::SecretKeyFileTest::test_generated_secret_key_is_owner_only` (planned) | unit |
+| DEP-HOME-010 | — host obligation; manual verification: `stat -c '%U %a' $CLOUDGENE_HOME/config/secret_key` prints `cloudgene 600` after a restore | — |
 | DEP-HOME-013 | `core/tests/test_deploy.py::SystemdUnitsTest::test_cleanup_timer_runs_both_commands_daily` (planned) | config |
 | DEP-HOME-013 | `jobs/tests/test_api.py::CleanupCommandTest::test_retention` | unit |
 | DEP-HOME-013 | `admin_panel/tests/test_api.py::LogsTest::test_cleanup_logs` | unit |

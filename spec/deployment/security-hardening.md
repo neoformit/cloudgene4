@@ -80,7 +80,9 @@ System checks
 - **DEP-SEC-007** Every deploy check (`core.W001`–`core.W006`) MUST report nothing when DEBUG is
   on.
 - **DEP-SEC-008** `security.W021` (HSTS preload not set) MUST be silenced only while
-  `SECURE_HSTS_PRELOAD` is off, and no other system check MUST be silenced. Rationale: preload
+  `SECURE_HSTS_PRELOAD` is off (so `check --deploy` is clean with `deploy/cloudgene.env.example`),
+  MUST NOT be silenced when `DJANGO_HSTS_PRELOAD` is true, and no other system check MUST be
+  silenced. Rationale: preload
   is a deliberate opt-in (DEP-SEC-012), so the check must not push operators to enable it.
 - **DEP-SEC-009** The gunicorn smoke test (`scripts/smoke_gunicorn.sh`) MUST fail when
   `check --deploy` reports an Error, and SHOULD fail when it reports any Warning.
@@ -92,14 +94,15 @@ Core settings
 - **DEP-SEC-011** `ALLOWED_HOSTS` MUST default to `localhost,127.0.0.1,[::1]` when unset. A
   production environment MUST list exactly the public host name(s). A request with any other
   `Host` header MUST get 400 (Django `DisallowedHost`) and MUST NOT reach a view.
-- **DEP-SEC-012** HSTS MUST be sent by Django only when `DJANGO_HSTS_SECONDS` > 0.
+- **DEP-SEC-012** HSTS MUST be sent by Django only when `DJANGO_HSTS_SECONDS` > 0 (sets
+  `SECURE_HSTS_SECONDS`, default `0`), and only on HTTPS responses. This file owns the HSTS
+  policy; nginx's part is [DEP-PROXY-005](reverse-proxy.md#hsts).
   `includeSubDomains` MUST default to on when HSTS is on (opt-out via
   `DJANGO_HSTS_INCLUDE_SUBDOMAINS=0`). `preload` MUST be off unless `DJANGO_HSTS_PRELOAD` is
   true, whatever `DJANGO_HSTS_SECONDS` is.
 - **DEP-SEC-013** `SECURE_PROXY_SSL_HEADER` MUST be set (to `X-Forwarded-Proto: https`) only when
-  `DJANGO_BEHIND_TLS_PROXY` is true. When it is set, the gunicorn port MUST NOT be reachable by
-  anything but the reverse proxy (see [web-server.md](web-server.md)), because any client that can
-  reach it can forge the header.
+  `DJANGO_BEHIND_TLS_PROXY` is true. Reachability of the gunicorn port when it is set is governed
+  by [DEP-WEB-002](web-server.md#process-and-binding).
 - **DEP-SEC-014** Every response MUST carry `X-Frame-Options: DENY`,
   `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin` and
   `Cross-Origin-Opener-Policy: same-origin` (Django `SecurityMiddleware` and clickjacking
@@ -122,9 +125,9 @@ Passwords and secrets
 - **DEP-SEC-019** The MD5 test hasher MUST be used only when `INSECURE_FAST_PASSWORD_HASHING=1`
   and (DEBUG is on or `CLOUDGENE_E2E` is true). In every other case the production list
   (DEP-SEC-018) MUST be in effect, even if the variable is set.
-- **DEP-SEC-020** A generated `$CLOUDGENE_HOME/config/secret_key` MUST be created atomically with
-  mode `0600` (exclusive create, so web and worker cannot write different keys) and MUST be
-  excluded from version control (`.gitignore`).
+- **DEP-SEC-020** `config/secret_key` MUST be excluded from version control (`.gitignore`). How the
+  file is generated (exclusive create, mode `0600`) is owned by
+  [DEP-ENV-030](environment-config.md#secret-key).
 - **DEP-SEC-021** The production environment file (`/etc/cloudgene/cloudgene.env`) holds the
   secret key and database password; its owner and mode are
   [DEP-API-051](api-contract.md#filesystem) (root, `0600`, not readable by `cloudgene`). A
@@ -267,11 +270,14 @@ DEP-PROXY-024](reverse-proxy.md#requirements).
 | DEP-SEC-006 | `core/tests/test_deploy.py::DeployChecksTest::test_sqlite_warning_only_when_debug_off` | unit |
 | DEP-SEC-007 | `core/tests/test_deploy.py::DeployChecksTest::test_sqlite_warning_only_when_debug_off` (W001 only); (planned) `core/tests/test_deploy.py::DeployChecksTest::test_all_deploy_checks_silent_in_debug` | unit |
 | DEP-SEC-008 | (planned) `core/tests/test_deploy.py::SilencedChecksTest::test_w021_silenced_only_without_preload` | config |
+| DEP-SEC-008 | `core/tests/test_deploy.py::DeployEnvExampleTest::test_check_deploy_is_clean_with_the_example_env` | config |
+| DEP-SEC-008 | (planned) `core/tests/test_deploy.py::HstsPreloadDefaultTest::test_w021_not_silenced_when_preload_on` | unit |
 | DEP-SEC-009 | (planned) `scripts/smoke_gunicorn.sh` step "manage.py check --deploy" failing on errors | smoke |
 | DEP-SEC-010 | (planned) `core/tests/test_deploy.py::DebugDefaultTest::test_debug_off_unless_truthy` | config |
 | DEP-SEC-011 | (planned) `core/tests/test_deploy.py::AllowedHostsTest::test_unknown_host_is_400` | unit |
 | DEP-SEC-012 | `core/tests/test_deploy.py::HstsPreloadDefaultTest::test_preload_off_by_default_even_with_hsts_seconds_set` | config |
 | DEP-SEC-012 | `core/tests/test_deploy.py::HstsPreloadDefaultTest::test_preload_on_only_with_explicit_env_var` | config |
+| DEP-SEC-012 | (planned) `core/tests/test_deploy.py::HstsPreloadDefaultTest::test_include_subdomains_follows_hsts_seconds` | unit |
 | DEP-SEC-013 | (planned) `core/tests/test_deploy.py::ProxySslHeaderTest::test_header_trusted_only_with_env_flag` | config |
 | DEP-SEC-014 | (planned) `core/tests/test_deploy.py::SecurityHeadersTest::test_default_security_headers` | unit |
 | DEP-SEC-015 | (planned) `core/tests/test_deploy.py::CookieFlagsTest::test_session_cookie_flags` | unit |
@@ -280,7 +286,7 @@ DEP-PROXY-024](reverse-proxy.md#requirements).
 | DEP-SEC-018 | `core/tests/test_deploy.py::PasswordHasherTest::test_argon2_is_the_default_hasher` | unit |
 | DEP-SEC-018 | `core/tests/test_deploy.py::PasswordHasherTest::test_pbkdf2_hash_is_upgraded_to_argon2_on_login` | unit |
 | DEP-SEC-019 | (planned) `core/tests/test_deploy.py::InsecureHasherSettingTest::test_md5_ignored_without_debug_or_e2e` | config |
-| DEP-SEC-020 | (planned) `core/tests/test_deploy.py::SecretKeyFileTest::test_generated_key_file_mode_0600` | unit |
+| DEP-SEC-020 | (planned) `core/tests/test_deploy.py::GitignoreTest::test_secret_key_ignored` | config |
 | DEP-SEC-021 | (planned) covered by DEP-SEC-022's check once it also inspects `EnvironmentFile`; none today | — |
 | DEP-SEC-022 | (planned) `core/tests/test_deploy.py::DeployChecksTest::test_secret_files_permission_warning` | unit |
 | DEP-SEC-023 | (planned) `core/tests/test_deploy.py::SystemdUnitsTest::test_units_run_unprivileged_and_sandboxed` | config |

@@ -50,7 +50,8 @@ Topology
   reachable over the network). `cloudgene-cleanup.service` MUST run only as a oneshot started by
   `cloudgene-cleanup.timer`.
 - **DEP-ARCH-002** All client traffic MUST enter through nginx. gunicorn MUST listen only on a
-  loopback address or a local socket that clients cannot reach (see DEP-API-010).
+  loopback address or a local socket that clients cannot reach (see
+  [DEP-WEB-002](web-server.md#process-and-binding)).
 - **DEP-ARCH-003** The web process MUST NOT run workflows. Only the worker process starts
   Nextflow or command steps; a job submitted while the worker is down MUST stay `waiting` until
   a worker claims it.
@@ -69,9 +70,7 @@ Single-host constraint
 - **DEP-ARCH-011** Running the web or worker process on more than one host against the same
   database is NOT supported. Operators MUST NOT share one database between two hosts that each
   run `cloudgene-worker` (each worker would fail the other's jobs as orphans, BE-QUEUE-016).
-- **DEP-ARCH-012** `CLOUDGENE_HOME` MUST be on a filesystem local to the host (or one whose
-  `flock` is reliable), because the worker lock and the `settings.yaml` write lock
-  (BE-CONF-013) are `fcntl.flock` locks.
+- **DEP-ARCH-012** (withdrawn — see [DEP-HOME-005](cloudgene-home.md#requirements))
 
 Platform
 
@@ -189,7 +188,6 @@ graceful timeout. Neither restart loses queued work.
 | DEP-ARCH-006 | `core/tests/test_platform.py::NoCeleryChannelsTest::test_django_boots_without_celery_channels_redis` | unit |
 | DEP-ARCH-010 | `jobs/tests/test_worker.py::RunWorkerCommandTest::test_once_and_single_instance_lock` | unit |
 | DEP-ARCH-011 | none (operator rule; see Known gaps) | — |
-| DEP-ARCH-012 | none (operator rule) | — |
 | DEP-ARCH-020 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_paths_and_user` (planned) | config |
 | DEP-ARCH-021 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_paths_and_user` (planned) | config |
 | DEP-ARCH-022 | none (host provisioning; checked manually at install) | — |
@@ -210,7 +208,7 @@ graceful timeout. Neither restart loses queued work.
 1. `docs/DEPLOYMENT.md` §4 says the worker "takes an exclusive DB lock"; the code takes a
    host-local `flock` on `CLOUDGENE_HOME/config/worker.lock` (`jobs/worker.py:807`). Docs or
    code: which is intended? This spec follows the code; the docs should be corrected. It matters
-   for DEP-ARCH-012 / DEP-HOME-005 (filesystem choice) and multi-host setups. This is the single
+   for DEP-HOME-005 (filesystem choice) and multi-host setups. This is the single
    home of this question; process-management.md and cloudgene-home.md link here.
 2. Running jobs surviving a worker restart (docs) versus being failed (code): see
    [install-upgrade.md](install-upgrade.md#open-questions) question 5.

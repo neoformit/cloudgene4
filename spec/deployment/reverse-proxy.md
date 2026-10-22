@@ -55,16 +55,13 @@ Out of scope:
 
 ### HSTS
 
-- **DEP-PROXY-005** `Strict-Transport-Security` MUST be emitted by Django only (from
-  `DJANGO_HSTS_SECONDS`), on HTTPS responses; nginx MUST NOT add its own HSTS header, so the policy
-  has one source and one value.
-- **DEP-PROXY-006** With `DJANGO_HSTS_SECONDS>0` the header MUST include `includeSubDomains` unless
-  `DJANGO_HSTS_INCLUDE_SUBDOMAINS` is set false.
-- **DEP-PROXY-007** The header MUST include `preload` only when `DJANGO_HSTS_PRELOAD=1`; HSTS being on
-  MUST NOT imply preload.
-- **DEP-PROXY-008** While preload is off, Django's `security.W021` check MUST be silenced, so
-  `manage.py check --deploy` is clean with `deploy/cloudgene.env.example`; when
-  `DJANGO_HSTS_PRELOAD=1` the silence MUST be lifted.
+- **DEP-PROXY-005** nginx MUST NOT add its own `Strict-Transport-Security` header, so the policy
+  has one source and one value. The header itself, its value and the preload policy are owned by
+  [DEP-SEC-012](security-hardening.md#requirements) and
+  [DEP-SEC-008](security-hardening.md#requirements).
+- **DEP-PROXY-006** (withdrawn — see [DEP-SEC-012](security-hardening.md#requirements))
+- **DEP-PROXY-007** (withdrawn — see [DEP-SEC-012](security-hardening.md#requirements))
+- **DEP-PROXY-008** (withdrawn — see [DEP-SEC-008](security-hardening.md#requirements))
 
 ### Proxy headers
 
@@ -207,9 +204,8 @@ Django reads it via `SECURE_PROXY_SSL_HEADER` when `DJANGO_BEHIND_TLS_PROXY=1`
 If gunicorn were reachable directly, a client could send `X-Forwarded-Proto: https` over HTTP and
 be treated as secure by Django — hence DEP-PROXY-004.
 
-**HSTS.** Off unless `DJANGO_HSTS_SECONDS>0`. Then `includeSubDomains` follows by default and
-`preload` stays off. Because preload is a deliberate opt-in, `security.W021` is appended to
-`SILENCED_SYSTEM_CHECKS` while preload is off (`settings.py:250-255`). nginx-generated responses
+**HSTS.** Policy: [DEP-SEC-012](security-hardening.md#requirements) and
+[DEP-SEC-008](security-hardening.md#requirements). nginx-generated responses
 (redirects on port 80, 413, 502) carry no HSTS header; that is acceptable since browsers record
 HSTS from any successful HTTPS response.
 
@@ -239,11 +235,6 @@ a `<script>` element inserted by `v-html` does not run, but event-handler attrib
 | DEP-PROXY-002 | (planned) `core/tests/test_deploy.py::NginxExampleTest::test_tls_protocols` | config |
 | DEP-PROXY-004 | (planned) `core/tests/test_deploy.py::NginxExampleTest::test_proxy_pass_targets_loopback` | config |
 | DEP-PROXY-005 | (planned) `core/tests/test_deploy.py::NginxExampleTest::test_no_hsts_or_csp_add_header` | config |
-| DEP-PROXY-006 | (planned) `core/tests/test_deploy.py::HstsPreloadDefaultTest::test_include_subdomains_follows_hsts_seconds` | unit |
-| DEP-PROXY-007 | `core/tests/test_deploy.py::HstsPreloadDefaultTest::test_preload_off_by_default_even_with_hsts_seconds_set` | unit |
-| DEP-PROXY-007 | `core/tests/test_deploy.py::HstsPreloadDefaultTest::test_preload_on_only_with_explicit_env_var` | unit |
-| DEP-PROXY-008 | `core/tests/test_deploy.py::DeployEnvExampleTest::test_check_deploy_is_clean_with_the_example_env` | config |
-| DEP-PROXY-008 | (planned) `core/tests/test_deploy.py::HstsPreloadDefaultTest::test_w021_not_silenced_when_preload_on` | unit |
 | DEP-PROXY-010 | (planned) `core/tests/test_deploy.py::NginxExampleTest::test_forwarding_headers_present` | config |
 | DEP-PROXY-011 | (planned) `core/tests/test_deploy.py::ProxySslHeaderTest::test_forwarded_https_is_secure_and_not_redirected` | unit |
 | DEP-PROXY-012 | (planned) `core/tests/test_deploy.py::DeployFilesConsistencyTest::test_client_max_body_size_covers_default_max_upload_mb` | config |

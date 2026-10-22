@@ -167,8 +167,9 @@ deployment requirements is in [tests.md](tests.md). The Django test runner
   `testpaths = tests`, and ignore `DeprecationWarning`. (planned) It MUST add `--strict-markers`
   and, when run under xdist, a collection hook MUST error on any `serial` test (mechanism for
   BE-TEST-015).
-- **DEP-HARN-035** (planned) — `xfail_strict` SHOULD be `true`, so an `xfail` test that starts
-  passing fails the run.
+- **DEP-HARN-035** (planned) — `e2e/pytest.ini` MUST set `xfail_strict = true`, so an `xfail`
+  test that starts passing fails the run (default for the strict-xfail rule of
+  [BE-TEST-016](../backend/tests.md#requirements)).
 
 **Guards (`e2e/guards.py`)** (rule: BE-TEST-014)
 
@@ -375,6 +376,7 @@ invocation.
 | DEP-HARN-032 | `e2e/tests/test_harness_selftest.py::test_server_settings_restored` (planned) | e2e |
 | DEP-HARN-033 | `e2e/tests/test_harness_selftest.py::test_summary_written` (planned) | e2e |
 | DEP-HARN-034 | `e2e/tests/test_harness_selftest.py::test_serial_rejected_under_xdist` (planned) | e2e |
+| DEP-HARN-035 | `core/tests/test_harness_scripts.py::PytestIniTest::test_xfail_strict_true` (planned) | config |
 | DEP-HARN-036 | `e2e/tests/test_harness_selftest.py::test_guards_fail_tests_on_browser_errors` | e2e |
 | DEP-HARN-040 | `e2e/tests/test_accounts.py::test_a2_case_variant_duplicates_rejected` | e2e |
 | DEP-HARN-041 | `e2e/tests/test_harness_selftest.py::test_helpers_use_schema_paths_only` (planned) | e2e |
@@ -395,8 +397,7 @@ invocation.
 | DEP-HARN-074 | `core/tests/test_harness_scripts.py::CiConfigTest::test_toolchain_pinned_and_artifacts_uploaded` (planned) | config |
 | DEP-HARN-075 | `core/tests/test_harness_scripts.py::CiConfigTest::test_no_secrets_referenced` (planned) | config |
 
-Smoke-layer rows cite a script step; the step passing is the test. DEP-HARN-035 is SHOULD and
-has no test.
+Smoke-layer rows cite a script step; the step passing is the test.
 
 ## Known gaps
 
@@ -411,7 +412,7 @@ has no test.
 | DEP-HARN-041 | Helpers and stack carry pre-T01 fallbacks (path retries, token login, `/status` → detail, SPA-root readiness, legacy worker/state shapes) that can hide a removed or renamed endpoint. | `e2e/helpers.py:46-60`, `:89-113`; `e2e/stack.py:295-299`, `:346-362`; `e2e/admin_helpers.py:4-5`, `:20-31` | minor |
 | DEP-HARN-027 | No check that the Nextflow path exists; a missing binary surfaces as failed jobs in worker tests. | `e2e/stack.py:41` | minor |
 | DEP-HARN-034 | No `--strict-markers`; `serial` is not enforced under `-n` (BE-TEST-015); the `worker` marker is described as skipping but nothing reads it. | `e2e/pytest.ini:4-7` | minor |
-| DEP-HARN-035 | `xfail_strict = false`. | `e2e/pytest.ini:8` | minor |
+| DEP-HARN-035 | `xfail_strict = false`; a non-strict `xfail` that starts passing goes unnoticed. | `e2e/pytest.ini:8` | minor |
 | — | `smoke_gunicorn.sh` is not run by `scripts/test.sh` in any mode. | `scripts/test.sh:74-79` | minor |
 | — | `--skip-build` is honoured only as the first argument of `smoke_gunicorn.sh`; any other argument is ignored silently. | `scripts/smoke_gunicorn.sh:99-100` | minor |
 | — | `create_admin --password` puts the admin password on the command line of a child process (visible in `ps`); acceptable for fixed test credentials only. | `e2e/stack.py:415-417` | minor |
@@ -423,17 +424,15 @@ has no test.
    and `playwright install --with-deps chromium`; the root `README.md` says never to do either
    because the browser build is preinstalled and must match `playwright==1.56.0`. Which is the
    supported setup for developers and for CI (DEP-HARN-050, DEP-HARN-074)?
-2. **Pinning strength.** BE-TEST-021 makes pinning of `e2e/requirements.txt` a SHOULD;
-   DEP-HARN-050 makes the `playwright` pin a MUST because of the browser coupling. Raise
-   BE-TEST-021 to MUST, or keep the split?
-3. **Double home for isolation mechanics.** BE-TEST-013 restates stack mechanics (paths, DB naming,
-   boot order) that this file owns (DEP-HARN-020..025). Under Article 2.3, should BE-TEST-013 be
-   trimmed to the policy ("e2e runs against an isolated stack it builds itself; see
-   DEP-HARN-020..025")?
-4. **xfail policy.** BE-TEST-016 requires findings tests to use `xfail(strict=True)`;
-   `e2e/README.md` tells authors to use `xfail(strict=False, reason="needs T0x")` for unbuilt
-   behaviour. Should `xfail_strict = true` be the default (DEP-HARN-035) and non-strict xfail be
-   banned?
+2. **Pinning strength.** Resolved: BE-TEST-021 is now a MUST (exact `==` pins), with the
+   `playwright` pin and browser coupling owned by DEP-HARN-050. See
+   [BE-TEST-021](../backend/tests.md#requirements).
+3. **Double home for isolation mechanics.** Resolved: BE-TEST-013 now states only the isolation
+   policy and links DEP-HARN-020..025 and DEP-HARN-027 for the mechanics. See
+   [BE-TEST-013](../backend/tests.md#requirements).
+4. **xfail policy.** Resolved: BE-TEST-016 now requires every `xfail` in `e2e/tests/` to be
+   `strict=True`, with DEP-HARN-035 as the default. See
+   [BE-TEST-016](../backend/tests.md#requirements).
 5. **CI host and e2e on PRs.** BE-TEST-019 requires e2e "at least nightly"; DEP-HARN-073 adds a
    SHOULD for PRs touching `frontend/`, `e2e/` or API modules. Confirm, and pick the CI host
    (affects the file path for DEP-HARN-070).

@@ -52,13 +52,13 @@ Out of scope:
 - **DEP-WEB-002** By default gunicorn MUST bind to `127.0.0.1:8000` (loopback only). An operator who
   changes `GUNICORN_BIND` to a non-loopback address MUST also restrict that port to the proxy
   (firewall or private network), because `DJANGO_BEHIND_TLS_PROXY=1` makes Django trust
-  `X-Forwarded-Proto` from any client that can reach the port.
+  `X-Forwarded-Proto` from any client that can reach the port. This file owns the bind rule;
+  [api-contract.md](api-contract.md#sockets) lists the address in its socket table.
 - **DEP-WEB-003** (withdrawn — see [DEP-ENV-013](environment-config.md#parsing), which owns
   `GUNICORN_*` parsing and requires a bad integer to stop start-up)
 - **DEP-WEB-004** The default worker count MUST be `min(2 × CPU + 1, 8)` sync workers with 1 thread
   each.
-- **DEP-WEB-005** gunicorn MUST trust forwarded scheme headers only from
-  `GUNICORN_FORWARDED_ALLOW_IPS` (default `127.0.0.1`).
+- **DEP-WEB-005** (withdrawn — see [DEP-API-022](api-contract.md#proxy-headers))
 
 ### Timeouts and lifecycle
 
@@ -82,11 +82,8 @@ Out of scope:
 
 ### Logging
 
-- **DEP-WEB-020** gunicorn access and error logs MUST go to stdout/stderr by default (`-`), so the
-  journal captures them; `GUNICORN_ACCESS_LOG`, `GUNICORN_ERROR_LOG` and `GUNICORN_LOG_LEVEL` MAY
-  redirect them.
-- **DEP-WEB-021** (planned) The access log SHOULD record the real client address (from
-  `X-Forwarded-For` / `X-Real-IP` set by nginx), not the proxy's `127.0.0.1`.
+- **DEP-WEB-020** (withdrawn — see [DEP-OBS-002](observability.md#requirements))
+- **DEP-WEB-021** (withdrawn — see [DEP-OBS-006](observability.md#requirements))
 
 ### Upload size chain
 
@@ -105,11 +102,13 @@ Out of scope:
   JSON envelope (BE-API-023), not 400 or 500.
 - **DEP-WEB-034** `FILE_UPLOAD_MAX_MEMORY_SIZE` (10 MiB) MUST be the in-memory threshold: any uploaded
   file larger than it MUST be streamed to a temporary file, never held in memory.
-- **DEP-WEB-035** `DATA_UPLOAD_MAX_NUMBER_FILES` MUST default to 10000 (env
-  `DJANGO_DATA_UPLOAD_MAX_NUMBER_FILES`); exceeding it MUST yield 413 `upload_too_large`.
+- **DEP-WEB-035** A request with more files than `DATA_UPLOAD_MAX_NUMBER_FILES` (set from
+  `DJANGO_DATA_UPLOAD_MAX_NUMBER_FILES`, parsed and defaulted by
+  [DEP-ENV-027](environment-config.md#requirements)) MUST yield 413 `upload_too_large`.
 - **DEP-WEB-036** A non-multipart `/api/` request whose `Content-Length` exceeds `API_JSON_BODY_MAX_MB`
-  (default 10) MUST be rejected with 413 `upload_too_large` before the body is read; multipart
-  requests MUST be exempt from this check.
+  (parsed and defaulted by [DEP-ENV-027](environment-config.md#requirements)) MUST be rejected
+  with 413 `upload_too_large` before the body is read; multipart requests MUST be exempt from this
+  check. This file owns the limit semantics of DEP-WEB-035 and DEP-WEB-036.
 - **DEP-WEB-037** The host MUST have free space for the temporary copies of an upload in flight: the
   nginx request-body buffer (`client_body_temp_path`), Django's upload temp files (system temp
   directory; private under `PrivateTmp=true`), and the job workspace — up to three copies of
@@ -197,14 +196,12 @@ reads from gunicorn only as fast as the client drains. A sync worker that spends
 | DEP-WEB-001 | `scripts/smoke_gunicorn.sh` step "Starting gunicorn" (starts with `-c deploy/gunicorn.conf.py`, `GUNICORN_BIND`/`GUNICORN_WORKERS` overrides) | smoke |
 | DEP-WEB-002 | (planned) `core/tests/test_deploy.py::GunicornConfigTest::test_default_bind_is_loopback` | config |
 | DEP-WEB-004 | (planned) `core/tests/test_deploy.py::GunicornConfigTest::test_default_workers_formula` | config |
-| DEP-WEB-005 | (planned) `core/tests/test_deploy.py::GunicornConfigTest::test_forwarded_allow_ips_default` | config |
 | DEP-WEB-010 | (planned) `core/tests/test_deploy.py::GunicornConfigTest::test_timeout_default_300` | config |
 | DEP-WEB-011 | (planned) `core/tests/test_deploy.py::DeployFilesConsistencyTest::test_proxy_read_timeout_covers_gunicorn_timeout` | config |
 | DEP-WEB-012 | (planned) `core/tests/test_deploy.py::GunicornConfigTest::test_graceful_timeout_default` | config |
 | DEP-WEB-014 | (planned) `core/tests/test_deploy.py::GunicornConfigTest::test_max_requests_defaults` | config |
 | DEP-WEB-015 | (planned) `scripts/smoke_gunicorn.sh` step "slow download of a large output survives GUNICORN_TIMEOUT" | smoke |
 | DEP-WEB-016 | (planned) `core/tests/test_deploy.py::DeployFilesConsistencyTest::test_web_unit_has_no_misleading_reload` | config |
-| DEP-WEB-020 | (planned) `core/tests/test_deploy.py::GunicornConfigTest::test_logs_default_to_stdout` | config |
 | DEP-WEB-030 | `jobs/tests/test_api.py::SubmissionTest::test_upload_size_limit` | unit |
 | DEP-WEB-031 | (planned) `core/tests/test_deploy.py::DeployFilesConsistencyTest::test_client_max_body_size_covers_default_max_upload_mb` | config |
 | DEP-WEB-032 | (planned) `core/tests/test_deploy.py::GunicornConfigTest::test_no_request_limits_lowered` | config |
@@ -214,9 +211,9 @@ reads from gunicorn only as fast as the client drains. A sync worker that spends
 | DEP-WEB-035 | `core/tests/test_api.py::ErrorEnvelopeHandlerTest::test_upload_suspicious_operations_are_4xx_not_500` | unit |
 | DEP-WEB-036 | `core/tests/test_deploy.py::JsonBodySizeLimitMiddlewareTest::test_rejects_oversized_json_body_by_content_length_alone` | unit |
 | DEP-WEB-036 | `core/tests/test_deploy.py::JsonBodySizeLimitMiddlewareTest::test_exempts_multipart_regardless_of_content_length` | unit |
-| DEP-WEB-037 | None (host provisioning; checked manually per [install-upgrade.md](install-upgrade.md)) — gap | — |
+| DEP-WEB-037 | — host obligation; manual verification: before raising `max_upload_mb`, check free space with `df` on the nginx `client_body_temp_path`, the web unit's private `/tmp` and `CLOUDGENE_HOME` | — |
 
-DEP-WEB-021 and DEP-WEB-038 are SHOULD and have no test.
+DEP-WEB-038 is SHOULD and has no test.
 
 ## Known gaps
 
@@ -226,7 +223,6 @@ DEP-WEB-021 and DEP-WEB-038 are SHOULD and have no test.
 | DEP-WEB-031 | `client_max_body_size 1024m` equals default `max_upload_mb` with no headroom for multipart overhead; uploads just under the limit get nginx's HTML 413. | `deploy/nginx.conf.example:26`, `home/config/settings.yaml:14` | minor |
 | DEP-WEB-038 | `max_upload_mb` can be raised at runtime (min 1, no max) with no check against nginx. | `admin_panel/serializers.py:17` | minor |
 | DEP-WEB-016 | `ExecReload=/bin/kill -s HUP` with `preload_app` on does not load new code, so a reload after an upgrade keeps running the old code; nothing warns an operator who uses `systemctl reload`. This is the single home of this gap. | `deploy/systemd/cloudgene-web.service:13`, `deploy/gunicorn.conf.py:54` | minor |
-| DEP-WEB-021 | Default access log format logs `%(h)s` = `127.0.0.1` for every request behind nginx. | `deploy/gunicorn.conf.py:45` | minor |
 | DEP-WEB-010 | The comment at `deploy/gunicorn.conf.py:33-36` justifies the 300 s timeout by slow clients; behind nginx (request buffering on) slow clients never reach gunicorn. The value is still reasonable for workspace copy time. | `deploy/gunicorn.conf.py:33-37` | minor |
 | — | No config test reads `deploy/gunicorn.conf.py`; the smoke script is the only check. | `core/tests/test_deploy.py` | minor |
 
@@ -243,3 +239,8 @@ DEP-WEB-021 and DEP-WEB-038 are SHOULD and have no test.
    the systemd private `/tmp`.
 4. `docs/DEPLOYMENT.md` §4 says to keep `client_max_body_size >= max_upload_mb`; this spec requires
    additional headroom (DEP-WEB-031). The docs should follow.
+5. Bind rule (DEP-WEB-002): the shipped files bind loopback only, and the gunicorn config comment
+   anticipates a container network CIDR in `GUNICORN_FORWARDED_ALLOW_IPS`. The spec therefore
+   allows a non-loopback bind restricted to the proxy by firewall. Confirm this, or forbid
+   non-loopback binds outright (the former DEP-API-010 wording). Either way, DEP-RT-020 (workflow
+   steps on the same host can reach the loopback port) is unaffected.

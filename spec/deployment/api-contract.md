@@ -81,9 +81,8 @@ variables (`E2E_*`, `BASE`, `SLOW_SECONDS`, `PYTHON`, `TEST_DATABASE_URL`, …) 
 
 ### Sockets
 
-- **DEP-API-010** gunicorn MUST bind `GUNICORN_BIND` (default `127.0.0.1:8000`). The value MUST
-  be a loopback address (or a local socket nginx can reach) in production, because Django
-  trusts `X-Forwarded-Proto` from any peer when `DJANGO_BEHIND_TLS_PROXY=1` (DEP-API-021).
+- **DEP-API-010** (withdrawn — see [DEP-WEB-002](web-server.md#process-and-binding), which owns the
+  gunicorn bind rule; the address is listed in the [Sockets](#sockets-1) table)
 - **DEP-API-011** nginx MUST `proxy_pass` to the same address gunicorn binds. nginx MUST listen
   on 80 (redirect only, plus `/.well-known/acme-challenge/`) and 443 (TLS).
 - **DEP-API-012** The worker and the cleanup service MUST NOT listen on any socket.
@@ -151,8 +150,8 @@ variables (`E2E_*`, `BASE`, `SLOW_SECONDS`, `PYTHON`, `TEST_DATABASE_URL`, …) 
 - **DEP-API-051** `/etc/cloudgene/cloudgene.env` MUST be mode `0600` and MUST NOT be readable by
   the `cloudgene` user or any other non-root user, because it holds `DJANGO_SECRET_KEY` and the
   database password.
-- **DEP-API-052** `CLOUDGENE_HOME/config/secret_key`, when the application creates it, MUST be
-  created with mode `0600` (BE-ARCH-019).
+- **DEP-API-052** (withdrawn — see [DEP-ENV-030](environment-config.md#secret-key); the
+  [filesystem table](#filesystem-paths-and-permissions) keeps the path as an entry)
 - **DEP-API-053** Any directory the worker writes outside `/opt/cloudgene` and
   `/var/lib/cloudgene` (for example a `nextflow.work_dir` set elsewhere) MUST be added to
   `ReadWritePaths=` of `cloudgene-worker.service`; otherwise jobs using it fail.
@@ -277,7 +276,7 @@ Caching headers and the build/collectstatic flow: [static-assets.md](static-asse
 | `/opt/cloudgene/staticfiles/` | `cloudgene` | r | — | — | r+x (only if nginx serves `/static/`) | written by `collectstatic` |
 | `~cloudgene` (`/opt/cloudgene`) | `cloudgene` | — | rw | — | — | Nextflow's `~/.nextflow` |
 | `/var/lib/cloudgene` (`CLOUDGENE_HOME`) | `cloudgene:cloudgene`, `0750` recommended | rw | rw | rw | — | layout: [cloudgene-home.md](cloudgene-home.md) |
-| `CLOUDGENE_HOME/config/secret_key` | `cloudgene`, `0600` | r (create once) | r (create once) | r | — | only when `DJANGO_SECRET_KEY` unset |
+| `CLOUDGENE_HOME/config/secret_key` | `cloudgene`, `0600` | r (create once) | r (create once) | r | — | only when `DJANGO_SECRET_KEY` unset; generation: [DEP-ENV-030](environment-config.md#secret-key) |
 | `CLOUDGENE_HOME/config/worker.lock` | `cloudgene` | — | rw (flock) | — | — | contains the worker pid |
 | `CLOUDGENE_HOME/config/.settings.lock` | `cloudgene` | rw | rw | — | — | settings write lock |
 | `CLOUDGENE_HOME/jobs/` | `cloudgene` | rw | rw | rw | — | job workspaces |
@@ -326,8 +325,8 @@ overriding variables already set. `gunicorn.conf.py` is evaluated before Django 
 falls back to the WSGI scheme, which gunicorn sets to `https` when a peer in
 `GUNICORN_FORWARDED_ALLOW_IPS` sends `X-Forwarded-Proto: https`. With the defaults (gunicorn on
 loopback, nginx on the same host) both give the same answer. If gunicorn were reachable from
-other hosts, the first mechanism would let any client claim HTTPS, which is why DEP-API-010
-requires loopback.
+other hosts, the first mechanism would let any client claim HTTPS, which is why DEP-WEB-002
+requires loopback by default and a proxy-only firewall otherwise.
 
 **Redirect loop guard.** `DJANGO_SECURE_SSL_REDIRECT=1` without a working HTTPS signal (nginx not
 setting `X-Forwarded-Proto`, or both mechanisms off) makes every request redirect to itself
@@ -354,7 +353,6 @@ DEP-API-061 for the worker.
 | DEP-API-006 | `core/tests/test_deploy.py::InsecureHashingCheckTest::test_clean_when_e2e_flag_set` | unit |
 | DEP-API-006 | `core/tests/test_deploy.py::InsecureHashingCheckTest::test_clean_when_debug` | unit |
 | DEP-API-006 | `core/tests/test_deploy.py::InsecureHashingCheckTest::test_clean_when_flag_unset` | unit |
-| DEP-API-010 | `core/tests/test_deploy_files.py::GunicornConfigTest::test_default_bind_is_loopback` (planned) | config |
 | DEP-API-011 | `core/tests/test_deploy_files.py::ConsistencyTest::test_bind_paths_and_user_agree` (planned) | config |
 | DEP-API-012 | none (no listening code exists in worker/cleanup; inspected) | — |
 | DEP-API-020 | `core/tests/test_proxy.py::ProxyHeaderTest::test_unknown_host_is_400` (planned) | unit |
@@ -376,7 +374,6 @@ DEP-API-061 for the worker.
 | DEP-API-041 | `scripts/smoke_gunicorn.sh` step "GET / (SPA shell)" | smoke |
 | DEP-API-050 | `core/tests/test_settings_env.py::SecretKeyTest::test_unwritable_home_fails_start` (planned) | unit |
 | DEP-API-051 | none (operator rule; checked at install) | — |
-| DEP-API-052 | `core/tests/test_settings_env.py::SecretKeyTest::test_generated_key_file_mode_0600` (planned) | unit |
 | DEP-API-053 | none (operator rule) | — |
 | DEP-API-060 | `core/tests/test_deploy_files.py::SystemdUnitsTest::test_web_reload_sends_hup` (planned) | config |
 | DEP-API-061 | `jobs/tests/test_worker.py::ShutdownTest::test_shutdown_stops_running_jobs` | unit |

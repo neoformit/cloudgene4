@@ -56,7 +56,7 @@ Out of scope:
 - **DEP-INST-005** The SPA MUST be built with `npm ci && npm run build` in `frontend/` before `collectstatic`. No Node process runs in production.
 - **DEP-INST-006** `/var/lib/cloudgene` MUST exist and be owned by `cloudgene:cloudgene` before any service or management command runs. `/etc/cloudgene/cloudgene.env` MUST be created from `deploy/cloudgene.env.example`, filled in, owned by root and mode `600`.
 - **DEP-INST-007** The PostgreSQL role and database named in `DATABASE_URL` MUST exist, owned by that role, before `migrate`.
-- **DEP-INST-008** The operator MUST then run, as `cloudgene` and with the environment of `/etc/cloudgene/cloudgene.env` loaded, in this order: `manage.py check --deploy`, `manage.py migrate --noinput`, `manage.py collectstatic --noinput`, `manage.py create_admin --username … --email …` (password via `--password`, `$CLOUDGENE_ADMIN_PASSWORD`, or generated), and `manage.py install_workflow PATH --copy …` for each workflow. Every step MUST exit 0 before the next runs. A workflow app outside `/opt/cloudgene` and `/var/lib/cloudgene` MUST be installed with `--copy` (DEP-PROC-007).
+- **DEP-INST-008** The operator MUST then seed `CLOUDGENE_HOME` from the repository's `home/` as specified by [DEP-HOME-007](cloudgene-home.md#layout-defaults-and-first-install) (file modes: [DEP-HOME-008](cloudgene-home.md#layout-defaults-and-first-install)), and then run, as `cloudgene` and with the environment of `/etc/cloudgene/cloudgene.env` loaded, in this order: `manage.py check --deploy`, `manage.py migrate --noinput`, `manage.py collectstatic --noinput`, `manage.py create_admin --username … --email …` (password via `--password`, `$CLOUDGENE_ADMIN_PASSWORD`, or generated), and `manage.py install_workflow PATH --copy …` for each workflow. Every step MUST exit 0 before the next runs. A workflow app outside `/opt/cloudgene` and `/var/lib/cloudgene` MUST be installed with `--copy` (DEP-PROC-007).
 - **DEP-INST-009** The unit files MUST then be copied to `/etc/systemd/system/`, followed by `systemctl daemon-reload` and `systemctl enable --now cloudgene-web cloudgene-worker cloudgene-cleanup.timer`. `cloudgene-cleanup.service` MUST NOT be enabled directly.
 - **DEP-INST-010** nginx MUST be configured from `deploy/nginx.conf.example` and reloaded only after `nginx -t` succeeds ([reverse-proxy.md](reverse-proxy.md)).
 - **DEP-INST-011** `create_admin` prints a generated password on stdout. When it is run so that output is logged (CI, journald), the password SHOULD be given explicitly instead.
@@ -156,7 +156,8 @@ settings read `DATABASE_URL`, `CLOUDGENE_HOME` and the secret key at import. If
 must be created as `cloudgene` so the services can read it. `CLOUDGENE_HOME` subdirectories are
 created lazily by the code that writes them; `settings.yaml` is created on first write (a missing
 file loads as defaults, BE-CONF-002). Seeding from the repository's `home/` is
-[DEP-HOME-007](cloudgene-home.md#layout-defaults-and-first-install); no step above does it yet.
+[DEP-HOME-007](cloudgene-home.md#layout-defaults-and-first-install), the first step of DEP-INST-008;
+no tooling automates it (gap owned by cloudgene-home.md).
 
 **Upgrade window.** While `pip install`, `npm run build`, `migrate` and `collectstatic` run, the
 old web and worker keep serving and running jobs on the old code. Two hazards follow:

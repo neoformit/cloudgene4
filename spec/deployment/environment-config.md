@@ -90,11 +90,9 @@ Out of scope: `settings.yaml` ([../backend/configuration.md](../backend/configur
   SQLite at `<repo>/db.sqlite3`. Reserved characters in the password MUST be percent-encoded.
   `DB_CONN_MAX_AGE` (seconds, default `0` = close after each request) MUST be applied to
   whichever database is selected. For SQLite the BE-ARCH-021 options MUST be added.
-- **DEP-ENV-023** `DJANGO_HSTS_SECONDS` MUST set `SECURE_HSTS_SECONDS` (default `0`, HSTS off).
-  `DJANGO_HSTS_INCLUDE_SUBDOMAINS` MUST default to on when `DJANGO_HSTS_SECONDS` > 0 and off
-  otherwise. `DJANGO_HSTS_PRELOAD` MUST default to off whatever `DJANGO_HSTS_SECONDS` is, and
-  only an explicit true value MAY turn it on. While preload is off, `security.W021` MUST be
-  silenced.
+- **DEP-ENV-023** (withdrawn — see [DEP-SEC-012](security-hardening.md#requirements) for the
+  `DJANGO_HSTS_*` variables and [DEP-SEC-008](security-hardening.md#requirements) for
+  `security.W021`)
 - **DEP-ENV-024** `DJANGO_BEHIND_TLS_PROXY` true MUST set `SECURE_PROXY_SSL_HEADER =
   ('HTTP_X_FORWARDED_PROTO', 'https')`; false MUST leave it unset (DEP-API-021).
 - **DEP-ENV-025** `DJANGO_SECURE_COOKIES` MUST set both `SESSION_COOKIE_SECURE` and
@@ -103,10 +101,10 @@ Out of scope: `settings.yaml` ([../backend/configuration.md](../backend/configur
   logger and the `django` logger; an unknown level MUST stop start-up. `LOG_FORMAT=json`
   (case-insensitive) MUST select the JSON formatter; any other value MUST select the text
   formatter ([../backend/logging.md](../backend/logging.md)).
-- **DEP-ENV-027** `API_JSON_BODY_MAX_MB` MUST cap non-multipart `/api/` bodies by
-  `Content-Length`, answering 413 with code `upload_too_large`, before the body is read.
+- **DEP-ENV-027** `API_JSON_BODY_MAX_MB` (default 10) MUST set the JSON body cap and
   `DJANGO_DATA_UPLOAD_MAX_NUMBER_FILES` MUST set `DATA_UPLOAD_MAX_NUMBER_FILES` (default
-  10000).
+  10000). What each limit rejects, and with which response, is owned by
+  [DEP-WEB-035 and DEP-WEB-036](web-server.md#upload-size-chain).
 - **DEP-ENV-028** `EMAIL_BACKEND` (default file backend into `CLOUDGENE_HOME/mail`) and
   `DEFAULT_FROM_EMAIL` (default `noreply@localhost`) MUST affect only code that calls
   `django.core.mail` directly; application mail MUST use `settings.yaml` `mail.*`
@@ -122,7 +120,8 @@ Out of scope: `settings.yaml` ([../backend/configuration.md](../backend/configur
   `DJANGO_SECRET_KEY` if set and non-empty, else the content of
   `CLOUDGENE_HOME/config/secret_key`, else a new `secrets.token_urlsafe(50)` value written to
   that file with exclusive create and mode `0600`. Creating the file MUST create
-  `CLOUDGENE_HOME/config/` if needed.
+  `CLOUDGENE_HOME/config/` if needed. This requirement is the single home of secret-key
+  generation and its file mode.
 - **DEP-ENV-031** Without `DJANGO_SECRET_KEY`, the web, worker and cleanup processes MUST
   resolve the same `CLOUDGENE_HOME` so they read the same file. If two processes create the
   file at the same time, both MUST end with the key that was written first.
@@ -255,8 +254,6 @@ switch and shows Django error pages; it MUST NOT be used to debug a live install
 | DEP-ENV-020 | `core/tests/test_deploy.py::DeployChecksTest::test_sqlite_warning_only_when_debug_off` | unit |
 | DEP-ENV-021 | `core/tests/test_settings_env.py::ParsingTest::test_cloudgene_home_resolution` (planned) | unit |
 | DEP-ENV-022 | `core/tests/test_settings_env.py::ParsingTest::test_database_url_and_conn_max_age` (planned) | unit |
-| DEP-ENV-023 | `core/tests/test_deploy.py::HstsPreloadDefaultTest::test_preload_off_by_default_even_with_hsts_seconds_set` | unit |
-| DEP-ENV-023 | `core/tests/test_deploy.py::HstsPreloadDefaultTest::test_preload_on_only_with_explicit_env_var` | unit |
 | DEP-ENV-024 | `core/tests/test_settings_env.py::ParsingTest::test_behind_tls_proxy_sets_header` (planned) | unit |
 | DEP-ENV-025 | `core/tests/test_deploy.py::DeployChecksTest::test_secure_transport_warnings` | unit |
 | DEP-ENV-026 | `core/tests/test_deploy.py::JsonFormatterTest::test_produces_valid_json_with_expected_keys` | unit |
